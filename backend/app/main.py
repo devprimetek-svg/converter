@@ -10,6 +10,7 @@ import asyncio
 import io
 import json
 import logging
+import os
 import re
 import threading
 import time
@@ -19,6 +20,7 @@ from typing import Any, Optional
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.excel_export import generate_excel_workbook
@@ -559,4 +561,12 @@ async def bulk_watermark_endpoint(
             "Access-Control-Expose-Headers": "Content-Disposition",
         },
     )
+
+
+# Mount built frontend static assets if present (for unified single-container cloud deployment)
+static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
+if os.path.exists(static_dir):
+    logger.info("Serving frontend static assets from %s", static_dir)
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+
 
