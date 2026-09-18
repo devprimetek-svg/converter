@@ -1,0 +1,31 @@
+export interface PartRow {
+  page: number;
+  fig_no: string;
+  fig_name: string;
+  ref_no: string;
+  part_no: string;
+  description: string;
+  remarks: string;
+  [key: string]: string | number;
+}
+
+export interface FigureItem {
+  fig_no: string;
+  fig_name: string;
+  first_page: number;
+}
+
+export interface ExtractionStatus {
+  job_id: string;
+  filename: string;
+  status: 'pending' | 'processing' | 'completed' | 'error';
+  current_page: number;
+  total_pages: number;
+  current_fig_no: string;
+  current_fig_name: string;
+  model_columns: string[];
+  total_rows: number;
+  figures: FigureItem[];
+  rows?: PartRow[];
+  error?: string | null;
+}
