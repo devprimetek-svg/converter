@@ -175,6 +175,31 @@ export function App() {
 
     setIsExporting(true);
     try {
+      const isValidQty = (val: any): boolean => {
+        if (val === null || val === undefined) return false;
+        const s = String(val).trim();
+        if (
+          s === '' ||
+          s === '-' ||
+          s === '0' ||
+          s === '*' ||
+          s.toLowerCase() === 'none' ||
+          s.toLowerCase() === 'null'
+        ) {
+          return false;
+        }
+        return true;
+      };
+
+      let rowsToExport = status.rows;
+      if (targetModel) {
+        rowsToExport = status.rows.filter((r) => isValidQty(r[targetModel]));
+      } else if (status.model_columns && status.model_columns.length >= 2) {
+        rowsToExport = status.rows.filter((r) =>
+          status.model_columns.some((m) => isValidQty(r[m]))
+        );
+      }
+
       const res = await fetch('/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -183,7 +208,7 @@ export function App() {
           clean_part_numbers: cleanParts,
           model_columns: targetModel ? [targetModel] : status.model_columns,
           target_model: targetModel,
-          rows: status.rows,
+          rows: rowsToExport,
         }),
       });
 

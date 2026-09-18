@@ -41,7 +41,14 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
     for (const model of model_columns) {
       counts[model] = rows.filter((r) => {
         const val = String(r[model] ?? '').trim();
-        return val !== '' && val !== '-';
+        return (
+          val !== '' &&
+          val !== '-' &&
+          val !== '0' &&
+          val !== '*' &&
+          val.toLowerCase() !== 'none' &&
+          val.toLowerCase() !== 'null'
+        );
       }).length;
     }
     return counts;
@@ -58,7 +65,14 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
       // Model filter (if selected, row must have quantity for this model)
       if (selectedModel !== 'ALL') {
         const val = String(row[selectedModel] ?? '').trim();
-        if (val === '' || val === '-') {
+        if (
+          val === '' ||
+          val === '-' ||
+          val === '0' ||
+          val === '*' ||
+          val.toLowerCase() === 'none' ||
+          val.toLowerCase() === 'null'
+        ) {
           return false;
         }
       }
@@ -77,9 +91,17 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
   }, [rows, selectedFigure, selectedModel, searchTerm]);
 
   const handleModelExport = async (model?: string) => {
-    setExportingModel(model || 'ALL');
+    let target: string | undefined;
+    if (model === 'ALL') {
+      target = undefined;
+    } else if (model !== undefined) {
+      target = model;
+    } else {
+      target = selectedModel !== 'ALL' ? selectedModel : undefined;
+    }
+    setExportingModel(target || 'ALL');
     try {
-      await onExport(cleanParts, model);
+      await onExport(cleanParts, target);
     } finally {
       setExportingModel(null);
     }
@@ -238,7 +260,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
             {model_columns.length >= 2 && (
               <div className="flex flex-wrap items-center gap-2">
                 <button
-                  onClick={() => handleModelExport()}
+                  onClick={() => handleModelExport('ALL')}
                   disabled={isExporting || rows.length === 0}
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs sm:text-sm font-bold shadow-sm disabled:opacity-50 disabled:pointer-events-none transition-all"
                   title="Export complete combined catalogue with all model columns"

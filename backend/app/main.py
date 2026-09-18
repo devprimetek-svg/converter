@@ -23,7 +23,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app.excel_export import generate_excel_workbook
+from app.excel_export import generate_excel_workbook, is_valid_quantity
 from app.parts_extractor import (
     ExtractionError,
     NoTextLayerError,
@@ -286,15 +286,21 @@ def export_excel(req: ExportRequest):
     base_name = re.sub(r"\.pdf$", "", base_name, flags=re.IGNORECASE)
     base_name = re.sub(r'[\\/*?:"<>| ]', "_", base_name).strip("_")
 
-    if model_target:
-        # Filter to rows having a quantity for this specific model code
+    if model_target and model_target.upper() != "ALL":
+        # Strictly filter to rows having a valid, non-blank quantity for this specific model code
         rows = [
             r for r in rows
-            if str(r.get(model_target, "")).strip() not in ("", "-", "None")
+            if is_valid_quantity(r.get(model_target))
         ]
         model_columns = [model_target]
         download_filename = f"{base_name}_{model_target}_Parts.xlsx"
     else:
+        # If PDF contains multiple model codes and exporting all, omit rows where all model quantities are blank
+        if len(model_columns) >= 2:
+            rows = [
+                r for r in rows
+                if any(is_valid_quantity(r.get(m)) for m in model_columns)
+            ]
         download_filename = f"{base_name}_Parts.xlsx"
 
     if not rows:

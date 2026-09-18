@@ -16,6 +16,18 @@ from openpyxl.utils import get_column_letter
 from app.parts_extractor import clean_part_number
 
 
+def is_valid_quantity(val: Any) -> bool:
+    """Return True if quantity is non-empty, non-zero, and not a blank placeholder."""
+    if val is None:
+        return False
+    s = str(val).strip()
+    if not s:
+        return False
+    if s.lower() in ("-", "none", "null", "0", "*"):
+        return False
+    return True
+
+
 def generate_excel_workbook(
     rows: list[dict[str, Any]],
     model_columns: list[str],
@@ -24,19 +36,23 @@ def generate_excel_workbook(
 ) -> io.BytesIO:
     """Create an in-memory Excel workbook (.xlsx) from parts rows.
 
-    Formatting requirements:
-    - Bold white-on-dark-blue header row
-    - Thin borders on all cells
-    - Frozen header row (A2)
-    - Autofilter enabled
-    - Sensible auto-fitted column widths
-    - Arial font throughout
-    - Column order: Page, Fig No., Parts Name, Ref No., Part No., Description,
-      <one column per model...>, Remarks
+    Filtering rule:
+    - If a specific model is being exported (len(model_columns) == 1), rows where that
+      model's quantity is blank are excluded along with their remarks.
+    - If multiple models exist, rows where all model quantities are blank are excluded.
     """
+    # Enforce blank quantity exclusion
+    if len(model_columns) == 1:
+        target_model = model_columns[0]
+        rows = [r for r in rows if is_valid_quantity(r.get(target_model))]
+        if sheet_title == "Parts List":
+            sheet_title = f"Parts_{target_model}"[:31]
+    elif len(model_columns) >= 2:
+        rows = [r for r in rows if any(is_valid_quantity(r.get(m)) for m in model_columns)]
+
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = sheet_title
+    ws.title = sheet_title[:31]
 
     # Header styling
     header_fill = PatternFill(start_color="1B365D", end_color="1B365D", fill_type="solid")  # Yamaha Navy Blue

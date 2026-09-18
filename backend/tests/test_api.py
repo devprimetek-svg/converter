@@ -104,3 +104,120 @@ def test_multi_model_export():
     assert res_bgpl.status_code == 200
     assert "Catalogue_2026_BGPL_Parts.xlsx" in res_bgpl.headers.get("content-disposition", "")
 
+
+def test_blank_quantity_row_and_remarks_omitted():
+    """Verify that when a model code quantity is blank, the entire row and remarks are excluded from Excel."""
+    import openpyxl
+
+    rows = [
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "ref_no": "1",
+            "part_no": "95022-06010",
+            "description": "BOLT, FLANGE",
+            "BGPK": "2",
+            "BGPL": "-",
+            "remarks": "UR FOR BGPK ONLY",
+        },
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "ref_no": "2",
+            "part_no": "90430-06817",
+            "description": "GASKET",
+            "BGPK": "",
+            "BGPL": "1",
+            "remarks": "UR FOR BGPL ONLY",
+        },
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "ref_no": "3",
+            "part_no": "99999-00000",
+            "description": "UNASSIGNED PART",
+            "BGPK": "",
+            "BGPL": "",
+            "remarks": "NEITHER MODEL",
+        },
+    ]
+
+    # 1. Export BGPK only
+    res_bgpk = client.post(
+        "/api/export",
+        json={
+            "filename": "Test_MultiModel",
+            "clean_part_numbers": False,
+            "model_columns": ["BGPK", "BGPL"],
+            "target_model": "BGPK",
+            "rows": rows,
+        },
+    )
+    assert res_bgpk.status_code == 200
+    wb_bgpk = openpyxl.load_workbook(io.BytesIO(res_bgpk.content))
+    ws_bgpk = wb_bgpk.active
+    # Collect all cell text across all rows
+    all_bgpk_texts = [cell.value for r in ws_bgpk.iter_rows() for cell in r if cell.value is not None]
+
+    # Row 1 must be present (BGPK has qty 2)
+    assert "95022-06010" in all_bgpk_texts
+    assert "UR FOR BGPK ONLY" in all_bgpk_texts
+
+    # Row 2 (BGPK is blank) must NOT be present (part no and remarks excluded)
+    assert "90430-06817" not in all_bgpk_texts
+    assert "UR FOR BGPL ONLY" not in all_bgpk_texts
+
+    # Row 3 (both blank) must NOT be present
+    assert "99999-00000" not in all_bgpk_texts
+    assert "NEITHER MODEL" not in all_bgpk_texts
+
+    # 2. Export BGPL only
+    res_bgpl = client.post(
+        "/api/export",
+        json={
+            "filename": "Test_MultiModel",
+            "clean_part_numbers": False,
+            "model_columns": ["BGPK", "BGPL"],
+            "target_model": "BGPL",
+            "rows": rows,
+        },
+    )
+    assert res_bgpl.status_code == 200
+    wb_bgpl = openpyxl.load_workbook(io.BytesIO(res_bgpl.content))
+    ws_bgpl = wb_bgpl.active
+    all_bgpl_texts = [cell.value for r in ws_bgpl.iter_rows() for cell in r if cell.value is not None]
+
+    # Row 2 must be present (BGPL has qty 1)
+    assert "90430-06817" in all_bgpl_texts
+    assert "UR FOR BGPL ONLY" in all_bgpl_texts
+
+    # Row 1 (BGPL is "-") must NOT be present
+    assert "95022-06010" not in all_bgpl_texts
+    assert "UR FOR BGPK ONLY" not in all_bgpl_texts
+
+    # 3. Export ALL models
+    res_all = client.post(
+        "/api/export",
+        json={
+            "filename": "Test_MultiModel",
+            "clean_part_numbers": False,
+            "model_columns": ["BGPK", "BGPL"],
+            "rows": rows,
+        },
+    )
+    assert res_all.status_code == 200
+    wb_all = openpyxl.load_workbook(io.BytesIO(res_all.content))
+    ws_all = wb_all.active
+    all_texts = [cell.value for r in ws_all.iter_rows() for cell in r if cell.value is not None]
+
+    # Row 1 and Row 2 have at least one valid qty, so present
+    assert "95022-06010" in all_texts
+    assert "90430-06817" in all_texts
+    # Row 3 has NO valid qty in either model, so it MUST be omitted
+    assert "99999-00000" not in all_texts
+    assert "NEITHER MODEL" not in all_texts
+
+
