@@ -37,30 +37,30 @@ def extract_images_from_pdf(pdf_bytes: bytes) -> list[dict[str, Any]]:
 
                 pil_img = Image.open(io.BytesIO(img_data))
                 width, height = pil_img.size
-                img_format = pil_img.format or "PNG"
 
-                # Standardize file extension
-                ext = img_format.lower()
-                if ext == "jpeg":
-                    ext = "jpg"
+                # Convert to RGB (flatten transparency onto clean white background if needed)
+                if pil_img.mode in ("RGBA", "LA") or (pil_img.mode == "P" and "transparency" in pil_img.info):
+                    bg = Image.new("RGB", pil_img.size, (255, 255, 255))
+                    alpha_mask = pil_img.convert("RGBA").split()[-1]
+                    bg.paste(pil_img.convert("RGB"), mask=alpha_mask)
+                    pil_rgb = bg
+                else:
+                    pil_rgb = pil_img.convert("RGB")
 
-                filename = f"page_{page_num}_img_{img_idx + 1}.{ext}"
+                # Always export extracted image in JPG format
+                jpg_buf = io.BytesIO()
+                pil_rgb.save(jpg_buf, format="JPEG", quality=95)
+                jpg_bytes = jpg_buf.getvalue()
+
+                filename = f"page_{page_num}_img_{img_idx + 1}.jpg"
 
                 # Generate compact base64 thumbnail for fast frontend display
-                thumb = pil_img.copy()
+                thumb = pil_rgb.copy()
                 thumb.thumbnail((260, 260))
                 thumb_io = io.BytesIO()
-                # Save thumbnail as JPEG for speed/compression unless transparent
-                if thumb.mode in ("RGBA", "LA") or (thumb.mode == "P" and "transparency" in thumb.info):
-                    thumb.save(thumb_io, format="PNG")
-                    mime_type = "image/png"
-                else:
-                    thumb = thumb.convert("RGB")
-                    thumb.save(thumb_io, format="JPEG", quality=75)
-                    mime_type = "image/jpeg"
-
+                thumb.save(thumb_io, format="JPEG", quality=80)
                 thumb_base64 = base64.b64encode(thumb_io.getvalue()).decode("utf-8")
-                data_url = f"data:{mime_type};base64,{thumb_base64}"
+                data_url = f"data:image/jpeg;base64,{thumb_base64}"
 
                 image_id = f"img_{uuid.uuid4().hex[:8]}"
 
@@ -70,10 +70,10 @@ def extract_images_from_pdf(pdf_bytes: bytes) -> list[dict[str, Any]]:
                     "page": page_num,
                     "width": width,
                     "height": height,
-                    "format": img_format,
-                    "size_bytes": len(img_data),
+                    "format": "JPEG",
+                    "size_bytes": len(jpg_bytes),
                     "thumbnail_url": data_url,
-                    "raw_bytes": img_data,
+                    "raw_bytes": jpg_bytes,
                     "is_duplicate": is_duplicate,
                 })
             except Exception as e:
@@ -160,23 +160,27 @@ def apply_text_watermark(
         font = ImageFont.load_default()
 
     if is_tiled:
-        # Create transparent overlay for tiled text
-        overlay = Image.new("RGBA", (w_width, w_height), (255, 255, 255, 0))
-        draw = ImageDraw.Draw(overlay)
+        # Calculate diagonal span to ensure full coverage under any rotation angle (e.g. 30°, 45°)
+        diag = int(math.hypot(w_width, w_height) * 1.6)
+        # Create an oversized square canvas for seamless tiling
+        tiled_canvas = Image.new("RGBA", (diag, diag), (255, 255, 255, 0))
+        tdraw = ImageDraw.Draw(tiled_canvas)
 
-        # Create single rotated watermark tile
-        step_x = max(180, font_size * 6)
-        step_y = max(100, font_size * 3)
+        step_x = max(160, font_size * 6)
+        step_y = max(80, font_size * 3)
 
-        for y in range(-w_height // 2, w_height * 2, step_y):
-            for x in range(-w_width // 2, w_width * 2, step_x):
-                # Render rotated text tile
-                tile = Image.new("RGBA", (step_x, step_y), (255, 255, 255, 0))
-                tdraw = ImageDraw.Draw(tile)
-                tdraw.text((10, step_y // 2 - font_size // 2), text, font=font, fill=text_color)
-                if angle != 0:
-                    tile = tile.rotate(angle, expand=False, resample=Image.Resampling.BICUBIC)
-                overlay.paste(tile, (x, y), mask=tile)
+        for y in range(0, diag, step_y):
+            for x in range(0, diag, step_x):
+                tdraw.text((x, y), text, font=font, fill=text_color)
+
+        if angle != 0:
+            # Rotate oversized canvas around its center
+            tiled_canvas = tiled_canvas.rotate(angle, resample=Image.Resampling.BICUBIC)
+
+        # Crop the center region to exact base image dimensions
+        crop_left = (diag - w_width) // 2
+        crop_top = (diag - w_height) // 2
+        overlay = tiled_canvas.crop((crop_left, crop_top, crop_left + w_width, crop_top + w_height))
 
         combined = Image.alpha_composite(base_img, overlay)
     else:

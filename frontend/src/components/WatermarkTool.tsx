@@ -127,19 +127,22 @@ export const WatermarkTool: React.FC = () => {
       ctx.textAlign = 'center';
 
       if (isTiled) {
-        // Tiled text pattern
-        const stepX = Math.max(200, fontSize * 7);
-        const stepY = Math.max(120, fontSize * 4);
+        // Full diagonal span guarantees seamless tiled coverage under any rotation angle (e.g. 30°, 45°)
+        const rad = (rotation * Math.PI) / 180;
+        const diag = Math.hypot(w, h);
+        const stepX = Math.max(160, fontSize * 6);
+        const stepY = Math.max(90, fontSize * 3.5);
 
-        for (let y = -h; y < h * 2; y += stepY) {
-          for (let x = -w; x < w * 2; x += stepX) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate((rotation * Math.PI) / 180);
-            ctx.fillText(text, 0, 0);
-            ctx.restore();
+        ctx.save();
+        ctx.translate(w / 2, h / 2);
+        ctx.rotate(rad);
+
+        for (let y = -diag; y <= diag; y += stepY) {
+          for (let x = -diag; x <= diag; x += stepX) {
+            ctx.fillText(text, x, y);
           }
         }
+        ctx.restore();
       } else {
         // Position on 9-point grid
         const metrics = ctx.measureText(text);
@@ -171,13 +174,21 @@ export const WatermarkTool: React.FC = () => {
       const targetLogoH = (targetLogoW / logoImg.naturalWidth) * logoImg.naturalHeight;
 
       if (isTiled) {
-        const stepX = targetLogoW * 2;
-        const stepY = targetLogoH * 2;
-        for (let y = 0; y < h; y += stepY) {
-          for (let x = 0; x < w; x += stepX) {
-            ctx.drawImage(logoImg, x, y, targetLogoW, targetLogoH);
+        const rad = (rotation * Math.PI) / 180;
+        const diag = Math.hypot(w, h);
+        const stepX = targetLogoW * 2.2;
+        const stepY = targetLogoH * 2.2;
+
+        ctx.save();
+        ctx.translate(w / 2, h / 2);
+        ctx.rotate(rad);
+
+        for (let y = -diag; y <= diag; y += stepY) {
+          for (let x = -diag; x <= diag; x += stepX) {
+            ctx.drawImage(logoImg, x - targetLogoW / 2, y - targetLogoH / 2, targetLogoW, targetLogoH);
           }
         }
+        ctx.restore();
       } else {
         let posX = (w - targetLogoW) / 2;
         let posY = (h - targetLogoH) / 2;
@@ -189,7 +200,11 @@ export const WatermarkTool: React.FC = () => {
         if (position.includes('top')) posY = margin;
         else if (position.includes('bottom')) posY = h - targetLogoH - margin;
 
-        ctx.drawImage(logoImg, posX, posY, targetLogoW, targetLogoH);
+        ctx.save();
+        ctx.translate(posX + targetLogoW / 2, posY + targetLogoH / 2);
+        ctx.rotate((rotation * Math.PI) / 180);
+        ctx.drawImage(logoImg, -targetLogoW / 2, -targetLogoH / 2, targetLogoW, targetLogoH);
+        ctx.restore();
       }
     }
 
@@ -421,34 +436,19 @@ export const WatermarkTool: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[11px] text-slate-500 font-medium">
-                        Opacity ({opacity}%)
-                      </label>
-                      <input
-                        type="range"
-                        min={5}
-                        max={100}
-                        value={opacity}
-                        onChange={(e) => setOpacity(Number(e.target.value))}
-                        className="w-full mt-1.5 accent-blue-600"
-                      />
+                  <div>
+                    <div className="flex justify-between items-center text-[11px] text-slate-500 font-medium">
+                      <span>Opacity</span>
+                      <span className="font-bold text-blue-600 font-mono">{opacity}%</span>
                     </div>
-                    <div>
-                      <label className="text-[11px] text-slate-500 font-medium">
-                        Rotation ({rotation}°)
-                      </label>
-                      <input
-                        type="range"
-                        min={-180}
-                        max={180}
-                        step={5}
-                        value={rotation}
-                        onChange={(e) => setRotation(Number(e.target.value))}
-                        className="w-full mt-1.5 accent-blue-600"
-                      />
-                    </div>
+                    <input
+                      type="range"
+                      min={5}
+                      max={100}
+                      value={opacity}
+                      onChange={(e) => setOpacity(Number(e.target.value))}
+                      className="w-full mt-1.5 accent-blue-600"
+                    />
                   </div>
                 </div>
               )}
@@ -551,6 +551,60 @@ export const WatermarkTool: React.FC = () => {
                         •
                       </button>
                     ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Rotation Angle Controls (Tile angle, 30° preset, custom degrees) */}
+              <div className="space-y-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    {isTiled ? 'Tile Rotation Angle' : 'Watermark Rotation'}
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={-180}
+                      max={180}
+                      value={rotation}
+                      onChange={(e) => setRotation(Number(e.target.value))}
+                      className="w-14 px-2 py-0.5 text-right font-mono font-bold text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="text-xs font-bold text-slate-500">°</span>
+                  </div>
+                </div>
+
+                <input
+                  type="range"
+                  min={-180}
+                  max={180}
+                  step={1}
+                  value={rotation}
+                  onChange={(e) => setRotation(Number(e.target.value))}
+                  className="w-full accent-blue-600 cursor-pointer"
+                />
+
+                {/* Quick Angle Preset Buttons including 30° */}
+                <div className="grid grid-cols-6 gap-1">
+                  {[0, 30, 45, -30, -45, 90].map((deg) => (
+                    <button
+                      key={deg}
+                      type="button"
+                      onClick={() => setRotation(deg)}
+                      className={`py-1 rounded-md text-[10px] font-bold border transition-all ${
+                        rotation === deg
+                          ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                          : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400'
+                      }`}
+                    >
+                      {deg === 30 ? '30° ★' : `${deg > 0 ? `+${deg}` : deg}°`}
+                    </button>
+                  ))}
+                </div>
+
+                {isTiled && (
+                  <div className="p-2 rounded-lg bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-900/40 text-[11px] text-blue-700 dark:text-blue-300">
+                    <span className="font-bold">Active Tile Angle:</span> Tiles repeat seamlessly tilted at <strong className="font-mono">{rotation}°</strong> across the whole canvas.
                   </div>
                 )}
               </div>

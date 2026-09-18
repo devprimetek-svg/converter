@@ -411,33 +411,78 @@ export const BulkImageResizer: React.FC = () => {
 
               {/* Format & Quality */}
               <div className="space-y-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[11px] text-slate-500 font-medium">Format</label>
-                    <select
-                      value={format}
-                      onChange={(e) => setFormat(e.target.value)}
-                      className="w-full mt-1 px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-medium"
-                    >
-                      <option value="ORIGINAL">Keep Original</option>
-                      <option value="JPG">JPG / JPEG</option>
-                      <option value="PNG">PNG</option>
-                      <option value="WEBP">WebP</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[11px] text-slate-500 font-medium">
-                      Quality ({quality}%)
+                <div>
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Output Format
+                  </label>
+                  <select
+                    value={format}
+                    onChange={(e) => setFormat(e.target.value)}
+                    className="w-full mt-1.5 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value="ORIGINAL">Keep Original Format</option>
+                    <option value="JPG">JPG / JPEG (Best for photos & small files)</option>
+                    <option value="PNG">PNG (Lossless clarity)</option>
+                    <option value="WEBP">WebP (Modern ultra-compressed)</option>
+                  </select>
+                </div>
+
+                {/* Image Quality Percentage Section */}
+                <div className="space-y-2.5 pt-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Image Quality Percentage
                     </label>
-                    <input
-                      type="range"
-                      min={20}
-                      max={100}
-                      value={quality}
-                      onChange={(e) => setQuality(Number(e.target.value))}
-                      className="w-full mt-2 accent-emerald-600"
-                    />
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={quality}
+                        onChange={(e) => {
+                          const val = Math.max(1, Math.min(100, Number(e.target.value) || 1));
+                          setQuality(val);
+                        }}
+                        className="w-14 px-2 py-0.5 text-right font-mono font-bold text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-emerald-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                      <span className="text-xs font-bold text-slate-500">%</span>
+                    </div>
                   </div>
+
+                  <input
+                    type="range"
+                    min={1}
+                    max={100}
+                    value={quality}
+                    onChange={(e) => setQuality(Number(e.target.value))}
+                    className="w-full accent-emerald-600 cursor-pointer"
+                  />
+
+                  {/* Quality Presets */}
+                  <div className="grid grid-cols-5 gap-1">
+                    {[60, 75, 85, 95, 100].map((q) => (
+                      <button
+                        key={q}
+                        type="button"
+                        onClick={() => setQuality(q)}
+                        className={`py-1 rounded-md text-[10px] font-bold border transition-all ${
+                          quality === q
+                            ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                            : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400'
+                        }`}
+                      >
+                        {q}%
+                      </button>
+                    ))}
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    {quality >= 90
+                      ? '💎 Maximum visual fidelity with larger file size.'
+                      : quality >= 75
+                      ? '⚡ Optimal web balance: crisp details & small file size.'
+                      : '📦 High compression: smallest download size.'}
+                  </p>
                 </div>
               </div>
 

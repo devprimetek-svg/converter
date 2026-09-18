@@ -176,7 +176,7 @@ export const PdfImageExtractor: React.FC = () => {
               Extract All Images from PDF
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Upload any PDF to rip embedded diagrams, schematics, photos, and figures in their native original quality.
+              Upload any PDF to extract embedded diagrams, schematics, photos, and figures — automatically converted and saved in high-quality JPG format.
             </p>
           </div>
 
@@ -421,8 +421,8 @@ export const PdfImageExtractor: React.FC = () => {
 
                       {/* Single download button */}
                       <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                          {img.format}
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
+                          JPG
                         </span>
                         <a
                           href={`/api/pdf/images/${sessionId}/${img.id}`}

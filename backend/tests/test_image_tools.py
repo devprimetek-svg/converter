@@ -43,7 +43,9 @@ def test_extract_images_from_pdf():
     first = extracted[0]
     assert first["width"] == 100
     assert first["height"] == 80
-    assert "data:image/" in first["thumbnail_url"]
+    assert first["filename"].endswith(".jpg")
+    assert first["format"] == "JPEG"
+    assert "data:image/jpeg;base64," in first["thumbnail_url"]
     assert len(first["raw_bytes"]) > 0
 
 
@@ -79,6 +81,24 @@ def test_apply_text_watermark():
     assert len(wm_bytes) > 0
     wm_img = Image.open(io.BytesIO(wm_bytes))
     assert wm_img.size == (300, 200)
+
+
+def test_apply_tiled_30deg_watermark():
+    img = Image.new("RGB", (400, 300), color=(100, 150, 200))
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+
+    wm_bytes = apply_text_watermark(
+        image_bytes=buf.getvalue(),
+        text="TILED_30DEG",
+        font_size=20,
+        opacity=0.4,
+        angle=30.0,
+        is_tiled=True,
+    )
+    assert len(wm_bytes) > 0
+    wm_img = Image.open(io.BytesIO(wm_bytes))
+    assert wm_img.size == (400, 300)
 
 
 def test_create_images_zip():
