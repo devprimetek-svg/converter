@@ -6,9 +6,10 @@ import {
   FileImage,
   Crop,
   Droplet,
+  Sparkles,
 } from 'lucide-react';
 
-export type ActiveTab = 'catalogue' | 'pdf-images' | 'resizer' | 'watermark';
+export type ActiveTab = 'auto-pipeline' | 'catalogue' | 'pdf-images' | 'resizer' | 'watermark';
 
 interface NavbarProps {
   darkMode: boolean;
@@ -24,6 +25,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
 }) => {
   const tabs = [
+    {
+      id: 'auto-pipeline' as ActiveTab,
+      label: 'Auto Pipeline',
+      icon: Sparkles,
+      badge: '⚡ All-in-1',
+    },
     {
       id: 'catalogue' as ActiveTab,
       label: 'Parts to Excel',

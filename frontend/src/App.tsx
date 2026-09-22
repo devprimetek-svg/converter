@@ -7,6 +7,7 @@ import { ErrorAlert } from './components/ErrorAlert';
 import { PdfImageExtractor } from './components/PdfImageExtractor';
 import { BulkImageResizer } from './components/BulkImageResizer';
 import { WatermarkTool } from './components/WatermarkTool';
+import { AutoPipeline } from './components/AutoPipeline';
 import type { ExtractionStatus } from './types';
 
 export function App() {
@@ -17,7 +18,7 @@ export function App() {
     );
   });
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>('catalogue');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('auto-pipeline');
 
   // Catalogue conversion state
   const [status, setStatus] = useState<ExtractionStatus | null>(null);
@@ -253,6 +254,13 @@ export function App() {
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+        {/* Tab 0: Automated End-to-End Pipeline */}
+        {activeTab === 'auto-pipeline' && (
+          <div className="animate-in fade-in duration-200">
+            <AutoPipeline />
+          </div>
+        )}
+
         {/* Tab 1: Parts to Excel Catalogue Converter */}
         {activeTab === 'catalogue' && (
           <div className="space-y-8 animate-in fade-in duration-200">

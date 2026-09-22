@@ -569,6 +569,153 @@ async def bulk_watermark_endpoint(
     )
 
 
+# ---------------------------------------------------------------------------
+# AUTOMATED ALL-IN-ONE PIPELINE ENDPOINTS
+# ---------------------------------------------------------------------------
+
+from app.pipeline import pipeline_manager, run_pipeline_worker
+
+
+@app.post("/api/pipeline/start")
+async def start_pipeline_endpoint(
+    file: UploadFile = File(...),
+    watermark_text: str = Form("CONFIDENTIAL"),
+    watermark_opacity: float = Form(0.15),
+    watermark_angle: float = Form(-30.0),
+    watermark_padding: int = Form(115),
+    watermark_size_pct: int = Form(10),
+    watermark_color: str = Form("#FFFFFF"),
+    watermark_is_tiled: bool = Form(True),
+    watermark_logo: Optional[UploadFile] = File(None),
+    resize_width: int = Form(1000),
+    resize_height: int = Form(1200),
+    resize_quality: int = Form(100),
+    clean_part_numbers: bool = Form(True),
+):
+    """Start the automated end-to-end studio pipeline."""
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files (.pdf) are supported.")
+
+    pdf_bytes = await file.read()
+    if len(pdf_bytes) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    logo_bytes = None
+    if watermark_logo and watermark_logo.filename:
+        logo_content = await watermark_logo.read()
+        if len(logo_content) > 0:
+            logo_bytes = logo_content
+
+    wm_config = {
+        "text": watermark_text,
+        "opacity": watermark_opacity,
+        "angle": watermark_angle,
+        "padding": watermark_padding,
+        "size_pct": watermark_size_pct,
+        "color": watermark_color,
+        "is_tiled": watermark_is_tiled,
+        "logo_bytes": logo_bytes,
+        "scale_pct": watermark_size_pct,
+    }
+
+    resize_config = {
+        "width": resize_width,
+        "height": resize_height,
+        "quality": resize_quality,
+    }
+
+    job = pipeline_manager.create_job(file.filename)
+
+    thread = threading.Thread(
+        target=run_pipeline_worker,
+        args=(job, pdf_bytes, wm_config, resize_config, clean_part_numbers),
+        daemon=True,
+    )
+    thread.start()
+
+    return {"job_id": job.job_id, "filename": file.filename}
+
+
+@app.get("/api/pipeline/stream/{job_id}")
+async def stream_pipeline_progress(job_id: str):
+    """Server-Sent Events stream for real-time pipeline progress."""
+    job = pipeline_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    async def event_generator():
+        last_pct = -1
+        while True:
+            status_dict = job.to_dict()
+            cur_pct = status_dict["progress_pct"]
+            cur_status = status_dict["status"]
+
+            if cur_pct != last_pct or cur_status in ("completed", "error"):
+                last_pct = cur_pct
+                yield f"data: {json.dumps(status_dict)}\n\n"
+
+            if cur_status in ("completed", "error"):
+                break
+            await asyncio.sleep(0.3)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/api/pipeline/status/{job_id}")
+def get_pipeline_status_endpoint(job_id: str):
+    """Poll pipeline status."""
+    job = pipeline_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    return job.to_dict()
+
+
+@app.get("/api/pipeline/download/{job_id}")
+def download_pipeline_bundle(job_id: str):
+    """Download the complete Master ZIP bundle (Excel + processed images)."""
+    job = pipeline_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    if job.status != "completed" or not job.zip_bytes:
+        raise HTTPException(status_code=400, detail="Pipeline job is not ready for download.")
+
+    return StreamingResponse(
+        io.BytesIO(job.zip_bytes),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{job.zip_filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
+
+
+@app.get("/api/pipeline/download-excel/{job_id}")
+def download_pipeline_excel(job_id: str):
+    """Download just the generated Excel spreadsheet from the pipeline."""
+    job = pipeline_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+    if not job.excel_bytes:
+        raise HTTPException(status_code=400, detail="Excel workbook not ready.")
+
+    return StreamingResponse(
+        io.BytesIO(job.excel_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{job.excel_filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
+
+
 # Mount built frontend static assets if present (for unified single-container cloud deployment)
 static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
 if os.path.exists(static_dir):
