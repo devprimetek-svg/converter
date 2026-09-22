@@ -232,6 +232,7 @@ def extract_parts_from_pdf(
     current_fig_name: str = ""
     last_ref_no: str = ""
     last_known_model_columns: list[ModelColumn] = []
+    page_figure_map: dict[int, dict[str, str]] = {}
 
     total_words_extracted = 0
 
@@ -300,6 +301,12 @@ def extract_parts_from_pdf(
                 if progress_callback:
                     progress_callback(page_num, total_pages, "", "")
                 continue
+
+            # Record figure mapping for this page
+            page_figure_map[page_num] = {
+                "fig_no": current_fig_no,
+                "fig_name": current_fig_name,
+            }
 
             # Notify progress
             if progress_callback:
@@ -480,4 +487,5 @@ def extract_parts_from_pdf(
         "model_columns": document_model_columns,
         "total_pages": total_pages,
         "figures": figures_seen,
+        "page_figure_map": page_figure_map,
     }

@@ -579,6 +579,7 @@ from app.pipeline import pipeline_manager, run_pipeline_worker
 @app.post("/api/pipeline/start")
 async def start_pipeline_endpoint(
     file: UploadFile = File(...),
+    watermark_type: str = Form("logo"),
     watermark_text: str = Form("CONFIDENTIAL"),
     watermark_opacity: float = Form(0.15),
     watermark_angle: float = Form(-30.0),
@@ -607,6 +608,7 @@ async def start_pipeline_endpoint(
             logo_bytes = logo_content
 
     wm_config = {
+        "wm_type": watermark_type,
         "text": watermark_text,
         "opacity": watermark_opacity,
         "angle": watermark_angle,

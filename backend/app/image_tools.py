@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import math
+import os
+import re
 import uuid
 import zipfile
 from typing import Any, Optional
@@ -12,31 +15,69 @@ from typing import Any, Optional
 from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfReader
 
+DEFAULT_LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "default_watermark_logo.png")
 
-def extract_images_from_pdf(pdf_bytes: bytes) -> list[dict[str, Any]]:
-    """Extract all embedded raster images from a PDF document in-memory.
 
-    Returns a list of image metadata dicts including base64 preview thumbnails
-    and raw image bytes for subsequent export.
+def get_default_logo_bytes() -> Optional[bytes]:
+    """Retrieve bundled company logo image bytes if available."""
+    if os.path.exists(DEFAULT_LOGO_PATH):
+        try:
+            with open(DEFAULT_LOGO_PATH, "rb") as f:
+                return f.read()
+        except Exception:
+            pass
+    return None
+
+
+def extract_images_from_pdf(
+    pdf_bytes: bytes,
+    figure_pages: Optional[dict[int, dict[str, str]]] = None,
+    parts_only: bool = False,
+    min_dimension: int = 150,
+) -> list[dict[str, Any]]:
+    """Extract embedded raster images from a PDF document in-memory.
+
+    If parts_only is True or figure_pages is provided:
+    - Filters out non-figure pages (Cover, Foreword, Index, etc.)
+    - Excludes small icons, banners, and noise (< min_dimension px)
+    - Strictly deduplicates repeated/identical image streams across pages
+    - Names files as per parts figures: FIG_{fig_no}_{fig_name_clean}.jpg
     """
     reader = PdfReader(io.BytesIO(pdf_bytes))
     extracted: list[dict[str, Any]] = []
-    seen_hashes: set[int] = set()
+    seen_hashes: set[str] = set()
+    fig_counter: dict[str, int] = {}
+
+    effective_parts_only = parts_only or (figure_pages is not None and len(figure_pages) > 0)
+    effective_min_dim = min_dimension if effective_parts_only else 10
 
     for page_idx, page in enumerate(reader.pages):
         page_num = page_idx + 1
+
+        # If parts_only mode and figure_pages mapping is provided, only inspect figure pages
+        fig_info = figure_pages.get(page_num) if figure_pages else None
+        if effective_parts_only and figure_pages is not None and not fig_info:
+            continue
+
         page_images = getattr(page, "images", [])
 
         for img_idx, img_obj in enumerate(page_images):
             try:
                 img_data = img_obj.data
-                # Deduplicate identical raw streams if repeated on multiple pages
-                data_hash = hash(img_data[:1000] + img_data[-1000:])
-                is_duplicate = data_hash in seen_hashes
-                seen_hashes.add(data_hash)
 
+                # Check dimensions before processing
                 pil_img = Image.open(io.BytesIO(img_data))
                 width, height = pil_img.size
+
+                if width < effective_min_dim or height < effective_min_dim:
+                    continue
+
+                # Strict SHA-256 deduplication to eliminate repeated images
+                img_hash = hashlib.sha256(img_data).hexdigest()
+                if img_hash in seen_hashes:
+                    # Do not extract duplicate/repeated images
+                    continue
+                seen_hashes.add(img_hash)
 
                 # Convert to RGB (flatten transparency onto clean white background if needed)
                 if pil_img.mode in ("RGBA", "LA") or (pil_img.mode == "P" and "transparency" in pil_img.info):
@@ -47,12 +88,27 @@ def extract_images_from_pdf(pdf_bytes: bytes) -> list[dict[str, Any]]:
                 else:
                     pil_rgb = pil_img.convert("RGB")
 
-                # Always export extracted image in JPG format
+                # Always export in JPG format
                 jpg_buf = io.BytesIO()
                 pil_rgb.save(jpg_buf, format="JPEG", quality=95)
                 jpg_bytes = jpg_buf.getvalue()
 
-                filename = f"page_{page_num}_img_{img_idx + 1}.jpg"
+                # Generate descriptive filename as per parts figure
+                if fig_info:
+                    fig_no = str(fig_info.get("fig_no", "")).strip()
+                    fig_name = str(fig_info.get("fig_name", "")).strip()
+                    clean_name = re.sub(r"[^A-Za-z0-9_]+", "_", fig_name).strip("_")
+                    padded_no = fig_no.zfill(2) if fig_no.isdigit() else fig_no
+
+                    count = fig_counter.get(fig_no, 0) + 1
+                    fig_counter[fig_no] = count
+
+                    if count == 1:
+                        filename = f"FIG_{padded_no}_{clean_name}.jpg" if clean_name else f"FIG_{padded_no}.jpg"
+                    else:
+                        filename = f"FIG_{padded_no}_{clean_name}_{count}.jpg" if clean_name else f"FIG_{padded_no}_{count}.jpg"
+                else:
+                    filename = f"page_{page_num}_img_{img_idx + 1}.jpg"
 
                 # Generate compact base64 thumbnail for fast frontend display
                 thumb = pil_rgb.copy()
@@ -67,6 +123,8 @@ def extract_images_from_pdf(pdf_bytes: bytes) -> list[dict[str, Any]]:
                 extracted.append({
                     "id": image_id,
                     "filename": filename,
+                    "fig_no": fig_info.get("fig_no", "") if fig_info else "",
+                    "fig_name": fig_info.get("fig_name", "") if fig_info else "",
                     "page": page_num,
                     "width": width,
                     "height": height,
@@ -74,10 +132,9 @@ def extract_images_from_pdf(pdf_bytes: bytes) -> list[dict[str, Any]]:
                     "size_bytes": len(jpg_bytes),
                     "thumbnail_url": data_url,
                     "raw_bytes": jpg_bytes,
-                    "is_duplicate": is_duplicate,
+                    "is_duplicate": False,
                 })
-            except Exception as e:
-                # Silently skip corrupted single image stream and continue
+            except Exception:
                 continue
 
     return extracted
@@ -318,13 +375,16 @@ def process_watermark_and_resize(
 
     Returns (processed_image_bytes, "jpg").
     """
-    # 1. Apply watermark with presets
+    # 1. Apply watermark with presets (defaults to company logo in tiled view)
     logo_bytes = watermark_config.get("logo_bytes")
+    if not logo_bytes and watermark_config.get("wm_type") != "text":
+        logo_bytes = get_default_logo_bytes()
+
     if logo_bytes:
         wm_bytes = apply_image_watermark(
             image_bytes=image_bytes,
             logo_bytes=logo_bytes,
-            scale_pct=watermark_config.get("scale_pct", 10),
+            scale_pct=watermark_config.get("scale_pct", watermark_config.get("size_pct", 10)),
             opacity=watermark_config.get("opacity", 0.15),
             angle=watermark_config.get("angle", -30.0),
             padding=watermark_config.get("padding", 115),

@@ -188,3 +188,120 @@ def test_pipeline_api_flow():
     assert excel_res.status_code == 200
     assert excel_res.headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     assert excel_res.content[:4] == b"PK\x03\x04"
+
+
+def test_parts_only_deduplication_and_figure_naming():
+    """Verify that:
+    1. Images on non-figure pages (Cover) are skipped.
+    2. Repeated/continuation images are deduplicated.
+    3. Filenames follow FIG_XX_<FIG_NAME>.jpg.
+    4. Default bundled logo is applied in tiled view.
+    """
+    # Create two distinct test images
+    img_a = Image.new("RGB", (300, 200), color=(10, 150, 80))
+    img_a_buf = io.BytesIO()
+    img_a.save(img_a_buf, format="JPEG")
+    img_a_bytes = img_a_buf.getvalue()
+
+    img_b = Image.new("RGB", (300, 200), color=(80, 20, 220))
+    img_b_buf = io.BytesIO()
+    img_b.save(img_b_buf, format="JPEG")
+    img_b_bytes = img_b_buf.getvalue()
+
+    # Cover image (must NOT be extracted because cover is not a parts figure)
+    img_cover = Image.new("RGB", (250, 250), color=(200, 200, 10))
+    img_cover_buf = io.BytesIO()
+    img_cover.save(img_cover_buf, format="JPEG")
+    img_cover_bytes = img_cover_buf.getvalue()
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=(842, 595))
+
+    # Page 1: Cover page with logo/photo (NO FIG header)
+    c.drawString(100, 500, "YAMAHA GENUINE PARTS CATALOGUE")
+    c.drawImage(ImageReader(io.BytesIO(img_cover_bytes)), 100, 200, width=200, height=200)
+    c.showPage()
+
+    # Page 2: FIG. 1 CYLINDER HEAD with Image A
+    c.drawString(50, 550, "FIG. 1 CYLINDER HEAD")
+    c.drawString(50, 520, "REF. NO.")
+    c.drawString(120, 520, "PART NO.")
+    c.drawString(240, 520, "DESCRIPTION")
+    c.drawString(520, 520, "BGPK")
+    c.drawString(50, 490, "1")
+    c.drawString(120, 490, "B7J-E1102-00")
+    c.drawString(240, 490, "CYLINDER HEAD")
+    c.drawString(520, 490, "1")
+    c.drawImage(ImageReader(io.BytesIO(img_a_bytes)), 600, 300, width=180, height=120)
+    c.showPage()
+
+    # Page 3: Continuation page for FIG. 1 with identical Image A (should be deduplicated!)
+    c.drawString(50, 550, "FIG. 1 CYLINDER HEAD")
+    c.drawString(50, 520, "REF. NO.")
+    c.drawString(120, 520, "PART NO.")
+    c.drawString(240, 520, "DESCRIPTION")
+    c.drawString(520, 520, "BGPK")
+    c.drawString(50, 490, "2")
+    c.drawString(120, 490, "95022-06010")
+    c.drawString(240, 490, "BOLT")
+    c.drawString(520, 490, "2")
+    c.drawImage(ImageReader(io.BytesIO(img_a_bytes)), 600, 300, width=180, height=120)
+    c.showPage()
+
+    # Page 4: FIG. 2 CRANKSHAFT with Image B
+    c.drawString(50, 550, "FIG. 2 CRANKSHAFT")
+    c.drawString(50, 520, "REF. NO.")
+    c.drawString(120, 520, "PART NO.")
+    c.drawString(240, 520, "DESCRIPTION")
+    c.drawString(520, 520, "BGPK")
+    c.drawString(50, 490, "1")
+    c.drawString(120, 490, "B7J-E1400-00")
+    c.drawString(240, 490, "CRANKSHAFT ASSY")
+    c.drawString(520, 490, "1")
+    c.drawImage(ImageReader(io.BytesIO(img_b_bytes)), 600, 300, width=180, height=120)
+    c.showPage()
+
+    c.save()
+    pdf_bytes = buf.getvalue()
+
+    job = pipeline_manager.create_job("Catalogue_MultiFig.pdf")
+
+    # Run pipeline with default watermark configuration (bundled logo, tiled)
+    run_pipeline_worker(
+        job=job,
+        pdf_bytes=pdf_bytes,
+        watermark_config={
+            "angle": -30.0,
+            "padding": 115,
+            "scale_pct": 10,
+            "opacity": 0.15,
+            "is_tiled": True,
+        },
+        resize_config={
+            "width": 1000,
+            "height": 1200,
+            "quality": 100,
+        },
+        clean_parts=True,
+    )
+
+    assert job.status == "completed", f"Job failed: {job.error}"
+    assert job.zip_bytes is not None
+
+    zf = zipfile.ZipFile(io.BytesIO(job.zip_bytes))
+    filenames = zf.namelist()
+    image_files = sorted([f for f in filenames if f.startswith("images/") and f.endswith(".jpg")])
+
+    # Exactly 2 images extracted: FIG 1 and FIG 2.
+    # Cover image was skipped (non-parts page).
+    # Page 3 continuation image was deduplicated (identical hash to Page 2).
+    assert len(image_files) == 2, f"Expected exactly 2 images, got {len(image_files)}: {image_files}"
+    assert "images/FIG_01_CYLINDER_HEAD.jpg" in image_files
+    assert "images/FIG_02_CRANKSHAFT.jpg" in image_files
+
+    # Verify each image is resized to 1000x1200
+    for img_fname in image_files:
+        raw_data = zf.read(img_fname)
+        im = Image.open(io.BytesIO(raw_data))
+        assert im.size == (1000, 1200)
+

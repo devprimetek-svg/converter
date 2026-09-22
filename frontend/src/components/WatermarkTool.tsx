@@ -36,21 +36,21 @@ type Position =
 export const WatermarkTool: React.FC = () => {
   const [items, setItems] = useState<WatermarkItem[]>([]);
   const [activeIdx, setActiveIdx] = useState<number>(0);
-  const [wmType, setWmType] = useState<WatermarkType>('text');
+  const [wmType, setWmType] = useState<WatermarkType>('image');
 
   // Text watermark state
-  const [text, setText] = useState<string>('CONFIDENTIAL');
+  const [text, setText] = useState<string>('INDIA SPARE');
   const [fontSize, setFontSize] = useState<number>(48);
   const [color, setColor] = useState<string>('#FFFFFF');
-  const [opacity, setOpacity] = useState<number>(50);
+  const [opacity, setOpacity] = useState<number>(15);
   const [rotation, setRotation] = useState<number>(-30);
   const [position, setPosition] = useState<Position>('center');
-  const [isTiled, setIsTiled] = useState<boolean>(false);
+  const [isTiled, setIsTiled] = useState<boolean>(true);
 
-  // Logo watermark state
+  // Logo watermark state (Pre-set with India Spare logo)
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
-  const [logoScale, setLogoScale] = useState<number>(25); // % of base image width
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>('/default_watermark_logo.png');
+  const [logoScale, setLogoScale] = useState<number>(10); // 10% preset scale
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isZipping, setIsZipping] = useState<boolean>(false);
@@ -457,9 +457,23 @@ export const WatermarkTool: React.FC = () => {
               {wmType === 'image' && (
                 <div className="space-y-3.5">
                   <div>
-                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                      Upload Logo (PNG/JPEG)
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                        Watermark Logo
+                      </label>
+                      {logoFile && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLogoFile(null);
+                            setLogoDataUrl('/default_watermark_logo.png');
+                          }}
+                          className="text-[10px] text-blue-600 hover:underline font-semibold"
+                        >
+                          Reset to India Spare Logo
+                        </button>
+                      )}
+                    </div>
                     <input
                       ref={logoInputRef}
                       type="file"
@@ -467,13 +481,22 @@ export const WatermarkTool: React.FC = () => {
                       className="hidden"
                       onChange={handleLogoUpload}
                     />
-                    <button
-                      type="button"
-                      onClick={() => logoInputRef.current?.click()}
-                      className="w-full mt-1 py-2 px-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:border-blue-500"
-                    >
-                      {logoFile ? logoFile.name : '+ Select Watermark Logo'}
-                    </button>
+                    <div className="mt-1 p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between gap-2">
+                      <div className="h-8 max-w-[140px] flex items-center bg-white dark:bg-slate-900 px-2 py-1 rounded border border-slate-200 dark:border-slate-700">
+                        <img
+                          src={logoDataUrl || '/default_watermark_logo.png'}
+                          alt="Logo"
+                          className="max-h-full object-contain"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => logoInputRef.current?.click()}
+                        className="py-1 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-[11px] font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      >
+                        {logoFile ? 'Change Logo' : 'Upload Custom'}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">

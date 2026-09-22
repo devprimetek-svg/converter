@@ -160,6 +160,8 @@ def run_pipeline_worker(
 
         parts_result = extract_parts_from_pdf(pdf_bytes, progress_callback=on_page_progress)
 
+        page_figure_map = parts_result.get("page_figure_map", {})
+
         with job.lock:
             job.total_pages = parts_result.get("total_pages", 0)
             job.model_columns = parts_result.get("model_columns", [])
@@ -184,19 +186,27 @@ def run_pipeline_worker(
             job.excel_bytes = excel_bytes
             job.excel_filename = excel_filename
             job.step_index = 3
-            job.step_name = "Extracting Embedded Images..."
+            job.step_name = "Extracting Parts Images (Deduplicated)..."
             job.progress_pct = 55
-            job.details = "Scanning document for raster illustrations..."
+            job.details = "Extracting unique illustrations mapped to parts figures..."
 
-        # Step 3: Extract PDF images
-        raw_images = extract_images_from_pdf(pdf_bytes)
+        # Step 3: Extract PDF images strictly for parts figures with deduplication
+        raw_images = extract_images_from_pdf(
+            pdf_bytes=pdf_bytes,
+            figure_pages=page_figure_map if page_figure_map else None,
+            parts_only=bool(page_figure_map),
+        )
+
+        # Fallback if no images found with figure filter but images exist in PDF
+        if not raw_images and not page_figure_map:
+            raw_images = extract_images_from_pdf(pdf_bytes, parts_only=False)
 
         with job.lock:
             job.total_images_found = len(raw_images)
             job.step_index = 4
             job.step_name = "Applying Watermark & Resizing..."
             job.progress_pct = 65
-            job.details = f"Processing {len(raw_images)} images with presets..."
+            job.details = f"Processing {len(raw_images)} parts diagrams with presets..."
 
         # Step 4 & 5: Watermark & Resize each image
         processed_items: list[tuple[str, bytes]] = []
@@ -211,7 +221,7 @@ def run_pipeline_worker(
                     watermark_config=watermark_config,
                     resize_config=resize_config,
                 )
-                fname = f"image_{idx + 1:03d}_{img_info['page']}_{ext}.jpg"
+                fname = img_info.get("filename") or f"image_{idx + 1:03d}_{img_info['page']}.jpg"
                 processed_items.append((fname, processed_bytes))
 
                 # Generate lightweight thumbnail for UI preview
@@ -224,6 +234,8 @@ def run_pipeline_worker(
                 thumbnails.append({
                     "id": f"proc_{idx + 1}",
                     "filename": fname,
+                    "fig_no": img_info.get("fig_no", ""),
+                    "fig_name": img_info.get("fig_name", ""),
                     "page": img_info["page"],
                     "width": resize_config.get("width", 1000),
                     "height": resize_config.get("height", 1200),
