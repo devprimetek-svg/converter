@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Navbar, type ActiveTab } from './components/Navbar';
+import { SplashScreen } from './components/SplashScreen';
 import { FileUploadZone } from './components/FileUploadZone';
 import { ProgressBar } from './components/ProgressBar';
 import { ResultsDashboard } from './components/ResultsDashboard';
@@ -11,6 +12,7 @@ import { AutoPipeline } from './components/AutoPipeline';
 import type { ExtractionStatus } from './types';
 
 export function App() {
+  const [showSplash, setShowSplash] = useState<boolean>(true);
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     return (
       localStorage.getItem('theme') === 'dark' ||
@@ -245,15 +247,19 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200 font-sans">
+    <div className="min-h-screen min-h-[100dvh] flex flex-col bg-[#07090e] bg-carbon-pattern text-slate-100 transition-colors duration-200 font-sans">
+      {/* Animated Automotive Startup Splash Screen */}
+      {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
+
       <Navbar
         darkMode={darkMode}
         setDarkMode={setDarkMode}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        onReplaySplash={() => setShowSplash(true)}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8">
         {/* Tab 0: Automated End-to-End Pipeline */}
         {activeTab === 'auto-pipeline' && (
           <div className="animate-in fade-in duration-200">
@@ -275,15 +281,18 @@ export function App() {
             {!status && !errorMessage && (
               <div className="space-y-8">
                 <div className="text-center max-w-2xl mx-auto space-y-3">
-                  <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
-                    Automated Parts Extraction Engine
+                  <span className="inline-block px-3 py-1 rounded-full text-xs font-mono font-semibold bg-cyan-950/70 text-cyan-300 border border-cyan-500/30 uppercase tracking-widest">
+                    Venture Intelligence Core
                   </span>
-                  <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-                    Turn Yamaha Parts PDFs into Clean Excel Sheets
+                  <h2
+                    className="text-3xl sm:text-4xl font-black text-white tracking-tight uppercase"
+                    style={{ fontFamily: "'Orbitron', sans-serif" }}
+                  >
+                    Extract Parts Catalogues to Excel
                   </h2>
-                  <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">
-                    Extracts figure sections, vertical rotated model codes (BGPJ, BGPL, etc.),
-                    continuation rows, and descriptions with millimeter precision.
+                  <p className="text-sm sm:text-base text-slate-400">
+                    High-speed parsing of figure diagrams, vertical rotated model codes (BGPJ, BGPL),
+                    part descriptions, and remark columns with millimeter precision.
                   </p>
                 </div>
 
@@ -334,9 +343,18 @@ export function App() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-200 dark:border-slate-800/80 py-6 text-center text-xs text-slate-500 dark:text-slate-500">
-        <p>Document & Image Processing Suite • 100% In-Memory Privacy Guarantee</p>
+      {/* Automotive Telemetry Footer */}
+      <footer className="border-t border-slate-800/80 bg-[#07090e]/90 py-5 text-xs font-mono text-slate-500 safe-bottom">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            <span className="font-bold tracking-wider text-slate-300 uppercase">
+              Venture Automation • Extract and Build
+            </span>
+          </div>
+          <p className="text-slate-500">Document & Image Intelligence Matrix • 100% In-Memory Privacy</p>
+          <span className="text-cyan-400 font-semibold text-[11px]">TELEMETRY ACTIVE [OK]</span>
+        </div>
       </footer>
     </div>
   );

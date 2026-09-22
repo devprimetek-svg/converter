@@ -3,22 +3,79 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
-    @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100 min-h-screen font-sans;
+    @apply bg-[#07090e] text-slate-100 antialiased font-sans selection:bg-cyan-500/30 selection:text-cyan-200;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding-top: var(--sat);
+    padding-bottom: var(--sab);
+    padding-left: var(--sal);
+    padding-right: var(--sar);
+    overflow-x: hidden;
   }
 }
 
-/* Custom scrollbar styling */
+/* Automotive Carbon Mesh Background Pattern */
+.bg-carbon-pattern {
+  background-color: #07090e;
+  background-image: 
+    radial-gradient(ellipse at 50% 0%, rgba(0, 240, 255, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 90%, rgba(245, 158, 11, 0.04) 0%, transparent 50%),
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+}
+
+/* Cockpit Telemetry HUD Glass Panel */
+.cockpit-card {
+  @apply bg-[#0b0f19]/90 backdrop-blur-xl border border-slate-800/90 rounded-2xl shadow-xl transition-all duration-200;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.cockpit-card-hover {
+  @apply hover:border-cyan-500/40 hover:shadow-glow-cyan-sm transition-all duration-200;
+}
+
+/* Safe area inset helpers */
+.safe-top {
+  padding-top: max(env(safe-area-inset-top), 0px);
+}
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+.safe-left {
+  padding-left: max(env(safe-area-inset-left), 0px);
+}
+.safe-right {
+  padding-right: max(env(safe-area-inset-right), 0px);
+}
+
+/* Custom Cockpit Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #07090e;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 dark:bg-slate-700 rounded-full;
+  background: #1e293b;
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 240, 255, 0.15);
 }
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-400 dark:bg-slate-600;
+  background: #00f0ff;
 }

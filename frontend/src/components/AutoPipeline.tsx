@@ -235,44 +235,49 @@ export const AutoPipeline: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-8 animate-in fade-in duration-200">
-      {/* Hero Header */}
+    <div className="w-full max-w-7xl mx-auto space-y-6 sm:space-y-8 animate-in fade-in duration-200">
+      {/* Automotive Cockpit Hero Header */}
       <div className="text-center max-w-3xl mx-auto space-y-3">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-          <Sparkles className="w-3.5 h-3.5" />
-          All-in-One Automated Pipeline
+        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-mono font-bold bg-cyan-950/70 text-cyan-300 border border-cyan-500/30 shadow-glow-cyan-sm uppercase tracking-widest">
+          <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+          Autonomous Pipeline Engine
         </div>
-        <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-          Automate Everything from a Single PDF Upload
+        <h2
+          className="text-3xl sm:text-5xl font-black text-white tracking-tight uppercase"
+          style={{ fontFamily: "'Orbitron', sans-serif" }}
+        >
+          Automate Everything from One PDF
         </h2>
-        <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">
-          Upload your PDF once: extracts parts into Excel, extracts illustrations, applies your watermark preset, resizes to 1000x1200, and bundles everything into a single downloadable ZIP.
+        <p className="text-sm sm:text-base text-slate-400 font-medium">
+          Upload catalogue once: extracts parts into Excel, detects figure diagrams, applies India Spare watermark preset, resizes to 1000x1200, and builds the Master ZIP archive.
         </p>
       </div>
 
       {/* Preset Indicator Bar & Toggle */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+      <div className="p-4 sm:p-5 rounded-2xl bg-[#0b0f19]/90 border border-slate-800/90 shadow-xl space-y-3">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Active Presets:</span>
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 text-xs font-semibold border border-blue-200/60 dark:border-blue-900/60">
-              <Droplet className="w-3 h-3" />
+            <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500">
+              Active Presets:
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-cyan-950/60 text-cyan-300 text-xs font-mono font-semibold border border-cyan-500/30">
+              <Droplet className="w-3 h-3 text-cyan-400" />
               {wmType === 'logo'
                 ? (logoFile ? `Logo: ${logoFile.name.slice(0, 15)} (Tiled)` : 'Watermark: India Spare Logo (Tiled)')
-                : `Watermark: "${wmText}" (Tiled)`} • Rotation: {wmRotation}° • Padding: {wmPadding}px • Size: {wmSizePct}% • Opacity: {wmOpacity}%
+                : `Watermark: "${wmText}" (Tiled)`} • {wmRotation}° • {wmPadding}px • {wmSizePct}% • {wmOpacity}%
             </span>
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-xs font-semibold border border-emerald-200/60 dark:border-emerald-900/60">
-              <Crop className="w-3 h-3" />
-              Resize: {resizeWidth}x{resizeHeight} • Quality: {resizeQuality}%
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-950/50 text-amber-300 text-xs font-mono font-semibold border border-amber-500/30">
+              <Crop className="w-3 h-3 text-amber-400" />
+              {resizeWidth}x{resizeHeight} px • {resizeQuality}% JPG
             </span>
           </div>
 
           <button
             onClick={() => setShowPresetSettings(!showPresetSettings)}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-slate-400 hover:text-cyan-300 transition-colors"
           >
-            <Sliders className="w-3.5 h-3.5" />
-            {showPresetSettings ? 'Hide Preset Settings' : 'Customize Presets'}
+            <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+            {showPresetSettings ? 'Hide Preset Configuration' : 'Customize Telemetry Presets'}
             {showPresetSettings ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
         </div>
@@ -521,8 +526,14 @@ export const AutoPipeline: React.FC = () => {
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleFileDrop}
           onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-500 rounded-3xl p-10 sm:p-14 text-center cursor-pointer transition-all bg-white/50 dark:bg-slate-900/50 hover:bg-emerald-50/20 dark:hover:bg-emerald-950/10 group shadow-xs"
+          className="relative group border-2 border-dashed border-slate-800 hover:border-cyan-500/60 rounded-3xl p-8 sm:p-14 text-center cursor-pointer transition-all bg-[#0b0f19]/80 hover:bg-[#0d1424]/90 shadow-xl hover:shadow-glow-cyan-sm overflow-hidden"
         >
+          {/* Subtle Cyber Corner Brackets */}
+          <div className="absolute top-3 left-3 w-3 h-3 border-t-2 border-l-2 border-cyan-500/50" />
+          <div className="absolute top-3 right-3 w-3 h-3 border-t-2 border-r-2 border-cyan-500/50" />
+          <div className="absolute bottom-3 left-3 w-3 h-3 border-b-2 border-l-2 border-cyan-500/50" />
+          <div className="absolute bottom-3 right-3 w-3 h-3 border-b-2 border-r-2 border-cyan-500/50" />
+
           <input
             ref={fileInputRef}
             type="file"
@@ -531,24 +542,30 @@ export const AutoPipeline: React.FC = () => {
             className="hidden"
           />
 
-          <div className="w-16 h-16 rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform shadow-inner">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-900 to-cyan-950/80 text-cyan-400 border border-cyan-500/30 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform shadow-glow-cyan-sm">
             <UploadCloud className="w-8 h-8" />
           </div>
 
-          <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mb-1">
-            Drop your Parts PDF Catalogue here
+          <h3
+            className="text-lg sm:text-2xl font-black text-white mb-2 uppercase tracking-wide"
+            style={{ fontFamily: "'Orbitron', sans-serif" }}
+          >
+            Drop Parts Catalogue PDF
           </h3>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-4">
-            The automated pipeline will extract all Excel records, apply the watermark preset, resize all images to 1000x1200, and generate the Master ZIP package.
+          <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5 font-medium">
+            Venture engine will extract parts into Excel, process figures, apply India Spare watermark (-30° tiled), resize to 1000x1200, and output Master ZIP.
           </p>
 
-          <span className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-md shadow-emerald-600/20 transition-all">
+          <span
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 text-xs sm:text-sm font-black uppercase tracking-wider shadow-glow-cyan transition-all"
+            style={{ fontFamily: "'Orbitron', sans-serif" }}
+          >
             <Sparkles className="w-4 h-4" />
-            Select PDF to Run Auto Pipeline
+            Engage Autonomous Pipeline
           </span>
 
           {file && (
-            <p className="mt-3 text-xs text-emerald-600 dark:text-emerald-400 font-mono font-bold">
+            <p className="mt-3 text-xs text-cyan-400 font-mono font-bold">
               Selected: {file.name}
             </p>
           )}
@@ -557,33 +574,34 @@ export const AutoPipeline: React.FC = () => {
 
       {/* State 2: Processing Progress & Stepper */}
       {status && status.status === 'processing' && (
-        <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+        <div className="p-6 sm:p-8 rounded-3xl bg-[#0b0f19]/90 border border-slate-800 shadow-xl space-y-6">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                Automated Processing Active
+              <span className="text-xs font-mono font-bold uppercase tracking-widest text-cyan-400 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                Pipeline Telemetry Active
               </span>
-              <h3 className="text-xl font-extrabold text-slate-900 dark:text-white">
+              <h3 className="text-lg sm:text-xl font-bold text-white font-mono truncate max-w-md">
                 {status.filename}
               </h3>
             </div>
             <div className="flex items-center gap-2">
-              <Loader2 className="w-5 h-5 text-emerald-500 animate-spin" />
-              <span className="text-lg font-black font-mono text-emerald-600 dark:text-emerald-400">
+              <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
+              <span className="text-xl font-black font-mono text-cyan-400">
                 {status.progress_pct}%
               </span>
             </div>
           </div>
 
-          {/* Progress Bar */}
-          <div className="w-full bg-slate-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden">
+          {/* Automotive Tachometer Progress Bar */}
+          <div className="w-full bg-slate-900 h-3 rounded-full overflow-hidden border border-slate-800">
             <div
-              className="bg-gradient-to-r from-emerald-500 via-blue-500 to-indigo-600 h-full transition-all duration-300 ease-out"
+              className="bg-gradient-to-r from-cyan-400 via-sky-400 to-amber-400 h-full transition-all duration-300 ease-out"
               style={{ width: `${Math.max(5, status.progress_pct)}%` }}
             />
           </div>
 
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 font-medium">
+          <p className="text-xs sm:text-sm text-slate-300 font-mono">
             {status.details}
           </p>
 
@@ -604,18 +622,18 @@ export const AutoPipeline: React.FC = () => {
                   key={s.idx}
                   className={`p-3 rounded-xl border flex items-center gap-2.5 text-xs font-semibold transition-all ${
                     isPast
-                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                      ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
                       : isCurrent
-                      ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-300 shadow-sm'
-                      : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-400'
+                      ? 'bg-cyan-950/50 border-cyan-500/50 text-cyan-300 shadow-glow-cyan-sm'
+                      : 'bg-slate-900/40 border-slate-800 text-slate-500'
                   }`}
                 >
                   {isPast ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                   ) : isCurrent ? (
-                    <Loader2 className="w-4 h-4 text-blue-500 animate-spin shrink-0" />
+                    <Loader2 className="w-4 h-4 text-cyan-400 animate-spin shrink-0" />
                   ) : (
-                    <Icon className="w-4 h-4 text-slate-400 shrink-0" />
+                    <Icon className="w-4 h-4 text-slate-500 shrink-0" />
                   )}
                   <span className="truncate">{s.label}</span>
                 </div>
@@ -628,92 +646,96 @@ export const AutoPipeline: React.FC = () => {
       {/* State 3: Completed Results Dashboard */}
       {status && status.status === 'completed' && (
         <div className="space-y-6">
-          {/* Hero Completion Card */}
-          <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900 text-white shadow-xl space-y-6">
+          {/* Automotive Cockpit Completion Card */}
+          <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-[#0c182c] via-[#091120] to-[#07090e] border border-cyan-500/40 text-white shadow-glow-cyan-sm space-y-6">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               <div className="space-y-2">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-bold text-emerald-100">
-                  <Check className="w-3.5 h-3.5" />
-                  All Modules Processed & Archived Successfully
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-xs font-mono font-bold text-cyan-300 uppercase tracking-widest">
+                  <Check className="w-3.5 h-3.5 text-cyan-400" />
+                  Mission Complete • Master Archive Ready
                 </div>
-                <h3 className="text-2xl sm:text-3xl font-black tracking-tight">
+                <h3
+                  className="text-2xl sm:text-4xl font-black tracking-tight uppercase"
+                  style={{ fontFamily: "'Orbitron', sans-serif" }}
+                >
                   {status.zip_filename}
                 </h3>
-                <p className="text-xs sm:text-sm text-emerald-100/90 max-w-xl">
-                  Generated complete Master ZIP containing the clean Excel catalogue sheet and all watermarked & resized 1000x1200 illustrations.
+                <p className="text-xs sm:text-sm text-slate-400 max-w-xl font-medium">
+                  Autonomous pipeline finished: Clean Yamaha parts Excel database and all watermarked & resized 1000x1200 JPEG diagrams bundled.
                 </p>
               </div>
 
-              {/* Action Buttons */}
+              {/* Cockpit Action Buttons */}
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   onClick={downloadMasterZip}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 font-extrabold text-sm sm:text-base shadow-lg hover:scale-102 active:scale-98 transition-all"
+                  className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-slate-950 font-black text-sm sm:text-base uppercase tracking-wider shadow-glow-cyan hover:scale-[1.02] active:scale-[0.98] transition-all"
+                  style={{ fontFamily: "'Orbitron', sans-serif" }}
                 >
-                  <Download className="w-5 h-5 text-emerald-600" />
-                  Download Complete Bundle ({formatBytes(status.bundle_size_bytes)})
+                  <Download className="w-5 h-5 text-slate-950" />
+                  Download Master ZIP ({formatBytes(status.bundle_size_bytes)})
                 </button>
                 <button
                   onClick={downloadExcelOnly}
-                  className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white text-xs sm:text-sm font-bold border border-white/20 transition-all"
+                  className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-cyan-300 hover:text-white text-xs sm:text-sm font-bold border border-slate-700 hover:border-cyan-500/40 transition-all font-mono"
                 >
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+                  <FileSpreadsheet className="w-4 h-4 text-cyan-400" />
                   Excel Only
                 </button>
                 <button
                   onClick={handleReset}
-                  className="inline-flex items-center gap-1.5 px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white text-xs sm:text-sm font-bold border border-white/20 transition-all"
+                  className="inline-flex items-center gap-1.5 px-4 py-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-white text-xs sm:text-sm font-bold border border-slate-800 hover:border-slate-700 transition-all font-mono"
                 >
                   <RotateCcw className="w-4 h-4" />
-                  New PDF
+                  New Run
                 </button>
               </div>
             </div>
 
             {/* Quick Metrics */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-white/10 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-800 font-mono text-xs">
               <div>
-                <p className="text-emerald-200/70 uppercase font-semibold">Parts Extracted</p>
-                <p className="text-xl sm:text-2xl font-black mt-0.5">{status.total_rows}</p>
+                <p className="text-slate-500 uppercase font-semibold">Parts Extracted</p>
+                <p className="text-xl sm:text-2xl font-black text-cyan-400 mt-0.5">{status.total_rows}</p>
               </div>
               <div>
-                <p className="text-emerald-200/70 uppercase font-semibold">Images Processed</p>
-                <p className="text-xl sm:text-2xl font-black mt-0.5">{status.images_processed}</p>
+                <p className="text-slate-500 uppercase font-semibold">Images Processed</p>
+                <p className="text-xl sm:text-2xl font-black text-cyan-400 mt-0.5">{status.images_processed}</p>
               </div>
               <div>
-                <p className="text-emerald-200/70 uppercase font-semibold">Output Dimensions</p>
-                <p className="text-xl sm:text-2xl font-black mt-0.5">{resizeWidth}x{resizeHeight} px</p>
+                <p className="text-slate-500 uppercase font-semibold">Output Dimensions</p>
+                <p className="text-xl sm:text-2xl font-black text-amber-400 mt-0.5">{resizeWidth}x{resizeHeight} px</p>
               </div>
               <div>
-                <p className="text-emerald-200/70 uppercase font-semibold">Watermark Presets</p>
-                <p className="text-xl sm:text-2xl font-black mt-0.5">{wmRotation}° / {wmPadding}px</p>
+                <p className="text-slate-500 uppercase font-semibold">Watermark Presets</p>
+                <p className="text-xl sm:text-2xl font-black text-emerald-400 mt-0.5">{wmRotation}° / {wmPadding}px</p>
               </div>
             </div>
           </div>
 
           {/* Results Navigation Tabs */}
-          <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+          <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
             <button
               onClick={() => setActiveResultTab('images')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-mono font-bold transition-all ${
                 activeResultTab === 'images'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-500/50 shadow-glow-cyan-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
               }`}
             >
-              <ImageIcon className="w-4 h-4" />
-              Processed Images Preview ({status.images_processed})
+              <ImageIcon className="w-4 h-4 text-cyan-400" />
+              Diagram Gallery ({status.images_processed})
             </button>
             <button
               onClick={() => setActiveResultTab('parts')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-mono font-bold transition-all ${
                 activeResultTab === 'parts'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-500/50 shadow-glow-cyan-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
               }`}
             >
-              <FileSpreadsheet className="w-4 h-4" />
-              Extracted Parts Preview ({status.total_rows})
+              <FileSpreadsheet className="w-4 h-4 text-cyan-400" />
+              Catalogue Records ({status.total_rows})
             </button>
           </div>
 
