@@ -8,21 +8,15 @@ export default {
   theme: {
     extend: {
       colors: {
-        carbon: {
-          950: '#07090e',
-          900: '#0b0f19',
-          850: '#0e1626',
-          800: '#141e33',
-          700: '#1e293b',
-          600: '#334155',
-        },
-        cockpit: {
-          cyan: '#00f0ff',
-          neon: '#06b6d4',
-          amber: '#f59e0b',
-          flame: '#ea580c',
-          emerald: '#10b981',
-          titanium: '#273549',
+        pure: {
+          black: '#000000',
+          dark: '#09090b',
+          surface: '#121214',
+          card: '#18181b',
+          border: '#27272a',
+          muted: '#71717a',
+          light: '#f4f4f5',
+          white: '#ffffff',
         },
         yamaha: {
           50: '#f0f4f9',
@@ -36,9 +30,8 @@ export default {
         },
       },
       boxShadow: {
-        'glow-cyan': '0 0 25px -5px rgba(0, 240, 255, 0.3)',
-        'glow-amber': '0 0 25px -5px rgba(245, 158, 11, 0.3)',
-        'glow-cyan-sm': '0 0 10px 0 rgba(0, 240, 255, 0.25)',
+        'glow-white': '0 0 25px -5px rgba(255, 255, 255, 0.2)',
+        'glow-white-sm': '0 0 10px 0 rgba(255, 255, 255, 0.15)',
       },
       animation: {
         'gauge-pulse': 'gaugePulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
@@ -47,7 +40,7 @@ export default {
       keyframes: {
         gaugePulse: {
           '0%, 100%': { opacity: '1', transform: 'scale(1)' },
-          '50%': { opacity: '0.8', transform: 'scale(1.02)' },
+          '50%': { opacity: '0.85', transform: 'scale(1.02)' },
         },
         telemetryScan: {
           '0%': { transform: 'translateY(-100%)' },

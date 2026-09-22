@@ -247,8 +247,8 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen min-h-[100dvh] flex flex-col bg-[#07090e] bg-carbon-pattern text-slate-100 transition-colors duration-200 font-sans">
-      {/* Animated Automotive Startup Splash Screen */}
+    <div className="min-h-screen min-h-[100dvh] flex flex-col bg-black bg-minimal-pattern text-white transition-colors duration-200 font-sans">
+      {/* Minimalist Monochrome Startup Splash Screen */}
       {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
 
       <Navbar
@@ -281,18 +281,15 @@ export function App() {
             {!status && !errorMessage && (
               <div className="space-y-8">
                 <div className="text-center max-w-2xl mx-auto space-y-3">
-                  <span className="inline-block px-3 py-1 rounded-full text-xs font-mono font-semibold bg-cyan-950/70 text-cyan-300 border border-cyan-500/30 uppercase tracking-widest">
-                    Venture Intelligence Core
+                  <span className="inline-block px-3 py-1 rounded-full text-xs font-mono font-medium bg-zinc-900 text-zinc-300 border border-zinc-800 uppercase tracking-widest">
+                    Venture Intelligence
                   </span>
-                  <h2
-                    className="text-3xl sm:text-4xl font-black text-white tracking-tight uppercase"
-                    style={{ fontFamily: "'Orbitron', sans-serif" }}
-                  >
+                  <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
                     Extract Parts Catalogues to Excel
                   </h2>
-                  <p className="text-sm sm:text-base text-slate-400">
-                    High-speed parsing of figure diagrams, vertical rotated model codes (BGPJ, BGPL),
-                    part descriptions, and remark columns with millimeter precision.
+                  <p className="text-sm sm:text-base text-zinc-400 font-normal">
+                    Precision extraction of figure diagrams, vertical rotated model codes (BGPJ, BGPL),
+                    part descriptions, and remark columns.
                   </p>
                 </div>
 
@@ -343,17 +340,17 @@ export function App() {
         )}
       </main>
 
-      {/* Automotive Telemetry Footer */}
-      <footer className="border-t border-slate-800/80 bg-[#07090e]/90 py-5 text-xs font-mono text-slate-500 safe-bottom">
+      {/* Minimalist Monochrome Footer */}
+      <footer className="border-t border-zinc-800/80 bg-black py-5 text-xs font-mono text-zinc-500 safe-bottom">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-            <span className="font-bold tracking-wider text-slate-300 uppercase">
+            <span className="w-1.5 h-1.5 rounded-full bg-white" />
+            <span className="font-semibold tracking-wider text-zinc-300 uppercase">
               Venture Automation • Extract and Build
             </span>
           </div>
-          <p className="text-slate-500">Document & Image Intelligence Matrix • 100% In-Memory Privacy</p>
-          <span className="text-cyan-400 font-semibold text-[11px]">TELEMETRY ACTIVE [OK]</span>
+          <p className="text-zinc-500">Document & Image Intelligence Matrix • 100% In-Memory Privacy</p>
+          <span className="text-zinc-400 font-medium text-[11px]">ACTIVE [OK]</span>
         </div>
       </footer>
     </div>

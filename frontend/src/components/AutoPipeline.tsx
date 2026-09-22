@@ -236,48 +236,45 @@ export const AutoPipeline: React.FC = () => {
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6 sm:space-y-8 animate-in fade-in duration-200">
-      {/* Automotive Cockpit Hero Header */}
+      {/* Minimalist Hero Header */}
       <div className="text-center max-w-3xl mx-auto space-y-3">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-mono font-bold bg-cyan-950/70 text-cyan-300 border border-cyan-500/30 shadow-glow-cyan-sm uppercase tracking-widest">
-          <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-          Autonomous Pipeline Engine
+        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-mono font-medium bg-zinc-900 text-zinc-300 border border-zinc-800 uppercase tracking-widest">
+          <Sparkles className="w-3.5 h-3.5 text-white" />
+          Autonomous Pipeline
         </div>
-        <h2
-          className="text-3xl sm:text-5xl font-black text-white tracking-tight uppercase"
-          style={{ fontFamily: "'Orbitron', sans-serif" }}
-        >
+        <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight uppercase">
           Automate Everything from One PDF
         </h2>
-        <p className="text-sm sm:text-base text-slate-400 font-medium">
-          Upload catalogue once: extracts parts into Excel, detects figure diagrams, applies India Spare watermark preset, resizes to 1000x1200, and builds the Master ZIP archive.
+        <p className="text-sm sm:text-base text-zinc-400 font-normal">
+          Upload catalogue once: extracts parts into Excel, detects figure diagrams, applies India Spare watermark preset, resizes to 1000x1200, and bundles Master ZIP.
         </p>
       </div>
 
       {/* Preset Indicator Bar & Toggle */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-[#0b0f19]/90 border border-slate-800/90 shadow-xl space-y-3">
+      <div className="p-4 sm:p-5 rounded-2xl bg-zinc-950 border border-zinc-800/90 shadow-sm space-y-3">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500">
+            <span className="text-xs font-mono font-medium uppercase tracking-wider text-zinc-500">
               Active Presets:
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-cyan-950/60 text-cyan-300 text-xs font-mono font-semibold border border-cyan-500/30">
-              <Droplet className="w-3 h-3 text-cyan-400" />
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-zinc-900 text-zinc-300 text-xs font-mono font-medium border border-zinc-800">
+              <Droplet className="w-3 h-3 text-white" />
               {wmType === 'logo'
                 ? (logoFile ? `Logo: ${logoFile.name.slice(0, 15)} (Tiled)` : 'Watermark: India Spare Logo (Tiled)')
                 : `Watermark: "${wmText}" (Tiled)`} • {wmRotation}° • {wmPadding}px • {wmSizePct}% • {wmOpacity}%
             </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-950/50 text-amber-300 text-xs font-mono font-semibold border border-amber-500/30">
-              <Crop className="w-3 h-3 text-amber-400" />
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-zinc-900 text-zinc-300 text-xs font-mono font-medium border border-zinc-800">
+              <Crop className="w-3 h-3 text-white" />
               {resizeWidth}x{resizeHeight} px • {resizeQuality}% JPG
             </span>
           </div>
 
           <button
             onClick={() => setShowPresetSettings(!showPresetSettings)}
-            className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-slate-400 hover:text-cyan-300 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-mono font-medium text-zinc-400 hover:text-white transition-colors"
           >
-            <Sliders className="w-3.5 h-3.5 text-cyan-400" />
-            {showPresetSettings ? 'Hide Preset Configuration' : 'Customize Telemetry Presets'}
+            <Sliders className="w-3.5 h-3.5 text-zinc-400" />
+            {showPresetSettings ? 'Hide Preset Settings' : 'Customize Presets'}
             {showPresetSettings ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
         </div>
@@ -526,14 +523,8 @@ export const AutoPipeline: React.FC = () => {
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleFileDrop}
           onClick={() => fileInputRef.current?.click()}
-          className="relative group border-2 border-dashed border-slate-800 hover:border-cyan-500/60 rounded-3xl p-8 sm:p-14 text-center cursor-pointer transition-all bg-[#0b0f19]/80 hover:bg-[#0d1424]/90 shadow-xl hover:shadow-glow-cyan-sm overflow-hidden"
+          className="relative group border-2 border-dashed border-zinc-800 hover:border-zinc-500 rounded-3xl p-8 sm:p-14 text-center cursor-pointer transition-all bg-zinc-950/60 hover:bg-zinc-900/40 shadow-sm overflow-hidden"
         >
-          {/* Subtle Cyber Corner Brackets */}
-          <div className="absolute top-3 left-3 w-3 h-3 border-t-2 border-l-2 border-cyan-500/50" />
-          <div className="absolute top-3 right-3 w-3 h-3 border-t-2 border-r-2 border-cyan-500/50" />
-          <div className="absolute bottom-3 left-3 w-3 h-3 border-b-2 border-l-2 border-cyan-500/50" />
-          <div className="absolute bottom-3 right-3 w-3 h-3 border-b-2 border-r-2 border-cyan-500/50" />
-
           <input
             ref={fileInputRef}
             type="file"
@@ -542,30 +533,24 @@ export const AutoPipeline: React.FC = () => {
             className="hidden"
           />
 
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-900 to-cyan-950/80 text-cyan-400 border border-cyan-500/30 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform shadow-glow-cyan-sm">
-            <UploadCloud className="w-8 h-8" />
+          <div className="w-14 h-14 rounded-2xl bg-zinc-900 text-white border border-zinc-800 flex items-center justify-center mx-auto mb-4 group-hover:scale-105 transition-transform shadow-sm">
+            <UploadCloud className="w-7 h-7 text-white" />
           </div>
 
-          <h3
-            className="text-lg sm:text-2xl font-black text-white mb-2 uppercase tracking-wide"
-            style={{ fontFamily: "'Orbitron', sans-serif" }}
-          >
+          <h3 className="text-lg sm:text-2xl font-bold text-white mb-2 tracking-tight">
             Drop Parts Catalogue PDF
           </h3>
-          <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto mb-5 font-medium">
-            Venture engine will extract parts into Excel, process figures, apply India Spare watermark (-30° tiled), resize to 1000x1200, and output Master ZIP.
+          <p className="text-xs sm:text-sm text-zinc-400 max-w-md mx-auto mb-5 font-normal">
+            Extract parts into Excel, detect diagram figures, apply watermark preset, resize to 1000x1200, and generate Master ZIP package.
           </p>
 
-          <span
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 text-xs sm:text-sm font-black uppercase tracking-wider shadow-glow-cyan transition-all"
-            style={{ fontFamily: "'Orbitron', sans-serif" }}
-          >
-            <Sparkles className="w-4 h-4" />
-            Engage Autonomous Pipeline
+          <span className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-white hover:bg-zinc-200 text-black text-xs sm:text-sm font-bold uppercase tracking-wider transition-all shadow-sm">
+            <Sparkles className="w-4 h-4 text-black" />
+            Start Autonomous Pipeline
           </span>
 
           {file && (
-            <p className="mt-3 text-xs text-cyan-400 font-mono font-bold">
+            <p className="mt-3 text-xs text-zinc-300 font-mono font-medium">
               Selected: {file.name}
             </p>
           )}
@@ -574,34 +559,34 @@ export const AutoPipeline: React.FC = () => {
 
       {/* State 2: Processing Progress & Stepper */}
       {status && status.status === 'processing' && (
-        <div className="p-6 sm:p-8 rounded-3xl bg-[#0b0f19]/90 border border-slate-800 shadow-xl space-y-6">
+        <div className="p-6 sm:p-8 rounded-3xl bg-zinc-950 border border-zinc-800 shadow-sm space-y-6">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <span className="text-xs font-mono font-bold uppercase tracking-widest text-cyan-400 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                Pipeline Telemetry Active
+              <span className="text-xs font-mono font-medium uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                Pipeline Active
               </span>
               <h3 className="text-lg sm:text-xl font-bold text-white font-mono truncate max-w-md">
                 {status.filename}
               </h3>
             </div>
             <div className="flex items-center gap-2">
-              <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
-              <span className="text-xl font-black font-mono text-cyan-400">
+              <Loader2 className="w-5 h-5 text-white animate-spin" />
+              <span className="text-xl font-bold font-mono text-white">
                 {status.progress_pct}%
               </span>
             </div>
           </div>
 
-          {/* Automotive Tachometer Progress Bar */}
-          <div className="w-full bg-slate-900 h-3 rounded-full overflow-hidden border border-slate-800">
+          {/* Minimalist Progress Bar */}
+          <div className="w-full bg-zinc-900 h-2 rounded-full overflow-hidden border border-zinc-800">
             <div
-              className="bg-gradient-to-r from-cyan-400 via-sky-400 to-amber-400 h-full transition-all duration-300 ease-out"
+              className="bg-white h-full transition-all duration-300 ease-out"
               style={{ width: `${Math.max(5, status.progress_pct)}%` }}
             />
           </div>
 
-          <p className="text-xs sm:text-sm text-slate-300 font-mono">
+          <p className="text-xs sm:text-sm text-zinc-400 font-mono">
             {status.details}
           </p>
 
@@ -620,20 +605,20 @@ export const AutoPipeline: React.FC = () => {
               return (
                 <div
                   key={s.idx}
-                  className={`p-3 rounded-xl border flex items-center gap-2.5 text-xs font-semibold transition-all ${
+                  className={`p-3 rounded-xl border flex items-center gap-2.5 text-xs font-medium transition-all ${
                     isPast
-                      ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+                      ? 'bg-zinc-900 border-zinc-700 text-white'
                       : isCurrent
-                      ? 'bg-cyan-950/50 border-cyan-500/50 text-cyan-300 shadow-glow-cyan-sm'
-                      : 'bg-slate-900/40 border-slate-800 text-slate-500'
+                      ? 'bg-zinc-800 border-zinc-600 text-white shadow-xs font-bold'
+                      : 'bg-zinc-950 border-zinc-800/80 text-zinc-500'
                   }`}
                 >
                   {isPast ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
                   ) : isCurrent ? (
-                    <Loader2 className="w-4 h-4 text-cyan-400 animate-spin shrink-0" />
+                    <Loader2 className="w-4 h-4 text-white animate-spin shrink-0" />
                   ) : (
-                    <Icon className="w-4 h-4 text-slate-500 shrink-0" />
+                    <Icon className="w-4 h-4 text-zinc-500 shrink-0" />
                   )}
                   <span className="truncate">{s.label}</span>
                 </div>
@@ -646,95 +631,91 @@ export const AutoPipeline: React.FC = () => {
       {/* State 3: Completed Results Dashboard */}
       {status && status.status === 'completed' && (
         <div className="space-y-6">
-          {/* Automotive Cockpit Completion Card */}
-          <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-[#0c182c] via-[#091120] to-[#07090e] border border-cyan-500/40 text-white shadow-glow-cyan-sm space-y-6">
+          {/* Minimalist Completion Card */}
+          <div className="p-6 sm:p-8 rounded-3xl bg-zinc-950 border border-zinc-800 text-white shadow-sm space-y-6">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               <div className="space-y-2">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-xs font-mono font-bold text-cyan-300 uppercase tracking-widest">
-                  <Check className="w-3.5 h-3.5 text-cyan-400" />
-                  Mission Complete • Master Archive Ready
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-xs font-mono font-medium text-zinc-300 uppercase tracking-widest">
+                  <Check className="w-3.5 h-3.5 text-white" />
+                  Execution Complete • Package Ready
                 </div>
-                <h3
-                  className="text-2xl sm:text-4xl font-black tracking-tight uppercase"
-                  style={{ fontFamily: "'Orbitron', sans-serif" }}
-                >
+                <h3 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
                   {status.zip_filename}
                 </h3>
-                <p className="text-xs sm:text-sm text-slate-400 max-w-xl font-medium">
+                <p className="text-xs sm:text-sm text-zinc-400 max-w-xl font-normal">
                   Autonomous pipeline finished: Clean Yamaha parts Excel database and all watermarked & resized 1000x1200 JPEG diagrams bundled.
                 </p>
               </div>
 
-              {/* Cockpit Action Buttons */}
+              {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   onClick={downloadMasterZip}
-                  className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-slate-950 font-black text-sm sm:text-base uppercase tracking-wider shadow-glow-cyan hover:scale-[1.02] active:scale-[0.98] transition-all"
-                  style={{ fontFamily: "'Orbitron', sans-serif" }}
+                  className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-full bg-white hover:bg-zinc-200 text-black font-bold text-sm uppercase tracking-wider transition-all shadow-sm active:scale-95"
                 >
-                  <Download className="w-5 h-5 text-slate-950" />
+                  <Download className="w-4 h-4 text-black" />
                   Download Master ZIP ({formatBytes(status.bundle_size_bytes)})
                 </button>
                 <button
                   onClick={downloadExcelOnly}
-                  className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-cyan-300 hover:text-white text-xs sm:text-sm font-bold border border-slate-700 hover:border-cyan-500/40 transition-all font-mono"
+                  className="inline-flex items-center gap-2 px-4 py-3 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-200 hover:text-white text-xs sm:text-sm font-semibold border border-zinc-800 transition-all font-mono"
                 >
-                  <FileSpreadsheet className="w-4 h-4 text-cyan-400" />
+                  <FileSpreadsheet className="w-4 h-4 text-white" />
                   Excel Only
                 </button>
                 <button
                   onClick={handleReset}
-                  className="inline-flex items-center gap-1.5 px-4 py-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-white text-xs sm:text-sm font-bold border border-slate-800 hover:border-slate-700 transition-all font-mono"
+                  className="inline-flex items-center gap-1.5 px-4 py-3 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white text-xs sm:text-sm font-semibold border border-zinc-800 transition-all font-mono"
                 >
                   <RotateCcw className="w-4 h-4" />
-                  New Run
+                  New PDF
                 </button>
               </div>
             </div>
 
             {/* Quick Metrics */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-slate-800 font-mono text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-zinc-800/80 font-mono text-xs">
               <div>
-                <p className="text-slate-500 uppercase font-semibold">Parts Extracted</p>
-                <p className="text-xl sm:text-2xl font-black text-cyan-400 mt-0.5">{status.total_rows}</p>
+                <p className="text-zinc-500 uppercase font-medium">Parts Extracted</p>
+                <p className="text-xl sm:text-2xl font-bold text-white mt-0.5">{status.total_rows}</p>
               </div>
               <div>
-                <p className="text-slate-500 uppercase font-semibold">Images Processed</p>
-                <p className="text-xl sm:text-2xl font-black text-cyan-400 mt-0.5">{status.images_processed}</p>
+                <p className="text-zinc-500 uppercase font-medium">Images Processed</p>
+                <p className="text-xl sm:text-2xl font-bold text-white mt-0.5">{status.images_processed}</p>
               </div>
               <div>
-                <p className="text-slate-500 uppercase font-semibold">Output Dimensions</p>
-                <p className="text-xl sm:text-2xl font-black text-amber-400 mt-0.5">{resizeWidth}x{resizeHeight} px</p>
+                <p className="text-zinc-500 uppercase font-medium">Dimensions</p>
+                <p className="text-xl sm:text-2xl font-bold text-white mt-0.5">{resizeWidth}x{resizeHeight} px</p>
               </div>
               <div>
-                <p className="text-slate-500 uppercase font-semibold">Watermark Presets</p>
-                <p className="text-xl sm:text-2xl font-black text-emerald-400 mt-0.5">{wmRotation}° / {wmPadding}px</p>
+                <p className="text-zinc-500 uppercase font-medium">Watermark Presets</p>
+                <p className="text-xl sm:text-2xl font-bold text-white mt-0.5">{wmRotation}° / {wmPadding}px</p>
               </div>
             </div>
           </div>
 
           {/* Results Navigation Tabs */}
-          <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2 border-b border-zinc-800 pb-3">
             <button
               onClick={() => setActiveResultTab('images')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-mono font-bold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all ${
                 activeResultTab === 'images'
-                  ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-500/50 shadow-glow-cyan-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  ? 'bg-white text-black font-bold shadow-xs'
+                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
               }`}
             >
-              <ImageIcon className="w-4 h-4 text-cyan-400" />
+              <ImageIcon className={`w-4 h-4 ${activeResultTab === 'images' ? 'text-black' : 'text-zinc-400'}`} />
               Diagram Gallery ({status.images_processed})
             </button>
             <button
               onClick={() => setActiveResultTab('parts')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-mono font-bold transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all ${
                 activeResultTab === 'parts'
-                  ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-500/50 shadow-glow-cyan-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                  ? 'bg-white text-black font-bold shadow-xs'
+                  : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
               }`}
             >
-              <FileSpreadsheet className="w-4 h-4 text-cyan-400" />
+              <FileSpreadsheet className={`w-4 h-4 ${activeResultTab === 'parts' ? 'text-black' : 'text-zinc-400'}`} />
               Catalogue Records ({status.total_rows})
             </button>
           </div>
@@ -747,31 +728,31 @@ export const AutoPipeline: React.FC = () => {
                   {status.processed_thumbnails.map((img) => (
                     <div
                       key={img.id}
-                      className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-xs hover:shadow-md transition-shadow group"
+                      className="rounded-2xl border border-zinc-800 bg-zinc-950 overflow-hidden shadow-sm hover:border-zinc-700 transition-all group"
                     >
-                      <div className="aspect-[10/12] bg-slate-100 dark:bg-slate-800 relative flex items-center justify-center overflow-hidden">
+                      <div className="aspect-[10/12] bg-zinc-900/60 relative flex items-center justify-center overflow-hidden">
                         <img
                           src={img.thumbnail_url}
                           alt={img.filename}
                           className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform"
                         />
-                        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-[10px] font-mono text-white font-bold">
+                        <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-xs text-[10px] font-mono text-zinc-300 font-medium">
                           {img.width}x{img.height}
                         </span>
-                        <span className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-emerald-600/90 backdrop-blur-xs text-[10px] font-mono text-white font-bold">
+                        <span className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-zinc-800 backdrop-blur-xs text-[10px] font-mono text-white font-semibold">
                           JPG
                         </span>
                         {img.fig_no && (
-                          <span className="absolute bottom-2 left-2 right-2 px-2 py-0.5 rounded-md bg-blue-600/90 backdrop-blur-xs text-[10px] font-bold text-white shadow-xs truncate">
+                          <span className="absolute bottom-2 left-2 right-2 px-2 py-0.5 rounded-md bg-black/90 backdrop-blur-xs text-[10px] font-medium text-zinc-300 border border-zinc-800 truncate">
                             FIG. {img.fig_no}{img.fig_name ? ` - ${img.fig_name}` : ''}
                           </span>
                         )}
                       </div>
                       <div className="p-3">
-                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate" title={img.filename}>
+                        <p className="text-xs font-medium text-zinc-200 truncate" title={img.filename}>
                           {img.filename}
                         </p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
+                        <p className="text-[11px] text-zinc-500 mt-0.5">
                           Page {img.page} • {formatBytes(img.size_bytes)}
                         </p>
                       </div>
@@ -779,7 +760,7 @@ export const AutoPipeline: React.FC = () => {
                   ))}
                 </div>
               ) : (
-                <div className="p-8 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-500 text-xs">
+                <div className="p-8 text-center bg-zinc-950 rounded-2xl border border-zinc-800 text-zinc-500 text-xs">
                   No images were embedded in this PDF. The Excel parts workbook has been bundled into the Master ZIP archive.
                 </div>
               )}
@@ -788,35 +769,35 @@ export const AutoPipeline: React.FC = () => {
 
           {/* Parts Sample Table Tab */}
           {activeResultTab === 'parts' && (
-            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 animate-in fade-in duration-150">
+            <div className="p-4 sm:p-5 rounded-2xl bg-zinc-950 border border-zinc-800 shadow-sm space-y-3 animate-in fade-in duration-150">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                <h4 className="text-sm font-semibold text-zinc-200">
                   Parts Extracted Sample (First {status.rows_sample?.length || 0} of {status.total_rows})
                 </h4>
                 <button
                   onClick={downloadExcelOnly}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-white hover:text-zinc-300 transition-colors"
                 >
                   <Download className="w-3.5 h-3.5" />
                   Download Full Excel ({status.total_rows} rows)
                 </button>
               </div>
 
-              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+              <div className="overflow-x-auto rounded-xl border border-zinc-800">
                 <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold border-b border-slate-200 dark:border-slate-700">
+                  <thead className="bg-zinc-900 text-zinc-300 font-semibold border-b border-zinc-800">
                     <tr>
                       <th className="p-2.5">Fig</th>
                       <th className="p-2.5">Ref</th>
                       <th className="p-2.5">Part No.</th>
                       <th className="p-2.5">Description</th>
                       {status.model_columns?.map((m) => (
-                        <th key={m} className="p-2.5 font-mono text-center text-blue-600 dark:text-blue-400">{m}</th>
+                        <th key={m} className="p-2.5 font-mono text-center text-white">{m}</th>
                       ))}
                       <th className="p-2.5">Remarks</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tbody className="divide-y divide-zinc-800/80">
                     {status.rows_sample?.map((r, i) => (
                       <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                         <td className="p-2.5 font-semibold text-slate-500">{r.fig_no}</td>
