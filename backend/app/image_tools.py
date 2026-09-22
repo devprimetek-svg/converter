@@ -210,6 +210,9 @@ def apply_text_watermark(
     base_img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
     w_width, w_height = base_img.size
 
+    eff_opacity = opacity / 100.0 if opacity > 1.0 else opacity
+    eff_opacity = max(0.01, min(1.0, eff_opacity))
+
     # Calculate font size relative to image size if size_pct provided
     if size_pct is not None and size_pct > 0:
         eff_font_size = max(12, int(min(w_width, w_height) * (size_pct / 100.0)))
@@ -221,9 +224,13 @@ def apply_text_watermark(
     if len(hex_clean) == 6:
         r, g, b = tuple(int(hex_clean[i:i+2], 16) for i in (0, 2, 4))
     else:
-        r, g, b = (255, 255, 255)
-    alpha = int(max(0.0, min(1.0, opacity)) * 255)
-    text_color = (r, g, b, alpha)
+        r, g, b = (30, 58, 138)  # default navy blue
+
+    # If white (#FFFFFF), adjust to visible navy blue on white diagrams
+    if (r, g, b) == (255, 255, 255):
+        r, g, b = (30, 58, 138)
+
+    text_color = (r, g, b, 255)
 
     # Load font
     try:
@@ -239,9 +246,8 @@ def apply_text_watermark(
     text_h = max(1, bbox[3] - bbox[1])
 
     if is_tiled:
-        # Calculate diagonal span to ensure full coverage under any rotation angle (e.g. -30°)
         diag = int(math.hypot(w_width, w_height) * 1.8)
-        tiled_canvas = Image.new("RGBA", (diag, diag), (255, 255, 255, 0))
+        tiled_canvas = Image.new("RGBA", (diag, diag), (0, 0, 0, 0))
         tdraw = ImageDraw.Draw(tiled_canvas)
 
         step_x = max(text_w + 30, text_w + padding)
@@ -257,12 +263,10 @@ def apply_text_watermark(
         crop_left = (diag - w_width) // 2
         crop_top = (diag - w_height) // 2
         overlay = tiled_canvas.crop((crop_left, crop_top, crop_left + w_width, crop_top + w_height))
-
-        combined = Image.alpha_composite(base_img, overlay)
     else:
-        overlay = Image.new("RGBA", (w_width, w_height), (255, 255, 255, 0))
+        overlay = Image.new("RGBA", (w_width, w_height), (0, 0, 0, 0))
         pad = max(10, padding // 4)
-        stamp = Image.new("RGBA", (text_w + pad * 2, text_h + pad * 2), (255, 255, 255, 0))
+        stamp = Image.new("RGBA", (text_w + pad * 2, text_h + pad * 2), (0, 0, 0, 0))
         sdraw = ImageDraw.Draw(stamp)
         sdraw.text((pad, pad), text, font=font, fill=text_color)
 
@@ -271,7 +275,6 @@ def apply_text_watermark(
 
         sw, sh = stamp.size
         m = padding
-
         pos_map = {
             "top-left": (m, m),
             "top-center": ((w_width - sw) // 2, m),
@@ -284,9 +287,14 @@ def apply_text_watermark(
             "bottom-right": (w_width - sw - m, w_height - sh - m),
         }
         dest_x, dest_y = pos_map.get(position.lower(), ((w_width - sw) // 2, (w_height - sh) // 2))
+        overlay.alpha_composite(stamp, (max(0, min(w_width - sw, dest_x)), max(0, min(w_height - sh, dest_y))))
 
-        overlay.paste(stamp, (dest_x, dest_y), mask=stamp)
-        combined = Image.alpha_composite(base_img, overlay)
+    # Apply opacity cleanly to the composited overlay
+    ro, go, bo, ao = overlay.split()
+    ao = ao.point(lambda p: int(p * eff_opacity))
+    overlay = Image.merge("RGBA", (ro, go, bo, ao))
+
+    combined = Image.alpha_composite(base_img, overlay)
 
     out_buf = io.BytesIO()
     combined.convert("RGB").save(out_buf, format="JPEG", quality=95)
@@ -308,27 +316,24 @@ def apply_image_watermark(
     base_img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
     w_width, w_height = base_img.size
 
+    eff_opacity = opacity / 100.0 if opacity > 1.0 else opacity
+    eff_opacity = max(0.01, min(1.0, eff_opacity))
+
     logo = Image.open(io.BytesIO(logo_bytes)).convert("RGBA")
-    target_logo_w = max(20, int((w_width * max(1, scale_pct)) / 100))
+    target_logo_w = max(40, int((w_width * max(1, scale_pct)) / 100))
     target_logo_h = max(20, int((target_logo_w / logo.width) * logo.height))
     logo_resized = logo.resize((target_logo_w, target_logo_h), Image.Resampling.LANCZOS)
 
-    # Adjust opacity
-    alpha_factor = max(0.0, min(1.0, opacity))
-    r, g, b, a = logo_resized.split()
-    a = a.point(lambda p: int(p * alpha_factor))
-    logo_resized = Image.merge("RGBA", (r, g, b, a))
-
     if is_tiled:
         diag = int(math.hypot(w_width, w_height) * 1.8)
-        tiled_canvas = Image.new("RGBA", (diag, diag), (255, 255, 255, 0))
+        tiled_canvas = Image.new("RGBA", (diag, diag), (0, 0, 0, 0))
 
         step_x = max(target_logo_w + 30, target_logo_w + padding)
         step_y = max(target_logo_h + 30, target_logo_h + padding)
 
-        for y in range(0, diag, step_y):
-            for x in range(0, diag, step_x):
-                tiled_canvas.paste(logo_resized, (x, y), mask=logo_resized)
+        for y in range(0, diag - target_logo_h, step_y):
+            for x in range(0, diag - target_logo_w, step_x):
+                tiled_canvas.alpha_composite(logo_resized, (x, y))
 
         if angle != 0:
             tiled_canvas = tiled_canvas.rotate(angle, resample=Image.Resampling.BICUBIC)
@@ -336,9 +341,8 @@ def apply_image_watermark(
         crop_left = (diag - w_width) // 2
         crop_top = (diag - w_height) // 2
         overlay = tiled_canvas.crop((crop_left, crop_top, crop_left + w_width, crop_top + w_height))
-        combined = Image.alpha_composite(base_img, overlay)
     else:
-        overlay = Image.new("RGBA", (w_width, w_height), (255, 255, 255, 0))
+        overlay = Image.new("RGBA", (w_width, w_height), (0, 0, 0, 0))
         stamp = logo_resized
         if angle != 0:
             stamp = stamp.rotate(angle, expand=True, resample=Image.Resampling.BICUBIC)
@@ -357,8 +361,14 @@ def apply_image_watermark(
             "bottom-right": (w_width - sw - m, w_height - sh - m),
         }
         dest_x, dest_y = pos_map.get(position.lower(), ((w_width - sw) // 2, (w_height - sh) // 2))
-        overlay.paste(stamp, (dest_x, dest_y), mask=stamp)
-        combined = Image.alpha_composite(base_img, overlay)
+        overlay.alpha_composite(stamp, (max(0, min(w_width - sw, dest_x)), max(0, min(w_height - sh, dest_y))))
+
+    # Apply opacity cleanly to the composite overlay
+    r, g, b, a = overlay.split()
+    a = a.point(lambda p: int(p * eff_opacity))
+    overlay = Image.merge("RGBA", (r, g, b, a))
+
+    combined = Image.alpha_composite(base_img, overlay)
 
     out_buf = io.BytesIO()
     combined.convert("RGB").save(out_buf, format="JPEG", quality=95)
@@ -371,18 +381,36 @@ def process_watermark_and_resize(
     watermark_config: dict[str, Any],
     resize_config: dict[str, Any],
 ) -> tuple[bytes, str]:
-    """Execute watermark then resize sequentially in-memory.
+    """Execute resize to target preset followed by watermarking in-memory.
+
+    Resizing to target preset first guarantees:
+    - Watermark logos and text are rendered razor-sharp without downscale blur.
+    - Watermark size and padding match exact requested pixel presets.
+    - Blazing fast execution across high-resolution catalogue scans.
 
     Returns (processed_image_bytes, "jpg").
     """
-    # 1. Apply watermark with presets (defaults to company logo in tiled view)
+    target_width = resize_config.get("width", 1000)
+    target_height = resize_config.get("height", 1200)
+    quality = resize_config.get("quality", 100)
+
+    # 1. Resize single image to target preset (1000x1200 @ 100% quality)
+    resized_bytes, _ = resize_single_image(
+        image_bytes=image_bytes,
+        target_width=target_width,
+        target_height=target_height,
+        output_format="JPEG",
+        quality=quality,
+    )
+
+    # 2. Apply watermark with presets directly onto resized image
     logo_bytes = watermark_config.get("logo_bytes")
     if not logo_bytes and watermark_config.get("wm_type") != "text":
         logo_bytes = get_default_logo_bytes()
 
     if logo_bytes:
-        wm_bytes = apply_image_watermark(
-            image_bytes=image_bytes,
+        final_bytes = apply_image_watermark(
+            image_bytes=resized_bytes,
             logo_bytes=logo_bytes,
             scale_pct=watermark_config.get("scale_pct", watermark_config.get("size_pct", 10)),
             opacity=watermark_config.get("opacity", 0.15),
@@ -392,25 +420,16 @@ def process_watermark_and_resize(
             is_tiled=watermark_config.get("is_tiled", True),
         )
     else:
-        wm_bytes = apply_text_watermark(
-            image_bytes=image_bytes,
-            text=watermark_config.get("text", "CONFIDENTIAL"),
+        final_bytes = apply_text_watermark(
+            image_bytes=resized_bytes,
+            text=watermark_config.get("text", "INDIA SPARE"),
             opacity=watermark_config.get("opacity", 0.15),
             angle=watermark_config.get("angle", -30.0),
             padding=watermark_config.get("padding", 115),
             size_pct=watermark_config.get("size_pct", 10),
             position=watermark_config.get("position", "center"),
-            color_hex=watermark_config.get("color", "#FFFFFF"),
+            color_hex=watermark_config.get("color", "#1E3A8A"),
             is_tiled=watermark_config.get("is_tiled", True),
         )
 
-    # 2. Resize to requested preset (1000x1200 @ 100% quality)
-    resized_bytes, ext = resize_single_image(
-        image_bytes=wm_bytes,
-        target_width=resize_config.get("width", 1000),
-        target_height=resize_config.get("height", 1200),
-        output_format="JPEG",
-        quality=resize_config.get("quality", 100),
-    )
-
-    return resized_bytes, "jpg"
+    return final_bytes, "jpg"

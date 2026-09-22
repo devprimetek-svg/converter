@@ -61,7 +61,7 @@ export const AutoPipeline: React.FC = () => {
   const [wmPadding, setWmPadding] = useState<number>(115);
   const [wmSizePct, setWmSizePct] = useState<number>(10);
   const [wmOpacity, setWmOpacity] = useState<number>(15);
-  const [wmColor, setWmColor] = useState<string>('#FFFFFF');
+  const [wmColor, setWmColor] = useState<string>('#1E3A8A');
   const [wmIsTiled, setWmIsTiled] = useState<boolean>(true);
   const [logoFile, setLogoFile] = useState<File | null>(null);
 

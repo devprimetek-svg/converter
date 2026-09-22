@@ -130,3 +130,49 @@ def test_pdf_extract_images_api():
     zip_res = client.post("/api/pdf/download-images-zip", json={"session_id": session_id})
     assert zip_res.status_code == 200
     assert zip_res.content[:4] == b"PK\x03\x04"
+
+
+def test_logo_watermark_visibility_on_white_background():
+    """Ensure that default company logo in tiled view is clearly visible on white parts diagrams."""
+    from app.image_tools import get_default_logo_bytes, process_watermark_and_resize
+
+    logo_bytes = get_default_logo_bytes()
+    assert logo_bytes is not None and len(logo_bytes) > 0
+
+    # Create a pure white parts diagram
+    base = Image.new("RGB", (1200, 1400), (255, 255, 255))
+    buf = io.BytesIO()
+    base.save(buf, format="JPEG")
+
+    wm_config = {
+        "wm_type": "logo",
+        "logo_bytes": logo_bytes,
+        "scale_pct": 10,
+        "opacity": 0.15,
+        "angle": -30.0,
+        "padding": 115,
+        "is_tiled": True,
+    }
+    resize_config = {
+        "width": 1000,
+        "height": 1200,
+        "quality": 100,
+    }
+
+    processed_bytes, ext = process_watermark_and_resize(buf.getvalue(), wm_config, resize_config)
+    assert ext == "jpg"
+    assert len(processed_bytes) > 0
+
+    res_img = Image.open(io.BytesIO(processed_bytes))
+    assert res_img.size == (1000, 1200)
+
+    # Check pixel distribution: watermark must be visibly tinted
+    pixels = list(res_img.getdata())
+    non_white_count = sum(1 for p in pixels if p != (255, 255, 255))
+    min_pixel = min(pixels)
+
+    # Must have tens of thousands of clearly tinted watermark pixels
+    assert non_white_count > 50000, f"Watermark not visible! Only {non_white_count} non-white pixels found"
+    # Darkest pixel must be visibly darker than 250 (e.g. <= 230)
+    assert min(min_pixel) < 235, f"Watermark contrast too faint: min pixel is {min_pixel}"
+
