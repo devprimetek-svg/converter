@@ -128,9 +128,9 @@ def test_pipeline_worker_execution():
     assert "PROCESSING_SUMMARY.txt" in filenames
 
     # 3. Check processed images exist inside images/ and meet 1000x1200 preset
-    image_files = [f for f in filenames if f.startswith("images/") and f.endswith(".jpg")]
+    image_files = [f for f in filenames if f.startswith("images/") and not f.endswith("/")]
     assert len(image_files) >= 1
-    assert "images/YAM_BGP1_CYLINDER HEAD.jpg" in image_files
+    assert "images/YAM_BGP1_CYLINDER HEAD" in image_files
 
     for img_fname in image_files:
         raw_img_data = zf.read(img_fname)
@@ -292,14 +292,14 @@ def test_parts_only_deduplication_and_figure_naming():
 
     zf = zipfile.ZipFile(io.BytesIO(job.zip_bytes))
     filenames = zf.namelist()
-    image_files = sorted([f for f in filenames if f.startswith("images/") and f.endswith(".jpg")])
+    image_files = sorted([f for f in filenames if f.startswith("images/") and not f.endswith("/")])
 
     # Exactly 2 images extracted: FIG 1 and FIG 2.
     # Cover image was skipped (non-parts page).
     # Page 3 continuation image was deduplicated (identical hash to Page 2).
     assert len(image_files) == 2, f"Expected exactly 2 images, got {len(image_files)}: {image_files}"
-    assert "images/YAM_BGPK_CYLINDER HEAD.jpg" in image_files
-    assert "images/YAM_BGPK_CRANKSHAFT.jpg" in image_files
+    assert "images/YAM_BGPK_CYLINDER HEAD" in image_files
+    assert "images/YAM_BGPK_CRANKSHAFT" in image_files
 
     # Verify each image is resized to 1000x1200
     for img_fname in image_files:

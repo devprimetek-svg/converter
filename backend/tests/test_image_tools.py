@@ -43,7 +43,8 @@ def test_extract_images_from_pdf():
     first = extracted[0]
     assert first["width"] == 100
     assert first["height"] == 80
-    assert first["filename"].endswith(".jpg")
+    assert first["filename"].startswith("YAM_")
+    assert not first["filename"].endswith(".jpg")
     assert first["format"] == "JPEG"
     assert "data:image/jpeg;base64," in first["thumbnail_url"]
     assert len(first["raw_bytes"]) > 0

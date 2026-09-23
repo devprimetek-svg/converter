@@ -233,7 +233,7 @@ def run_pipeline_worker(
                     watermark_config=watermark_config,
                     resize_config=resize_config,
                 )
-                fname = img_info.get("filename") or f"YAM_{pipeline_model_code}_PART_{idx + 1:03d}.jpg"
+                fname = img_info.get("filename") or f"YAM_{pipeline_model_code}_PART_{idx + 1:03d}"
                 processed_items.append((fname, processed_bytes))
 
                 # Generate lightweight thumbnail for UI preview

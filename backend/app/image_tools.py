@@ -86,22 +86,28 @@ def extract_images_from_pdf(
                     continue
                 seen_hashes.add(img_hash)
 
-                # Convert to RGB (flatten transparency onto clean white background if needed)
-                if pil_img.mode in ("RGBA", "LA") or (pil_img.mode == "P" and "transparency" in pil_img.info):
+                # Preserve 100% exact original quality from PDF:
+                # If image is already in standard JPEG format without alpha/transparency,
+                # use exact raw bytes directly from the PDF stream to guarantee zero recompression loss.
+                if pil_img.format == "JPEG" and pil_img.mode == "RGB":
+                    jpg_bytes = img_data
+                    pil_rgb = pil_img
+                elif pil_img.mode in ("RGBA", "LA") or (pil_img.mode == "P" and "transparency" in pil_img.info):
                     bg = Image.new("RGB", pil_img.size, (255, 255, 255))
                     alpha_mask = pil_img.convert("RGBA").split()[-1]
                     bg.paste(pil_img.convert("RGB"), mask=alpha_mask)
                     pil_rgb = bg
+                    jpg_buf = io.BytesIO()
+                    pil_rgb.save(jpg_buf, format="JPEG", quality=100, subsampling=0)
+                    jpg_bytes = jpg_buf.getvalue()
                 else:
                     pil_rgb = pil_img.convert("RGB")
+                    jpg_buf = io.BytesIO()
+                    pil_rgb.save(jpg_buf, format="JPEG", quality=100, subsampling=0)
+                    jpg_bytes = jpg_buf.getvalue()
 
-                # Always export in JPG format
-                jpg_buf = io.BytesIO()
-                pil_rgb.save(jpg_buf, format="JPEG", quality=95)
-                jpg_bytes = jpg_buf.getvalue()
-
-                # Generate descriptive filename: YAM_{MODEL_CODE}_{PART_NAME}.jpg
-                # e.g. YAM_BGPK_CYLINDER HEAD.jpg
+                # Generate descriptive filename without .jpg extension:
+                # e.g. YAM_D001_CYLINDER or YAM_BGPK_CYLINDER HEAD
                 if fig_info:
                     fig_no = str(fig_info.get("fig_no", "")).strip()
                     fig_name = str(fig_info.get("fig_name", "")).strip()
@@ -117,18 +123,18 @@ def extract_images_from_pdf(
                     fig_counter[counter_key] = count
 
                     if count == 1:
-                        filename = f"YAM_{clean_model_code}_{clean_part_name}.jpg"
+                        filename = f"YAM_{clean_model_code}_{clean_part_name}"
                     else:
-                        filename = f"YAM_{clean_model_code}_{clean_part_name}_{count}.jpg"
+                        filename = f"YAM_{clean_model_code}_{clean_part_name}_{count}"
                 else:
                     clean_part_name = f"PAGE_{page_num}_IMG_{img_idx + 1}"
                     counter_key = clean_part_name
                     count = fig_counter.get(counter_key, 0) + 1
                     fig_counter[counter_key] = count
                     if count == 1:
-                        filename = f"YAM_{clean_model_code}_{clean_part_name}.jpg"
+                        filename = f"YAM_{clean_model_code}_{clean_part_name}"
                     else:
-                        filename = f"YAM_{clean_model_code}_{clean_part_name}_{count}.jpg"
+                        filename = f"YAM_{clean_model_code}_{clean_part_name}_{count}"
 
                 # Generate compact base64 thumbnail for fast frontend display
                 thumb = pil_rgb.copy()
@@ -195,7 +201,9 @@ def resize_single_image(
         resized = background
 
     out_buf = io.BytesIO()
-    if fmt in ("JPEG", "JPG", "WEBP"):
+    if fmt in ("JPEG", "JPG"):
+        resized.save(out_buf, format=fmt, quality=max(1, min(100, quality)), subsampling=0)
+    elif fmt == "WEBP":
         resized.save(out_buf, format=fmt, quality=max(1, min(100, quality)))
     else:
         resized.save(out_buf, format=fmt)
@@ -317,7 +325,7 @@ def apply_text_watermark(
     combined = Image.alpha_composite(base_img, overlay)
 
     out_buf = io.BytesIO()
-    combined.convert("RGB").save(out_buf, format="JPEG", quality=95)
+    combined.convert("RGB").save(out_buf, format="JPEG", quality=100, subsampling=0)
     out_buf.seek(0)
     return out_buf.getvalue()
 
@@ -391,7 +399,7 @@ def apply_image_watermark(
     combined = Image.alpha_composite(base_img, overlay)
 
     out_buf = io.BytesIO()
-    combined.convert("RGB").save(out_buf, format="JPEG", quality=95)
+    combined.convert("RGB").save(out_buf, format="JPEG", quality=100, subsampling=0)
     out_buf.seek(0)
     return out_buf.getvalue()
 
