@@ -9,6 +9,7 @@ import { PdfImageExtractor } from './components/PdfImageExtractor';
 import { BulkImageResizer } from './components/BulkImageResizer';
 import { WatermarkTool } from './components/WatermarkTool';
 import { AutoPipeline } from './components/AutoPipeline';
+import { MetaGenerator } from './components/MetaGenerator';
 import type { ExtractionStatus } from './types';
 
 export function App() {
@@ -315,6 +316,17 @@ export function App() {
                 />
               </div>
             )}
+          </div>
+        )}
+
+        {/* Tab 2: SEO & Product Metadata Generator */}
+        {activeTab === 'meta-generator' && (
+          <div className="animate-in fade-in duration-200">
+            <MetaGenerator
+              initialRows={status?.rows || []}
+              modelColumns={status?.model_columns || []}
+              initialFilename={status?.filename?.replace(/\.pdf$/i, '') || 'Catalogue'}
+            />
           </div>
         )}
 

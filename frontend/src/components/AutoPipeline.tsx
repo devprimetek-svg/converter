@@ -16,7 +16,11 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Tag,
+  Copy,
+  FileText,
 } from 'lucide-react';
+import type { PartMetadataItem } from '../types';
 
 interface PipelineStatus {
   job_id: string;
@@ -35,6 +39,9 @@ interface PipelineStatus {
   total_images: number;
   images_processed: number;
   excel_ready: boolean;
+  metadata_ready?: boolean;
+  metadata_count?: number;
+  metadata_sample?: PartMetadataItem[];
   zip_ready: boolean;
   zip_filename: string;
   bundle_size_bytes: number;
@@ -77,7 +84,8 @@ export const AutoPipeline: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [status, setStatus] = useState<PipelineStatus | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [activeResultTab, setActiveResultTab] = useState<'images' | 'parts'>('images');
+  const [activeResultTab, setActiveResultTab] = useState<'images' | 'parts' | 'meta'>('images');
+  const [copiedMetaId, setCopiedMetaId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -215,6 +223,21 @@ export const AutoPipeline: React.FC = () => {
   const downloadExcelOnly = () => {
     if (!status?.job_id) return;
     window.location.href = `/api/pipeline/download-excel/${status.job_id}`;
+  };
+
+  const downloadMetadataOnly = (format: 'xlsx' | 'csv' = 'xlsx') => {
+    if (!status?.job_id) return;
+    window.location.href = `/api/pipeline/download-metadata/${status.job_id}?format=${format}`;
+  };
+
+  const copyMetaText = async (text: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedMetaId(id);
+      setTimeout(() => setCopiedMetaId(null), 2000);
+    } catch (e) {
+      console.error('Failed to copy', e);
+    }
   };
 
   const handleReset = () => {
@@ -664,6 +687,13 @@ export const AutoPipeline: React.FC = () => {
                   Excel Only
                 </button>
                 <button
+                  onClick={() => downloadMetadataOnly('xlsx')}
+                  className="inline-flex items-center gap-1.5 px-4 py-3 rounded-full bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:text-black dark:hover:text-white text-xs sm:text-sm font-semibold border border-zinc-200 dark:border-zinc-800 transition-all font-mono cursor-pointer"
+                >
+                  <Tag className="w-4 h-4 text-zinc-700 dark:text-white" />
+                  Metadata (.xlsx)
+                </button>
+                <button
                   onClick={handleReset}
                   className="inline-flex items-center gap-1.5 px-4 py-3 rounded-full bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white text-xs sm:text-sm font-semibold border border-zinc-200 dark:border-zinc-800 transition-all font-mono cursor-pointer"
                 >
@@ -717,6 +747,17 @@ export const AutoPipeline: React.FC = () => {
             >
               <FileSpreadsheet className={`w-4 h-4 ${activeResultTab === 'parts' ? 'text-white dark:text-black' : 'text-zinc-500 dark:text-zinc-400'}`} />
               Catalogue Records ({status.total_rows})
+            </button>
+            <button
+              onClick={() => setActiveResultTab('meta')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all ${
+                activeResultTab === 'meta'
+                  ? 'bg-black text-white dark:bg-white dark:text-black font-bold shadow-xs'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900'
+              }`}
+            >
+              <Tag className={`w-4 h-4 ${activeResultTab === 'meta' ? 'text-white dark:text-black' : 'text-zinc-500 dark:text-zinc-400'}`} />
+              SEO & Metadata ({status.metadata_count || status.total_rows})
             </button>
           </div>
 
@@ -812,6 +853,131 @@ export const AutoPipeline: React.FC = () => {
                         <td className="p-2.5 text-zinc-500">{r.remarks || '-'}</td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* SEO & Metadata Tab */}
+          {activeResultTab === 'meta' && (
+            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3 animate-in fade-in duration-150">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                    Product & Parts SEO Metadata ({status.metadata_count || status.total_rows} items)
+                  </h4>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">
+                    Pre-generated titles and descriptions tailored to part names, diagrams, and compatible models.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => downloadMetadataOnly('xlsx')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black text-white dark:bg-white dark:text-black text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Download (.xlsx)
+                  </button>
+                  <button
+                    onClick={() => downloadMetadataOnly('csv')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 transition-all cursor-pointer"
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    CSV
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 font-semibold border-b border-zinc-200 dark:border-zinc-800">
+                    <tr>
+                      <th className="p-2.5 w-12 text-center">Ref</th>
+                      <th className="p-2.5">Part Details</th>
+                      <th className="p-2.5">Diagram Image</th>
+                      <th className="p-2.5">Product Title</th>
+                      <th className="p-2.5">Meta Short Description</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
+                    {status.metadata_sample && status.metadata_sample.length > 0 ? (
+                      status.metadata_sample.map((m, i) => (
+                        <tr key={i} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
+                          <td className="p-2.5 text-center">
+                            <span className="font-mono font-bold text-zinc-600 dark:text-zinc-400">
+                              #{m.ref_no || '-'}
+                            </span>
+                            <div className="text-[10px] text-zinc-400">Fig {m.fig_no}</div>
+                          </td>
+                          <td className="p-2.5">
+                            <div className="font-mono font-bold text-zinc-900 dark:text-white">
+                              {m.part_no}
+                            </div>
+                            <div className="text-[11px] text-zinc-500 font-mono">
+                              Clean: {m.clean_part_no}
+                            </div>
+                            <div className="text-zinc-700 dark:text-zinc-300 font-medium">
+                              {m.description}
+                            </div>
+                          </td>
+                          <td className="p-2.5 font-mono text-zinc-600 dark:text-zinc-400">
+                            <span className="truncate block max-w-[160px]" title={m.image_filename}>
+                              {m.image_filename}
+                            </span>
+                            <span className="text-[10px] text-zinc-400">{m.fig_name}</span>
+                          </td>
+                          <td className="p-2.5 max-w-xs">
+                            <div className="flex items-start justify-between gap-1.5">
+                              <span className="font-medium text-zinc-900 dark:text-white line-clamp-2">
+                                {m.product_title}
+                              </span>
+                              <button
+                                onClick={() => copyMetaText(m.product_title, `title_${i}`)}
+                                title="Copy Title"
+                                className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white shrink-0 cursor-pointer"
+                              >
+                                {copiedMetaId === `title_${i}` ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                            <div className="text-[10px] font-mono text-zinc-400 mt-0.5">
+                              {m.product_title.length} chars
+                            </div>
+                          </td>
+                          <td className="p-2.5 max-w-sm">
+                            <div className="flex items-start justify-between gap-1.5">
+                              <span className="text-zinc-600 dark:text-zinc-400 line-clamp-2">
+                                {m.meta_short_description}
+                              </span>
+                              <button
+                                onClick={() => copyMetaText(m.meta_short_description, `desc_${i}`)}
+                                title="Copy Description"
+                                className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white shrink-0 cursor-pointer"
+                              >
+                                {copiedMetaId === `desc_${i}` ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                            <div className="text-[10px] font-mono text-zinc-400 mt-0.5">
+                              {m.meta_short_description.length} chars
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5} className="p-6 text-center text-zinc-500 text-xs">
+                          Metadata is bundled in the Master ZIP download as Excel and CSV.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

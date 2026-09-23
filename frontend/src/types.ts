@@ -15,6 +15,30 @@ export interface FigureItem {
   first_page: number;
 }
 
+export interface PartMetadataItem {
+  page: number;
+  fig_no: string;
+  fig_name: string;
+  ref_no: string;
+  part_no: string;
+  clean_part_no: string;
+  description: string;
+  compatible_models: string;
+  image_filename: string;
+  product_title: string;
+  meta_short_description: string;
+  meta_long_description: string;
+  remarks?: string;
+}
+
+export interface MetaTemplateConfig {
+  brand: string;
+  style: 'ecommerce' | 'marketplace' | 'minimalist' | 'custom';
+  customTitle?: string;
+  customShortDesc?: string;
+  customLongDesc?: string;
+}
+
 export interface ExtractionStatus {
   job_id: string;
   filename: string;
@@ -29,3 +53,4 @@ export interface ExtractionStatus {
   rows?: PartRow[];
   error?: string | null;
 }
+

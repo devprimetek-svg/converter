@@ -24,6 +24,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.excel_export import generate_excel_workbook, is_valid_quantity
+from app.meta_generator import (
+    export_metadata_csv,
+    export_metadata_excel,
+    generate_catalog_metadata,
+)
 from app.parts_extractor import (
     ExtractionError,
     NoTextLayerError,
@@ -730,6 +735,125 @@ def download_pipeline_excel(job_id: str):
             "Access-Control-Expose-Headers": "Content-Disposition",
         },
     )
+
+
+@app.get("/api/pipeline/download-metadata/{job_id}")
+def download_pipeline_metadata(job_id: str, format: str = "xlsx"):
+    """Download generated product & parts metadata from pipeline."""
+    job = pipeline_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    if format.lower() == "csv":
+        if not job.metadata_csv_bytes:
+            raise HTTPException(status_code=400, detail="Metadata CSV not ready.")
+        return StreamingResponse(
+            io.BytesIO(job.metadata_csv_bytes),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f'attachment; filename="{job.metadata_filename}.csv"',
+                "Access-Control-Expose-Headers": "Content-Disposition",
+            },
+        )
+    else:
+        if not job.metadata_excel_bytes:
+            raise HTTPException(status_code=400, detail="Metadata Excel not ready.")
+        return StreamingResponse(
+            io.BytesIO(job.metadata_excel_bytes),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{job.metadata_filename}.xlsx"',
+                "Access-Control-Expose-Headers": "Content-Disposition",
+            },
+        )
+
+
+# ---------------------------------------------------------------------------
+# METADATA & SEO GENERATOR ENDPOINTS
+# ---------------------------------------------------------------------------
+
+
+class MetaGenerateRequest(BaseModel):
+    job_id: Optional[str] = None
+    rows: Optional[list[dict[str, Any]]] = None
+    model_columns: list[str] = Field(default_factory=list)
+    brand: str = "Yamaha"
+    style: str = "ecommerce"
+    custom_templates: Optional[dict[str, str]] = None
+    model_code: Optional[str] = None
+
+
+class MetaExportRequest(BaseModel):
+    items: list[dict[str, Any]]
+    format: str = "xlsx"  # "xlsx" or "csv"
+    filename: str = "Product_Metadata"
+    brand: str = "Yamaha"
+
+
+@app.post("/api/meta/generate")
+def generate_metadata_endpoint(req: MetaGenerateRequest):
+    """Generate SEO titles, short descriptions, and long descriptions for parts."""
+    rows = req.rows or []
+    model_cols = req.model_columns
+
+    if not rows and req.job_id:
+        # Check extraction jobs first
+        ext_job = jobs.get(req.job_id)
+        if ext_job and ext_job.rows:
+            rows = ext_job.rows
+            if not model_cols:
+                model_cols = ext_job.model_columns
+        else:
+            pipe_job = pipeline_manager.get_job(req.job_id)
+            if pipe_job and pipe_job.rows:
+                rows = pipe_job.rows
+                if not model_cols:
+                    model_cols = pipe_job.model_columns
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="No parts rows provided or job not found.")
+
+    m_code = req.model_code or ("_".join(model_cols) if model_cols else "")
+    items = generate_catalog_metadata(
+        rows=rows,
+        model_columns=model_cols,
+        brand=req.brand,
+        style=req.style,
+        custom_templates=req.custom_templates,
+        model_code=m_code,
+    )
+    return {"total": len(items), "items": items}
+
+
+@app.post("/api/meta/export")
+def export_metadata_endpoint(req: MetaExportRequest):
+    """Export generated metadata as Excel (.xlsx) or CSV."""
+    if not req.items:
+        raise HTTPException(status_code=400, detail="No metadata items to export.")
+
+    safe_name = re.sub(r'[\\/*?:"<>|]', "", req.filename).strip() or "Product_Metadata"
+
+    if req.format.lower() == "csv":
+        csv_buf = export_metadata_csv(req.items)
+        return StreamingResponse(
+            csv_buf,
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f'attachment; filename="{safe_name}.csv"',
+                "Access-Control-Expose-Headers": "Content-Disposition",
+            },
+        )
+    else:
+        xlsx_buf = export_metadata_excel(req.items, brand=req.brand)
+        return StreamingResponse(
+            xlsx_buf,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{safe_name}.xlsx"',
+                "Access-Control-Expose-Headers": "Content-Disposition",
+            },
+        )
+
 
 
 # Mount built frontend static assets if present (for unified single-container cloud deployment)

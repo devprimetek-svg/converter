@@ -25,6 +25,11 @@ from PIL import Image
 
 from app.excel_export import generate_excel_workbook
 from app.image_tools import extract_images_from_pdf, process_watermark_and_resize
+from app.meta_generator import (
+    export_metadata_csv,
+    export_metadata_excel,
+    generate_catalog_metadata,
+)
 from app.parts_extractor import extract_parts_from_pdf
 
 logger = logging.getLogger(__name__)
@@ -52,6 +57,12 @@ class PipelineJob:
         self.figures: list[dict[str, str]] = []
         self.excel_bytes: Optional[bytes] = None
         self.excel_filename: str = ""
+
+        # Metadata & SEO state
+        self.metadata_items: list[dict[str, Any]] = []
+        self.metadata_excel_bytes: Optional[bytes] = None
+        self.metadata_csv_bytes: Optional[bytes] = None
+        self.metadata_filename: str = ""
 
         # Image state
         self.total_images_found = 0
@@ -88,6 +99,9 @@ class PipelineJob:
                 "total_images": self.total_images_found,
                 "images_processed": self.images_processed_count,
                 "excel_ready": self.excel_bytes is not None,
+                "metadata_ready": self.metadata_excel_bytes is not None,
+                "metadata_count": len(self.metadata_items),
+                "metadata_sample": self.metadata_items[:20],
                 "zip_ready": self.zip_bytes is not None,
                 "zip_filename": self.zip_filename,
                 "bundle_size_bytes": self.bundle_size_bytes,
@@ -173,7 +187,7 @@ def run_pipeline_worker(
             job.progress_pct = 45
             job.details = f"Building Excel with {job.total_rows} parts..."
 
-        # Step 2: Excel workbook generation
+        # Step 2: Excel workbook generation & SEO Metadata Generation
         excel_buf = generate_excel_workbook(
             rows=job.rows,
             model_columns=job.model_columns,
@@ -182,15 +196,6 @@ def run_pipeline_worker(
         excel_bytes = excel_buf.getvalue()
         excel_filename = f"{base_name}_Parts.xlsx"
 
-        with job.lock:
-            job.excel_bytes = excel_bytes
-            job.excel_filename = excel_filename
-            job.step_index = 3
-            job.step_name = "Extracting Parts Images (Deduplicated)..."
-            job.progress_pct = 55
-            job.details = "Extracting unique illustrations mapped to parts figures..."
-
-        # Step 3: Extract PDF images strictly for parts figures with deduplication
         # Resolve model code from detected model columns or PDF filename
         pipeline_model_code = ""
         if job.model_columns:
@@ -202,6 +207,31 @@ def run_pipeline_worker(
             else:
                 pipeline_model_code = "MODEL"
 
+        # Generate SEO and E-commerce Metadata for all parts
+        meta_items = generate_catalog_metadata(
+            rows=job.rows,
+            model_columns=job.model_columns,
+            brand="Yamaha",
+            style="ecommerce",
+            model_code=pipeline_model_code,
+        )
+        meta_excel_bytes = export_metadata_excel(meta_items, brand="Yamaha").getvalue()
+        meta_csv_bytes = export_metadata_csv(meta_items).getvalue()
+        meta_filename = f"{base_name}_Product_Metadata"
+
+        with job.lock:
+            job.excel_bytes = excel_bytes
+            job.excel_filename = excel_filename
+            job.metadata_items = meta_items
+            job.metadata_excel_bytes = meta_excel_bytes
+            job.metadata_csv_bytes = meta_csv_bytes
+            job.metadata_filename = meta_filename
+            job.step_index = 3
+            job.step_name = "Extracting Parts Images (Deduplicated)..."
+            job.progress_pct = 55
+            job.details = "Extracting unique illustrations mapped to parts figures..."
+
+        # Step 3: Extract PDF images strictly for parts figures with deduplication
         raw_images = extract_images_from_pdf(
             pdf_bytes=pdf_bytes,
             figure_pages=page_figure_map if page_figure_map else None,
@@ -274,14 +304,20 @@ def run_pipeline_worker(
             # 1. Add Excel spreadsheet to root
             zf.writestr(excel_filename, excel_bytes)
 
-            # 2. Add processed images into images/ subfolder
+            # 2. Add E-Commerce & SEO Metadata files (Excel + CSV)
+            if job.metadata_excel_bytes:
+                zf.writestr(f"{meta_filename}.xlsx", job.metadata_excel_bytes)
+            if job.metadata_csv_bytes:
+                zf.writestr(f"{meta_filename}.csv", job.metadata_csv_bytes)
+
+            # 3. Add processed images into images/ subfolder
             for img_name, img_data in processed_items:
                 clean_name = img_name
                 if not clean_name.lower().endswith(".jpeg"):
                     clean_name = f"{clean_name}.jpeg"
                 zf.writestr(f"images/{clean_name}", img_data)
 
-            # 3. Add a readme summary file
+            # 4. Add a readme summary file
             summary_txt = (
                 f"Document & Image Studio - Automated Processing Summary\n"
                 f"====================================================\n"
@@ -291,7 +327,12 @@ def run_pipeline_worker(
                 f"   - File: {excel_filename}\n"
                 f"   - Total Parts Extracted: {len(job.rows)}\n"
                 f"   - Model Columns: {', '.join(job.model_columns) if job.model_columns else 'Single Model'}\n\n"
-                f"2. Processed Images:\n"
+                f"2. E-Commerce & SEO Metadata:\n"
+                f"   - Excel File: {meta_filename}.xlsx\n"
+                f"   - CSV File: {meta_filename}.csv\n"
+                f"   - Total Metadata Records: {len(meta_items)}\n"
+                f"   - Features: Product Title, Meta Short Description, Structured HTML Long Description, Diagram Image Reference\n\n"
+                f"3. Processed Images:\n"
                 f"   - Total Images Processed: {len(processed_items)}\n"
                 f"   - Resolution: {resize_config.get('width', 1000)}x{resize_config.get('height', 1200)} px\n"
                 f"   - Quality: {resize_config.get('quality', 100)}%\n"

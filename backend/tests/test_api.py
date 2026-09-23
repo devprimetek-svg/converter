@@ -221,3 +221,65 @@ def test_blank_quantity_row_and_remarks_omitted():
     assert "NEITHER MODEL" not in all_texts
 
 
+def test_metadata_generate_and_export_endpoints():
+    rows = [
+        {
+            "page": 2,
+            "fig_no": "1",
+            "fig_name": "CYLINDER HEAD",
+            "ref_no": "1",
+            "part_no": "BGP-E1111-00",
+            "description": "HEAD, CYLINDER 1",
+            "remarks": "",
+            "BGPK": "1",
+        }
+    ]
+
+    # 1. Test /api/meta/generate
+    gen_res = client.post(
+        "/api/meta/generate",
+        json={
+            "rows": rows,
+            "model_columns": ["BGPK"],
+            "brand": "Yamaha",
+            "style": "ecommerce",
+        },
+    )
+    assert gen_res.status_code == 200
+    gen_data = gen_res.json()
+    assert gen_data["total"] == 1
+    item = gen_data["items"][0]
+    assert item["part_no"] == "BGP-E1111-00"
+    assert item["clean_part_no"] == "BGPE11110000"
+    assert item["image_filename"] == "YAM_BGPK_CYLINDER HEAD.jpeg"
+    assert "Yamaha HEAD, CYLINDER 1" in item["product_title"]
+
+    # 2. Test /api/meta/export as xlsx
+    export_xlsx = client.post(
+        "/api/meta/export",
+        json={
+            "items": gen_data["items"],
+            "format": "xlsx",
+            "filename": "Test_Meta",
+        },
+    )
+    assert export_xlsx.status_code == 200
+    assert "Test_Meta.xlsx" in export_xlsx.headers.get("content-disposition", "")
+    assert export_xlsx.content[:4] == b"PK\x03\x04"
+
+    # 3. Test /api/meta/export as csv
+    export_csv = client.post(
+        "/api/meta/export",
+        json={
+            "items": gen_data["items"],
+            "format": "csv",
+            "filename": "Test_Meta",
+        },
+    )
+    assert export_csv.status_code == 200
+    assert "Test_Meta.csv" in export_csv.headers.get("content-disposition", "")
+    csv_txt = export_csv.content.decode("utf-8-sig")
+    assert "Part No.,Clean Part No.,Part Description" in csv_txt
+    assert "BGP-E1111-00" in csv_txt
+
+
