@@ -191,15 +191,27 @@ def run_pipeline_worker(
             job.details = "Extracting unique illustrations mapped to parts figures..."
 
         # Step 3: Extract PDF images strictly for parts figures with deduplication
+        # Resolve model code from detected model columns or PDF filename
+        pipeline_model_code = ""
+        if job.model_columns:
+            pipeline_model_code = "_".join(str(c).strip() for c in job.model_columns if str(c).strip())
+        if not pipeline_model_code:
+            m = re.search(r"\b([A-Z0-9]{3,6})\b", job.filename.upper())
+            if m:
+                pipeline_model_code = m.group(1)
+            else:
+                pipeline_model_code = "MODEL"
+
         raw_images = extract_images_from_pdf(
             pdf_bytes=pdf_bytes,
             figure_pages=page_figure_map if page_figure_map else None,
             parts_only=bool(page_figure_map),
+            model_code=pipeline_model_code,
         )
 
         # Fallback if no images found with figure filter but images exist in PDF
         if not raw_images and not page_figure_map:
-            raw_images = extract_images_from_pdf(pdf_bytes, parts_only=False)
+            raw_images = extract_images_from_pdf(pdf_bytes, parts_only=False, model_code=pipeline_model_code)
 
         with job.lock:
             job.total_images_found = len(raw_images)
@@ -221,7 +233,7 @@ def run_pipeline_worker(
                     watermark_config=watermark_config,
                     resize_config=resize_config,
                 )
-                fname = img_info.get("filename") or f"image_{idx + 1:03d}_{img_info['page']}.jpg"
+                fname = img_info.get("filename") or f"YAM_{pipeline_model_code}_PART_{idx + 1:03d}.jpg"
                 processed_items.append((fname, processed_bytes))
 
                 # Generate lightweight thumbnail for UI preview

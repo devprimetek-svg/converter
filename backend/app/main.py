@@ -375,7 +375,12 @@ async def extract_pdf_images_endpoint(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
     try:
-        images = extract_images_from_pdf(content)
+        model_code = ""
+        if file.filename:
+            m = re.search(r"\b([A-Z0-9]{3,6})\b", file.filename.upper())
+            if m:
+                model_code = m.group(1)
+        images = extract_images_from_pdf(content, model_code=model_code or "MODEL")
     except Exception as e:
         logger.exception("PDF image extraction failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to extract images from PDF: {str(e)}")

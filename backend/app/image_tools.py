@@ -34,6 +34,7 @@ def extract_images_from_pdf(
     figure_pages: Optional[dict[int, dict[str, str]]] = None,
     parts_only: bool = False,
     min_dimension: int = 150,
+    model_code: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     """Extract embedded raster images from a PDF document in-memory.
 
@@ -41,12 +42,18 @@ def extract_images_from_pdf(
     - Filters out non-figure pages (Cover, Foreword, Index, etc.)
     - Excludes small icons, banners, and noise (< min_dimension px)
     - Strictly deduplicates repeated/identical image streams across pages
-    - Names files as per parts figures: FIG_{fig_no}_{fig_name_clean}.jpg
+    - Names files according to: YAM_{MODEL_CODE}_{PART_NAME}.jpg (e.g. YAM_BGPK_CYLINDER HEAD.jpg)
     """
     reader = PdfReader(io.BytesIO(pdf_bytes))
     extracted: list[dict[str, Any]] = []
     seen_hashes: set[str] = set()
     fig_counter: dict[str, int] = {}
+
+    clean_model_code = ""
+    if model_code:
+        clean_model_code = re.sub(r"[^A-Za-z0-9_-]+", "", model_code.strip()).strip("_")
+    if not clean_model_code:
+        clean_model_code = "MODEL"
 
     effective_parts_only = parts_only or (figure_pages is not None and len(figure_pages) > 0)
     effective_min_dim = min_dimension if effective_parts_only else 10
@@ -93,22 +100,35 @@ def extract_images_from_pdf(
                 pil_rgb.save(jpg_buf, format="JPEG", quality=95)
                 jpg_bytes = jpg_buf.getvalue()
 
-                # Generate descriptive filename as per parts figure
+                # Generate descriptive filename: YAM_{MODEL_CODE}_{PART_NAME}.jpg
+                # e.g. YAM_BGPK_CYLINDER HEAD.jpg
                 if fig_info:
                     fig_no = str(fig_info.get("fig_no", "")).strip()
                     fig_name = str(fig_info.get("fig_name", "")).strip()
-                    clean_name = re.sub(r"[^A-Za-z0-9_]+", "_", fig_name).strip("_")
-                    padded_no = fig_no.zfill(2) if fig_no.isdigit() else fig_no
+                    # Clean filename invalid characters but preserve spaces (e.g. CYLINDER HEAD)
+                    clean_part_name = re.sub(r'[\/:*?"<>|\r\n\t]', " ", fig_name)
+                    clean_part_name = re.sub(r"\s+", " ", clean_part_name).strip()
+                    if not clean_part_name:
+                        padded_no = fig_no.zfill(2) if fig_no.isdigit() else fig_no
+                        clean_part_name = f"FIG_{padded_no}" if padded_no else f"PAGE_{page_num}"
 
-                    count = fig_counter.get(fig_no, 0) + 1
-                    fig_counter[fig_no] = count
+                    counter_key = f"{fig_no}_{clean_part_name}"
+                    count = fig_counter.get(counter_key, 0) + 1
+                    fig_counter[counter_key] = count
 
                     if count == 1:
-                        filename = f"FIG_{padded_no}_{clean_name}.jpg" if clean_name else f"FIG_{padded_no}.jpg"
+                        filename = f"YAM_{clean_model_code}_{clean_part_name}.jpg"
                     else:
-                        filename = f"FIG_{padded_no}_{clean_name}_{count}.jpg" if clean_name else f"FIG_{padded_no}_{count}.jpg"
+                        filename = f"YAM_{clean_model_code}_{clean_part_name}_{count}.jpg"
                 else:
-                    filename = f"page_{page_num}_img_{img_idx + 1}.jpg"
+                    clean_part_name = f"PAGE_{page_num}_IMG_{img_idx + 1}"
+                    counter_key = clean_part_name
+                    count = fig_counter.get(counter_key, 0) + 1
+                    fig_counter[counter_key] = count
+                    if count == 1:
+                        filename = f"YAM_{clean_model_code}_{clean_part_name}.jpg"
+                    else:
+                        filename = f"YAM_{clean_model_code}_{clean_part_name}_{count}.jpg"
 
                 # Generate compact base64 thumbnail for fast frontend display
                 thumb = pil_rgb.copy()

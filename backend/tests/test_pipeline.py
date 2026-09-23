@@ -296,8 +296,8 @@ def test_parts_only_deduplication_and_figure_naming():
     # Cover image was skipped (non-parts page).
     # Page 3 continuation image was deduplicated (identical hash to Page 2).
     assert len(image_files) == 2, f"Expected exactly 2 images, got {len(image_files)}: {image_files}"
-    assert "images/FIG_01_CYLINDER_HEAD.jpg" in image_files
-    assert "images/FIG_02_CRANKSHAFT.jpg" in image_files
+    assert "images/YAM_BGPK_CYLINDER HEAD.jpg" in image_files
+    assert "images/YAM_BGPK_CRANKSHAFT.jpg" in image_files
 
     # Verify each image is resized to 1000x1200
     for img_fname in image_files:

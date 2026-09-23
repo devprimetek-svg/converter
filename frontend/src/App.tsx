@@ -247,7 +247,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen min-h-[100dvh] flex flex-col bg-black bg-minimal-pattern text-white transition-colors duration-200 font-sans">
+    <div className="min-h-screen min-h-[100dvh] flex flex-col bg-zinc-50 dark:bg-black bg-minimal-pattern text-zinc-900 dark:text-white transition-colors duration-200 font-sans">
       {/* Minimalist Monochrome Startup Splash Screen */}
       {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
 
@@ -281,13 +281,13 @@ export function App() {
             {!status && !errorMessage && (
               <div className="space-y-8">
                 <div className="text-center max-w-2xl mx-auto space-y-3">
-                  <span className="inline-block px-3 py-1 rounded-full text-xs font-mono font-medium bg-zinc-900 text-zinc-300 border border-zinc-800 uppercase tracking-widest">
+                  <span className="inline-block px-3 py-1 rounded-full text-xs font-mono font-medium bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 uppercase tracking-widest">
                     Venture Intelligence
                   </span>
-                  <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                  <h2 className="text-3xl sm:text-4xl font-extrabold text-zinc-900 dark:text-white tracking-tight">
                     Extract Parts Catalogues to Excel
                   </h2>
-                  <p className="text-sm sm:text-base text-zinc-400 font-normal">
+                  <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400 font-normal">
                     Precision extraction of figure diagrams, vertical rotated model codes (BGPJ, BGPL),
                     part descriptions, and remark columns.
                   </p>
@@ -341,16 +341,16 @@ export function App() {
       </main>
 
       {/* Minimalist Monochrome Footer */}
-      <footer className="border-t border-zinc-800/80 bg-black py-5 text-xs font-mono text-zinc-500 safe-bottom">
+      <footer className="border-t border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-black py-5 text-xs font-mono text-zinc-500 dark:text-zinc-400 safe-bottom">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
           <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-white" />
-            <span className="font-semibold tracking-wider text-zinc-300 uppercase">
+            <span className="w-1.5 h-1.5 rounded-full bg-zinc-900 dark:bg-white" />
+            <span className="font-semibold tracking-wider text-zinc-800 dark:text-zinc-300 uppercase">
               Venture Automation • Extract and Build
             </span>
           </div>
-          <p className="text-zinc-500">Document & Image Intelligence Matrix • 100% In-Memory Privacy</p>
-          <span className="text-zinc-400 font-medium text-[11px]">ACTIVE [OK]</span>
+          <p className="text-zinc-500 dark:text-zinc-400">Document & Image Intelligence Matrix • 100% In-Memory Privacy</p>
+          <span className="text-zinc-600 dark:text-zinc-400 font-medium text-[11px]">ACTIVE [OK]</span>
         </div>
       </footer>
     </div>

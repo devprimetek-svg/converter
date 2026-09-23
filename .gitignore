@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -16,6 +16,7 @@ backend/.pytest_cache/
 node_modules/
 frontend/node_modules/
 frontend/dist/
+backend/static/
 dist/
 dist-ssr/
 *.local
