@@ -422,7 +422,7 @@ export const PdfImageExtractor: React.FC = () => {
                       {/* Single download button */}
                       <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between">
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
-                          JPG
+                          JPEG
                         </span>
                         <a
                           href={`/api/pdf/images/${sessionId}/${img.id}`}

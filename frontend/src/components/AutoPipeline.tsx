@@ -740,7 +740,7 @@ export const AutoPipeline: React.FC = () => {
                           {img.width}x{img.height}
                         </span>
                         <span className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-zinc-800 backdrop-blur-xs text-[10px] font-mono text-white font-semibold">
-                          JPG
+                          JPEG
                         </span>
                         {img.fig_no && (
                           <span className="absolute bottom-2 left-2 right-2 px-2 py-0.5 rounded-md bg-black/90 backdrop-blur-xs text-[10px] font-medium text-zinc-300 border border-zinc-800 truncate">
