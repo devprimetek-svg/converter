@@ -61,7 +61,7 @@ def build_long_description(
     ser = (series or "series").strip()
     p = (part_name or "PARTS").strip().upper()
 
-    m_disp = f"{mn} {mc}".strip() if mn else mc
+    m_disp = f"{mc} {mn}".strip() if mn else mc
 
     # Ordered candidate sentences designed for various part name lengths
     candidates = [
@@ -130,9 +130,9 @@ def generate_main_part_metadata(
 
     # Model display in title and description:
     # If model is blank, sequence is: BRAND, MODEL CODE, PARTS NAME
-    # If model is filled, sequence is: BRAND, MODEL MODEL_CODE, PARTS NAME
+    # If model is filled, sequence is: BRAND, MODEL CODE, MODEL, PARTS NAME
     if mn:
-        model_str = f"{mn.upper()} {mc}"
+        model_str = f"{mc}, {mn.upper()}"
     else:
         model_str = mc
 
@@ -197,7 +197,7 @@ def generate_child_part_metadata(
     mn = (model or "").strip()
     ser = (series or "series").strip()
 
-    model_str = f"{mn.upper()} {mc}" if mn else mc
+    model_str = f"{mc}, {mn.upper()}" if mn else mc
     full_part_name = f"{desc} ({fig_name})"
 
     title = f"{b}, {model_str}, {full_part_name}"

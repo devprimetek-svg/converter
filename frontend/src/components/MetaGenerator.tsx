@@ -38,9 +38,11 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
   // User Requested Text Boxes:
   // 1. Brand (default YAMAHA)
-  // 2. Model (label Model, blank by default)
-  // 3. Series (label Series, default "series")
+  // 2. Model Code (auto-detected e.g. BGPK, editable)
+  // 3. Model (label Model, blank by default - typed after model code)
+  // 4. Series (label Series, default "series")
   const [brand, setBrand] = useState<string>('YAMAHA');
+  const [modelCode, setModelCode] = useState<string>('');
   const [model, setModel] = useState<string>('');
   const [series, setSeries] = useState<string>('series');
 
@@ -83,12 +85,14 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
     return match ? match[1].toUpperCase() : 'BGPK';
   }, [models, filename]);
 
+  const activeModelCode = (modelCode.trim() || resolvedModelCode).toUpperCase();
+
   // Trigger generation whenever inputs change
   useEffect(() => {
     if ((rows && rows.length > 0) || (figures && figures.length > 0)) {
       generateMetadata();
     }
-  }, [rows, figures, brand, model, series, mainPartsOnly, resolvedModelCode]);
+  }, [rows, figures, brand, modelCode, model, series, mainPartsOnly, resolvedModelCode]);
 
   const generateMetadata = async () => {
     if ((!rows || rows.length === 0) && (!figures || figures.length === 0)) return;
@@ -101,7 +105,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
         brand: brand.trim() || 'YAMAHA',
         model: model.trim(),
         series: series.trim() || 'series',
-        model_code: resolvedModelCode,
+        model_code: activeModelCode,
         main_parts_only: mainPartsOnly,
       };
 
@@ -306,8 +310,8 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
           </div>
         </div>
 
-        {/* Configuration Text Boxes (User Requested: Brand, Model [blank], Series [default 'series']) */}
-        <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800/80 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Configuration Text Boxes (Brand, Model Code, Model [typed after Model Code], Series) */}
+        <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800/80 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Brand Box */}
           <div>
             <label className="block text-xs font-mono uppercase text-zinc-500 font-semibold mb-1.5">
@@ -322,7 +326,21 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
             />
           </div>
 
-          {/* Model Box (blank by default per user rule) */}
+          {/* Model Code Box */}
+          <div>
+            <label className="block text-xs font-mono uppercase text-zinc-500 font-semibold mb-1.5">
+              Model Code
+            </label>
+            <input
+              type="text"
+              value={modelCode || resolvedModelCode}
+              onChange={(e) => setModelCode(e.target.value.toUpperCase())}
+              placeholder="Model Code (e.g. BGPK)"
+              className="w-full px-3.5 py-2 rounded-xl text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-600 font-semibold uppercase"
+            />
+          </div>
+
+          {/* Model Box (typed after Model Code, blank by default per user rule) */}
           <div>
             <label className="block text-xs font-mono uppercase text-zinc-500 font-semibold mb-1.5">
               Model <span className="text-zinc-400 font-normal lowercase">(optional)</span>

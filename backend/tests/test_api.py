@@ -258,6 +258,25 @@ def test_metadata_generate_and_export_endpoints():
     assert item["meta_short_description"] == "YAMAHA, BGPK, CYLINDER HEAD, INDIA SPARE"
     assert 120 <= len(item["meta_long_description"]) <= 140
 
+    # Test /api/meta/generate with custom model typed after model code
+    gen_custom = client.post(
+        "/api/meta/generate",
+        json={
+            "rows": rows,
+            "model_columns": ["BGPK"],
+            "brand": "YAMAHA",
+            "model": "R15",
+            "series": "series",
+            "main_parts_only": True,
+        },
+    )
+    assert gen_custom.status_code == 200
+    custom_item = gen_custom.json()["items"][0]
+    assert custom_item["product_title"] == "YAMAHA, BGPK, R15, CYLINDER HEAD"
+    assert custom_item["meta_short_description"] == "YAMAHA, BGPK, R15, CYLINDER HEAD, INDIA SPARE"
+    assert 120 <= len(custom_item["meta_long_description"]) <= 140
+    assert "BGPK R15" in custom_item["meta_long_description"]
+
     # 2. Test /api/meta/export as xlsx
     export_xlsx = client.post(
         "/api/meta/export",

@@ -89,15 +89,15 @@ def test_generate_main_part_with_custom_model_and_series():
         series="STREET RALLY",
     )
 
-    # Title with model
-    assert meta["product_title"] == "YAMAHA, RAY ZR BGPK, CRANKSHAFT & PISTON"
+    # Title with model after model code
+    assert meta["product_title"] == "YAMAHA, BGPK, RAY ZR, CRANKSHAFT & PISTON"
 
-    # Short desc with model and INDIA SPARE
-    assert meta["meta_short_description"] == "YAMAHA, RAY ZR BGPK, CRANKSHAFT & PISTON, INDIA SPARE"
+    # Short desc with model after model code and INDIA SPARE
+    assert meta["meta_short_description"] == "YAMAHA, BGPK, RAY ZR, CRANKSHAFT & PISTON, INDIA SPARE"
 
     # Long desc within 120-140 chars
     assert 120 <= len(meta["meta_long_description"]) <= 140
-    assert "RAY ZR BGPK" in meta["meta_long_description"]
+    assert "BGPK RAY ZR" in meta["meta_long_description"]
     assert "INDIA SPARE" in meta["meta_long_description"]
 
 
