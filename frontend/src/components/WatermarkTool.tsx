@@ -42,7 +42,7 @@ export const WatermarkTool: React.FC = () => {
   const [text, setText] = useState<string>('INDIA SPARE');
   const [fontSize, setFontSize] = useState<number>(48);
   const [color, setColor] = useState<string>('#FFFFFF');
-  const [opacity, setOpacity] = useState<number>(15);
+  const [opacity, setOpacity] = useState<number>(10);
   const [rotation, setRotation] = useState<number>(-30);
   const [position, setPosition] = useState<Position>('center');
   const [isTiled, setIsTiled] = useState<boolean>(true);
@@ -50,7 +50,7 @@ export const WatermarkTool: React.FC = () => {
   // Logo watermark state (Pre-set with India Spare logo)
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>('/default_watermark_logo.png');
-  const [logoScale, setLogoScale] = useState<number>(10); // 10% preset scale
+  const [logoScale, setLogoScale] = useState<number>(20); // 20% preset scale
 
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isZipping, setIsZipping] = useState<boolean>(false);

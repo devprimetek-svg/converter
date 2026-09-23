@@ -4,7 +4,7 @@ Orchestrates all studio modules sequentially in-memory without disk persistence:
 1. Extract parts data from PDF
 2. Generate Yamaha-compliant Excel workbook (.xlsx)
 3. Extract embedded raster images from PDF
-4. Apply watermark with presets (-30° rot, 115 pad, 10% size, 15% opacity)
+4. Apply watermark with presets (-30° rot, 115 pad, 20% size, 10% opacity)
 5. Resize images to 1000x1200 @ 100% quality (.jpg)
 6. Bundle Excel and processed images into a single Master ZIP archive.
 """
@@ -341,8 +341,8 @@ def run_pipeline_worker(
                 f"   - Quality: {resize_config.get('quality', 100)}%\n"
                 f"   - Watermark: Rotation={watermark_config.get('angle', -30)}°, "
                 f"Padding={watermark_config.get('padding', 115)}, "
-                f"Size={watermark_config.get('size_pct', 10)}%, "
-                f"Opacity={watermark_config.get('opacity', 0.15) * 100}%\n"
+                f"Size={watermark_config.get('scale_pct', watermark_config.get('size_pct', 20))}%, "
+                f"Opacity={watermark_config.get('opacity', 0.10) * 100}%\n"
             )
             zf.writestr("PROCESSING_SUMMARY.txt", summary_txt)
 

@@ -61,13 +61,13 @@ interface PipelineStatus {
 }
 
 export const AutoPipeline: React.FC = () => {
-  // Preset States (Pre-filled exactly per user specifications: Company logo, -30° rotation, 115 padding, 10% size, 15% opacity, tiled)
+  // Preset States (Pre-filled exactly per user specifications: Company logo, -30° rotation, 115 padding, 20% scale, 10% opacity, tiled)
   const [wmType, setWmType] = useState<'logo' | 'text'>('logo');
   const [wmText, setWmText] = useState<string>('INDIA SPARE');
   const [wmRotation, setWmRotation] = useState<number>(-30);
   const [wmPadding, setWmPadding] = useState<number>(115);
-  const [wmSizePct, setWmSizePct] = useState<number>(10);
-  const [wmOpacity, setWmOpacity] = useState<number>(15);
+  const [wmSizePct, setWmSizePct] = useState<number>(20);
+  const [wmOpacity, setWmOpacity] = useState<number>(10);
   const [wmColor, setWmColor] = useState<string>('#1E3A8A');
   const [wmIsTiled, setWmIsTiled] = useState<boolean>(true);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -285,7 +285,7 @@ export const AutoPipeline: React.FC = () => {
               <Droplet className="w-3 h-3 text-zinc-800 dark:text-white" />
               {wmType === 'logo'
                 ? (logoFile ? `Logo: ${logoFile.name.slice(0, 15)} (Tiled)` : 'Watermark: India Spare Logo (Tiled)')
-                : `Watermark: "${wmText}" (Tiled)`} • {wmRotation}° • {wmPadding}px • {wmSizePct}% • {wmOpacity}%
+                : `Watermark: "${wmText}" (Tiled)`} • {wmRotation}° • {wmPadding}px • {wmSizePct}% Scale • {wmOpacity}% Opacity
             </span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-300 text-xs font-mono font-medium border border-zinc-200 dark:border-zinc-800">
               <Crop className="w-3 h-3 text-zinc-800 dark:text-white" />

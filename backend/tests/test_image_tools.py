@@ -148,8 +148,8 @@ def test_logo_watermark_visibility_on_white_background():
     wm_config = {
         "wm_type": "logo",
         "logo_bytes": logo_bytes,
-        "scale_pct": 10,
-        "opacity": 0.15,
+        "scale_pct": 20,
+        "opacity": 0.10,
         "angle": -30.0,
         "padding": 115,
         "is_tiled": True,

@@ -222,21 +222,21 @@ def apply_text_watermark(
     image_bytes: bytes,
     text: str,
     font_size: int = 36,
-    opacity: float = 0.15,
+    opacity: float = 0.10,
     angle: float = -30.0,
     position: str = "center",
     color_hex: str = "#FFFFFF",
     is_tiled: bool = True,
     padding: int = 115,
-    size_pct: Optional[int] = 10,
+    size_pct: Optional[int] = 20,
 ) -> bytes:
     """Apply a text watermark onto an image in-memory with requested preset parameters.
 
     Presets:
     - rotation: -30.0 degrees
     - padding: 115 px (spacing between tiles or margin from edges)
-    - size: 10% relative to image dimension
-    - opacity: 15% (0.15 alpha)
+    - size: 20% relative to image dimension
+    - opacity: 10% (0.10 alpha)
     """
     base_img = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
     w_width, w_height = base_img.size
@@ -336,8 +336,8 @@ def apply_text_watermark(
 def apply_image_watermark(
     image_bytes: bytes,
     logo_bytes: bytes,
-    scale_pct: int = 10,
-    opacity: float = 0.15,
+    scale_pct: int = 20,
+    opacity: float = 0.10,
     angle: float = -30.0,
     padding: int = 115,
     position: str = "center",
@@ -443,8 +443,8 @@ def process_watermark_and_resize(
         final_bytes = apply_image_watermark(
             image_bytes=resized_bytes,
             logo_bytes=logo_bytes,
-            scale_pct=watermark_config.get("scale_pct", watermark_config.get("size_pct", 10)),
-            opacity=watermark_config.get("opacity", 0.15),
+            scale_pct=watermark_config.get("scale_pct", watermark_config.get("size_pct", 20)),
+            opacity=watermark_config.get("opacity", 0.10),
             angle=watermark_config.get("angle", -30.0),
             padding=watermark_config.get("padding", 115),
             position=watermark_config.get("position", "center"),
@@ -454,10 +454,10 @@ def process_watermark_and_resize(
         final_bytes = apply_text_watermark(
             image_bytes=resized_bytes,
             text=watermark_config.get("text", "INDIA SPARE"),
-            opacity=watermark_config.get("opacity", 0.15),
+            opacity=watermark_config.get("opacity", 0.10),
             angle=watermark_config.get("angle", -30.0),
             padding=watermark_config.get("padding", 115),
-            size_pct=watermark_config.get("size_pct", 10),
+            size_pct=watermark_config.get("size_pct", 20),
             position=watermark_config.get("position", "center"),
             color_hex=watermark_config.get("color", "#1E3A8A"),
             is_tiled=watermark_config.get("is_tiled", True),
