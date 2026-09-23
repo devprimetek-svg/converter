@@ -106,18 +106,22 @@ def detect_vertical_model_columns(
     remarks_x0: float,
     tolerance: float = 6.0,
     padding: float = 4.0,
+    first_data_row_top: Optional[float] = None,
 ) -> list[ModelColumn]:
     """Detect vertical model-code header(s):
-    Single uppercase-letter words positioned between the DESCRIPTION column
+    Single uppercase-letter or digit words positioned between the DESCRIPTION column
     and the REMARKS column, all with 'top' close to the header row.
-    Group these single-letter words by x-position proximity into vertical stacks.
-    Sort each stack's letters by 'top' ascending and concatenate, then REVERSE
-    the resulting string (e.g. read top-to-bottom as J, P, G, B -> JPGB -> reversed -> BGPJ).
-    Also supports words already assembled in the header model zone.
+    Group these characters by x-position proximity into vertical stacks.
+    Sort each stack's characters by 'top' ascending and concatenate, then REVERSE
+    the resulting string (e.g. read top-to-bottom as 1, P, G, B -> 1PGB -> reversed -> BGP1).
+    Also supports multi-character alphanumeric words (e.g. BGP1, 1WD1) already assembled in the header model zone.
     """
     # Vertical search band: strictly around and above the header row (never below into data rows)
     y_min = max(0.0, header_top - 60.0)
-    y_max = header_bottom + 2.0
+    if first_data_row_top is not None:
+        y_max = min(header_bottom + 4.0, first_data_row_top - 1.5)
+    else:
+        y_max = header_bottom + 2.0
     x_min = desc_x1 + 5.0
     x_max = remarks_x0 - 5.0
 
@@ -135,21 +139,28 @@ def detect_vertical_model_columns(
     if not header_words:
         return []
 
-    # Single uppercase letters (vertical rotated model codes like BGPK)
-    single_letters = [w for w in header_words if len(w["text"]) == 1 and w["text"].isalpha() and w["text"].isupper()]
-    multi_letter_words = [w for w in header_words if len(w["text"]) > 1 and w["text"].isalnum() and w["text"].isupper() and len(w["text"]) <= 6]
+    # Single alphanumeric characters (vertical rotated model codes like BGPK, BGP1, 1WD1, 54B1)
+    # Includes uppercase letters A-Z and digits 0-9 (do not omit/leave out digits)
+    single_chars = [
+        w for w in header_words
+        if len(w["text"]) == 1 and w["text"].isalnum() and (w["text"] == w["text"].upper())
+    ]
+    multi_char_words = [
+        w for w in header_words
+        if len(w["text"]) > 1 and w["text"].isalnum() and (w["text"] == w["text"].upper()) and len(w["text"]) <= 6
+    ]
 
     model_columns: list[ModelColumn] = []
 
-    # Handle vertical stacks of single letters
-    if single_letters:
+    # Handle vertical stacks of single alphanumeric characters
+    if single_chars:
         # Group by x-position proximity
-        single_letters.sort(key=lambda w: (w["x0"] + w["x1"]) / 2.0)
+        single_chars.sort(key=lambda w: (w["x0"] + w["x1"]) / 2.0)
         stacks: list[list[dict]] = []
-        current_stack: list[dict] = [single_letters[0]]
-        current_x = (single_letters[0]["x0"] + single_letters[0]["x1"]) / 2.0
+        current_stack: list[dict] = [single_chars[0]]
+        current_x = (single_chars[0]["x0"] + single_chars[0]["x1"]) / 2.0
 
-        for w in single_letters[1:]:
+        for w in single_chars[1:]:
             mid_x = (w["x0"] + w["x1"]) / 2.0
             if abs(mid_x - current_x) <= tolerance:
                 current_stack.append(w)
@@ -165,7 +176,7 @@ def detect_vertical_model_columns(
             # Sort stack by top ascending (top-to-bottom in PDF)
             stack.sort(key=lambda w: w["top"])
             top_to_bottom_str = "".join(w["text"].upper() for w in stack)
-            # Rule: REVERSE the resulting string to get the real model code
+            # Rule: REVERSE the resulting string to get the real alphanumeric model code
             real_model_code = top_to_bottom_str[::-1]
             min_x0 = min(w["x0"] for w in stack) - padding
             max_x1 = max(w["x1"] for w in stack) + padding
@@ -175,13 +186,20 @@ def detect_vertical_model_columns(
                 "x1": max_x1,
             })
 
-    # Handle any multi-letter words (if pdfplumber already merged vertical characters or regular word)
-    for mw in multi_letter_words:
+    # Handle any multi-character alphanumeric words (if pdfplumber already merged vertical characters or regular word)
+    for mw in multi_char_words:
         # Check if already covered by an existing stack
         mid_x = (mw["x0"] + mw["x1"]) / 2.0
         already_covered = any(col["x0"] <= mid_x <= col["x1"] for col in model_columns)
         if not already_covered:
-            name = mw["text"].upper()
+            raw_text = mw["text"].upper()
+            w_h = mw["bottom"] - mw["top"]
+            w_w = mw["x1"] - mw["x0"]
+            # If word is vertically elongated (height > width * 1.5), pdfplumber read top-to-bottom; reverse it
+            if w_h > w_w * 1.5:
+                name = raw_text[::-1]
+            else:
+                name = raw_text
             model_columns.append({
                 "name": name,
                 "x0": mw["x0"] - padding,
@@ -338,12 +356,18 @@ def extract_parts_from_pdf(
             remarks_x0 = remarks_word["x0"] if remarks_word else (page.width * 0.85)
 
             # Rule 5: Detect vertical model columns
+            first_data_row_top = (
+                min(w["top"] for w in lines[header_line_idx + 1])
+                if (header_line_idx + 1 < len(lines) and lines[header_line_idx + 1])
+                else None
+            )
             model_columns = detect_vertical_model_columns(
                 words=words,
                 header_top=header_top,
                 header_bottom=header_bottom,
                 desc_x1=desc_x1,
                 remarks_x0=remarks_x0,
+                first_data_row_top=first_data_row_top,
             )
 
             if model_columns:

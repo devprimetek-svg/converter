@@ -92,6 +92,69 @@ def test_detect_vertical_model_columns():
     assert cols[0]["x1"] > 357.0
 
 
+def test_detect_vertical_model_columns_alphanumeric_with_numbers():
+    """Verify that digits in vertical model codes (e.g. BGP1, 1WD1, 54B1) are NOT discarded."""
+    # Test 1: BGP1 (top-to-bottom: 1, P, G, B -> reversed -> BGP1)
+    words_bgp1 = [
+        {"text": "1", "top": 60.0, "bottom": 67.0, "x0": 350.0, "x1": 357.0},
+        {"text": "P", "top": 68.0, "bottom": 75.0, "x0": 350.2, "x1": 357.2},
+        {"text": "G", "top": 76.0, "bottom": 83.0, "x0": 349.8, "x1": 356.8},
+        {"text": "B", "top": 84.0, "bottom": 91.0, "x0": 350.1, "x1": 357.1},
+    ]
+    cols = detect_vertical_model_columns(
+        words=words_bgp1,
+        header_top=85.0,
+        header_bottom=95.0,
+        desc_x1=300.0,
+        remarks_x0=450.0,
+    )
+    assert len(cols) == 1
+    assert cols[0]["name"] == "BGP1"
+
+    # Test 2: 1WD1 (top-to-bottom: 1, D, W, 1 -> reversed -> 1WD1)
+    words_1wd1 = [
+        {"text": "1", "top": 60.0, "bottom": 67.0, "x0": 380.0, "x1": 387.0},
+        {"text": "D", "top": 68.0, "bottom": 75.0, "x0": 380.1, "x1": 387.1},
+        {"text": "W", "top": 76.0, "bottom": 83.0, "x0": 379.9, "x1": 386.9},
+        {"text": "1", "top": 84.0, "bottom": 91.0, "x0": 380.0, "x1": 387.0},
+    ]
+    cols = detect_vertical_model_columns(
+        words=words_1wd1,
+        header_top=85.0,
+        header_bottom=95.0,
+        desc_x1=300.0,
+        remarks_x0=450.0,
+    )
+    assert len(cols) == 1
+    assert cols[0]["name"] == "1WD1"
+
+    # Test 3: Multiple adjacent columns (BGP1 at x~350 and BGP2 at x~380) with first_data_row_top safeguard
+    # Include a data row quantity '1' at top=105.0 which should be ignored because first_data_row_top=100.0
+    words_multi = [
+        {"text": "1", "top": 60.0, "bottom": 67.0, "x0": 350.0, "x1": 357.0},
+        {"text": "P", "top": 68.0, "bottom": 75.0, "x0": 350.2, "x1": 357.2},
+        {"text": "G", "top": 76.0, "bottom": 83.0, "x0": 349.8, "x1": 356.8},
+        {"text": "B", "top": 84.0, "bottom": 91.0, "x0": 350.1, "x1": 357.1},
+        # Second column: BGP2
+        {"text": "2", "top": 60.0, "bottom": 67.0, "x0": 380.0, "x1": 387.0},
+        {"text": "P", "top": 68.0, "bottom": 75.0, "x0": 380.2, "x1": 387.2},
+        {"text": "G", "top": 76.0, "bottom": 83.0, "x0": 379.8, "x1": 386.8},
+        {"text": "B", "top": 84.0, "bottom": 91.0, "x0": 380.1, "x1": 387.1},
+        # Data row quantity: '1' at top=105.0 in column BGP1
+        {"text": "1", "top": 105.0, "bottom": 112.0, "x0": 350.0, "x1": 357.0},
+    ]
+    cols = detect_vertical_model_columns(
+        words=words_multi,
+        header_top=85.0,
+        header_bottom=95.0,
+        desc_x1=300.0,
+        remarks_x0=450.0,
+        first_data_row_top=100.0,
+    )
+    assert len(cols) == 2
+    assert [c["name"] for c in cols] == ["BGP1", "BGP2"]
+
+
 def test_generate_excel_workbook():
     sample_rows = [
         {
@@ -218,6 +281,36 @@ def test_end_to_end_extraction():
     assert rows[2]["description"] == "BOLT, FLANGE ALT"
     assert rows[2]["BGPK"] == "2"
     assert rows[2]["remarks"] == "OPTIONAL"
+
+
+def test_end_to_end_extraction_alphanumeric_code_with_digits():
+    """Verify that a PDF catalogue with vertical model code containing digits (e.g. BGP1) is fully extracted."""
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=(842, 595))
+    c.drawString(50, 550, "FIG. 1 CYLINDER HEAD")
+    c.drawString(50, 520, "REF. NO.")
+    c.drawString(120, 520, "PART NO.")
+    c.drawString(240, 520, "DESCRIPTION")
+    # Model code vertical characters at x=520: 1, P, G, B from top to bottom
+    c.drawString(520, 540, "1")
+    c.drawString(520, 533, "P")
+    c.drawString(520, 526, "G")
+    c.drawString(520, 519, "B")
+    c.drawString(600, 520, "REMARKS")
+
+    # Row 1
+    c.drawString(50, 490, "1")
+    c.drawString(120, 490, "B7J-E1102-00")
+    c.drawString(240, 490, "CYLINDER HEAD ASSY")
+    c.drawString(520, 490, "1")
+    c.showPage()
+    c.save()
+    buf.seek(0)
+
+    result = extract_parts_from_pdf(buf)
+    assert "BGP1" in result["model_columns"]
+    assert len(result["rows"]) == 1
+    assert result["rows"][0]["BGP1"] == "1"
 
 
 def test_scanned_pdf_error():

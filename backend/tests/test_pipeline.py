@@ -35,8 +35,8 @@ def _create_synthetic_pdf_with_image() -> io.BytesIO:
     c.drawString(50, 510, "NO.")
     c.drawString(120, 520, "PART NO.")
     c.drawString(240, 520, "DESCRIPTION")
-    # Vertical model code: BGPK
-    c.drawString(520, 540, "K")
+    # Vertical model code: BGP1 (alphanumeric with number)
+    c.drawString(520, 540, "1")
     c.drawString(520, 533, "P")
     c.drawString(520, 526, "G")
     c.drawString(520, 519, "B")
@@ -122,6 +122,7 @@ def test_pipeline_worker_execution():
     cells = [str(c.value) for row in ws.iter_rows() for c in row if c.value is not None]
     assert any("90430" in c for c in cells)
     assert any("CYLINDER HEAD ASSY" in c for c in cells)
+    assert any("BGP1" in c for c in cells)
 
     # 2. Check Summary text file exists
     assert "PROCESSING_SUMMARY.txt" in filenames
@@ -129,6 +130,7 @@ def test_pipeline_worker_execution():
     # 3. Check processed images exist inside images/ and meet 1000x1200 preset
     image_files = [f for f in filenames if f.startswith("images/") and f.endswith(".jpg")]
     assert len(image_files) >= 1
+    assert "images/YAM_BGP1_CYLINDER HEAD.jpg" in image_files
 
     for img_fname in image_files:
         raw_img_data = zf.read(img_fname)
