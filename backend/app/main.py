@@ -425,14 +425,17 @@ def get_single_pdf_image(session_id: str, image_id: str):
     if not target:
         raise HTTPException(status_code=404, detail="Image not found.")
 
-    fmt = target.get("format", "PNG").lower()
-    media_type = f"image/{fmt}" if fmt in ("jpeg", "png", "webp", "gif") else "image/png"
+    fmt = target.get("format", "JPEG").lower()
+    media_type = f"image/{fmt}" if fmt in ("jpeg", "png", "webp", "gif") else "image/jpeg"
+    download_fname = target["filename"]
+    if not download_fname.lower().endswith(".jpeg"):
+        download_fname = f"{download_fname}.jpeg"
 
     return Response(
         content=target["raw_bytes"],
         media_type=media_type,
         headers={
-            "Content-Disposition": f'inline; filename="{target["filename"]}"',
+            "Content-Disposition": f'inline; filename="{download_fname}"',
         },
     )
 
@@ -453,7 +456,13 @@ def download_pdf_images_zip(req: DownloadZipRequest):
     if not targets:
         raise HTTPException(status_code=400, detail="No images selected to download.")
 
-    image_items = [(img["filename"], img["raw_bytes"]) for img in targets]
+    image_items = [
+        (
+            f"{img['filename']}.jpeg" if not img["filename"].lower().endswith(".jpeg") else img["filename"],
+            img["raw_bytes"],
+        )
+        for img in targets
+    ]
     zip_buf = create_images_zip(image_items)
 
     base_name = re.sub(r"\.pdf$", "", session.filename, flags=re.IGNORECASE)

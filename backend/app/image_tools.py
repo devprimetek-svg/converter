@@ -171,7 +171,10 @@ def create_images_zip(image_items: list[tuple[str, bytes]]) -> io.BytesIO:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for fname, data in image_items:
-            zip_file.writestr(fname, data)
+            clean_name = fname
+            if not clean_name.lower().endswith(".jpeg"):
+                clean_name = f"{clean_name}.jpeg"
+            zip_file.writestr(clean_name, data)
     buf.seek(0)
     return buf
 
@@ -210,8 +213,8 @@ def resize_single_image(
 
     out_buf.seek(0)
     ext = fmt.lower()
-    if ext == "jpeg":
-        ext = "jpg"
+    if ext == "jpg":
+        ext = "jpeg"
     return out_buf.getvalue(), ext
 
 
@@ -460,4 +463,4 @@ def process_watermark_and_resize(
             is_tiled=watermark_config.get("is_tiled", True),
         )
 
-    return final_bytes, "jpg"
+    return final_bytes, "jpeg"

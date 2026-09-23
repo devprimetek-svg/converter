@@ -62,7 +62,7 @@ def test_resize_single_image():
         output_format="JPEG",
         quality=80,
     )
-    assert ext == "jpg"
+    assert ext == "jpeg"
     out_img = Image.open(io.BytesIO(resized_bytes))
     assert out_img.size == (50, 25)
 
@@ -161,7 +161,7 @@ def test_logo_watermark_visibility_on_white_background():
     }
 
     processed_bytes, ext = process_watermark_and_resize(buf.getvalue(), wm_config, resize_config)
-    assert ext == "jpg"
+    assert ext == "jpeg"
     assert len(processed_bytes) > 0
 
     res_img = Image.open(io.BytesIO(processed_bytes))

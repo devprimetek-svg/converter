@@ -276,7 +276,10 @@ def run_pipeline_worker(
 
             # 2. Add processed images into images/ subfolder
             for img_name, img_data in processed_items:
-                zf.writestr(f"images/{img_name}", img_data)
+                clean_name = img_name
+                if not clean_name.lower().endswith(".jpeg"):
+                    clean_name = f"{clean_name}.jpeg"
+                zf.writestr(f"images/{clean_name}", img_data)
 
             # 3. Add a readme summary file
             summary_txt = (
