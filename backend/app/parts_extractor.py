@@ -117,17 +117,17 @@ def detect_vertical_model_columns(
     Also supports multi-character alphanumeric words (e.g. BGP1, 1WD1) already assembled in the header model zone.
     """
     # Vertical search band: strictly around and above the header row (never below into data rows)
-    y_min = max(0.0, header_top - 60.0)
+    y_min = max(0.0, header_top - 30.0)
     if first_data_row_top is not None:
-        y_max = min(header_bottom + 4.0, first_data_row_top - 1.5)
+        y_max = min(header_bottom + 4.0, first_data_row_top - 1.0)
     else:
-        y_max = header_bottom + 2.0
-    x_min = desc_x1 + 5.0
-    x_max = remarks_x0 - 5.0
+        y_max = header_bottom + 4.0
+    x_min = desc_x1 + 2.0
+    x_max = remarks_x0 - 2.0
 
     candidate_words = [
         w for w in words
-        if y_min <= w["top"] <= y_max and x_min <= w["x0"] and w["x1"] <= x_max
+        if y_min <= w["top"] <= y_max and x_min <= ((w["x0"] + w["x1"]) / 2.0) <= x_max
     ]
 
     # Filter out words that belong to DESCRIPTION or REMARKS itself
@@ -205,6 +205,12 @@ def detect_vertical_model_columns(
                 "x0": mw["x0"] - padding,
                 "x1": mw["x1"] + padding,
             })
+
+    # Filter out invalid model column names (e.g. a stray single digit like "1", which is never a valid model code)
+    model_columns = [
+        col for col in model_columns
+        if not (len(col["name"]) == 1 and col["name"].isdigit())
+    ]
 
     # Sort model columns left-to-right by x0
     model_columns.sort(key=lambda col: col["x0"])
@@ -349,18 +355,54 @@ def extract_parts_from_pdf(
                 # Table header not found on this page
                 continue
 
-            header_line = lines[header_line_idx]
-            header_top = min(w["top"] for w in header_line)
-            header_bottom = max(w["bottom"] for w in header_line)
             desc_x1 = desc_word["x1"]
             remarks_x0 = remarks_word["x0"] if remarks_word else (page.width * 0.85)
 
-            # Rule 5: Detect vertical model columns
+            # Yamaha table headers span multiple physical clustered lines:
+            # - Preceding lines in the header block (e.g. "REF." or top character of vertical model stack)
+            # - The description line itself ("PART NO. DESCRIPTION ... REMARKS")
+            # - Following lines in the header block (e.g. "NO." under "REF.", or lower characters of vertical model stack)
+            header_line_indices: list[int] = []
+            first_data_line_idx: Optional[int] = None
+
+            # 1. Backwards from header_line_idx: lines containing header labels (REF, PART, NO)
+            for idx in range(search_start_idx, header_line_idx):
+                line = lines[idx]
+                if any(w["text"].upper().rstrip(".") in {"REF", "PART", "NO"} for w in line):
+                    header_line_indices.append(idx)
+
+            # 2. The description line itself
+            header_line_indices.append(header_line_idx)
+
+            # 3. Forwards from header_line_idx: lines that are still part of the header block
+            for idx in range(header_line_idx + 1, min(header_line_idx + 6, len(lines))):
+                line = lines[idx]
+                has_hdr_label = any(w["text"].upper().rstrip(".") in {"NO", "REF", "PART", "DESCRIPTION", "REMARKS"} for w in line)
+                all_header_or_model = all(
+                    w["text"].upper().rstrip(".") in {"NO", "REF", "PART", "DESCRIPTION", "REMARKS"}
+                    or (desc_x1 - 10 <= (w["x0"] + w["x1"]) / 2.0 <= remarks_x0 + 10 and len(w["text"]) <= 6)
+                    for w in line
+                )
+                if has_hdr_label or all_header_or_model:
+                    header_line_indices.append(idx)
+                else:
+                    first_data_line_idx = idx
+                    break
+
+            if first_data_line_idx is None:
+                first_data_line_idx = max(header_line_indices) + 1 if header_line_indices else header_line_idx + 1
+
+            header_words_all = [w for idx in header_line_indices for w in lines[idx]]
+            header_top = min(w["top"] for w in header_words_all)
+            header_bottom = max(w["bottom"] for w in header_words_all)
+
             first_data_row_top = (
-                min(w["top"] for w in lines[header_line_idx + 1])
-                if (header_line_idx + 1 < len(lines) and lines[header_line_idx + 1])
+                min(w["top"] for w in lines[first_data_line_idx])
+                if (first_data_line_idx < len(lines) and lines[first_data_line_idx])
                 else None
             )
+
+            # Rule 5: Detect vertical model columns
             model_columns = detect_vertical_model_columns(
                 words=words,
                 header_top=header_top,
@@ -390,7 +432,7 @@ def extract_parts_from_pdf(
                 remarks_boundary = remarks_x0 - 5.0
 
             # Rule 6: Process data rows below header
-            data_lines = lines[header_line_idx + 1:]
+            data_lines = lines[first_data_line_idx:] if first_data_line_idx < len(lines) else []
 
             for line in data_lines:
                 # Skip standalone page footer lines near the bottom
