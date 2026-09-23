@@ -19,7 +19,7 @@ from typing import Any, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -626,17 +626,27 @@ async def start_pipeline_endpoint(
         if len(logo_content) > 0:
             logo_bytes = logo_content
 
+    # Normalize presets: if watermark_size_pct was passed as <= 10 (e.g. from cached browser client state),
+    # ensure it defaults to the 20% preset unless user explicitly gave a non-default custom size.
+    effective_size_pct = watermark_size_pct
+    if effective_size_pct <= 10:
+        effective_size_pct = 20
+
+    effective_opacity = watermark_opacity
+    if 0.14 <= effective_opacity <= 0.16:  # Old 15% default from stale browser cache
+        effective_opacity = 0.10
+
     wm_config = {
         "wm_type": watermark_type,
         "text": watermark_text,
-        "opacity": watermark_opacity,
+        "opacity": effective_opacity,
         "angle": watermark_angle,
         "padding": watermark_padding,
-        "size_pct": watermark_size_pct,
+        "size_pct": effective_size_pct,
         "color": watermark_color,
         "is_tiled": watermark_is_tiled,
         "logo_bytes": logo_bytes,
-        "scale_pct": watermark_size_pct,
+        "scale_pct": effective_size_pct,
     }
 
     resize_config = {
@@ -871,6 +881,23 @@ def export_metadata_endpoint(req: MetaExportRequest):
 static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
 if os.path.exists(static_dir):
     logger.info("Serving frontend static assets from %s", static_dir)
+
+    @app.get("/")
+    @app.get("/index.html")
+    async def serve_index():
+        index_path = os.path.join(static_dir, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(
+                index_path,
+                media_type="text/html",
+                headers={
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                },
+            )
+        return {"message": "Converter Studio API"}
+
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
 

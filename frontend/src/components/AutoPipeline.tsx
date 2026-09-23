@@ -123,13 +123,13 @@ export const AutoPipeline: React.FC = () => {
     formData.append('file', pdfFile);
     formData.append('watermark_type', wmType);
     formData.append('watermark_text', wmText);
-    formData.append('watermark_rotation', String(wmRotation));
-    formData.append('watermark_angle', String(wmRotation));
-    formData.append('watermark_padding', String(wmPadding));
-    formData.append('watermark_size_pct', String(wmSizePct));
-    formData.append('watermark_opacity', String(wmOpacity / 100));
-    formData.append('watermark_color', wmColor);
-    formData.append('watermark_is_tiled', String(wmIsTiled));
+    formData.append('watermark_rotation', String(wmRotation ?? -30));
+    formData.append('watermark_angle', String(wmRotation ?? -30));
+    formData.append('watermark_padding', String(wmPadding ?? 115));
+    formData.append('watermark_size_pct', String(wmSizePct || 20));
+    formData.append('watermark_opacity', String((wmOpacity || 10) / 100));
+    formData.append('watermark_color', wmColor || '#1E3A8A');
+    formData.append('watermark_is_tiled', String(wmIsTiled ?? true));
     if (logoFile) {
       formData.append('watermark_logo', logoFile);
     }

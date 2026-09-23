@@ -277,23 +277,33 @@ def apply_text_watermark(
     text_h = max(1, bbox[3] - bbox[1])
 
     if is_tiled:
-        diag = int(math.hypot(w_width, w_height) * 1.8)
-        tiled_canvas = Image.new("RGBA", (diag, diag), (0, 0, 0, 0))
+        pil_angle = -angle
+        diag = int(math.hypot(w_width, w_height))
+        step_x = max(160, int(eff_font_size * 6), text_w + padding)
+        step_y = max(90, int(eff_font_size * 3.5), text_h + padding)
+
+        canvas_size = int(diag * 2 + max(text_w, text_h) * 2)
+        tiled_canvas = Image.new("RGBA", (canvas_size, canvas_size), (0, 0, 0, 0))
         tdraw = ImageDraw.Draw(tiled_canvas)
+        cx = canvas_size // 2
+        cy = canvas_size // 2
 
-        step_x = max(text_w + 30, text_w + padding)
-        step_y = max(text_h + 30, text_h + padding)
+        y = -diag
+        while y <= diag:
+            x = -diag
+            while x <= diag:
+                px = cx + x - text_w // 2
+                py = cy + y - text_h // 2
+                tdraw.text((px, py), text, font=font, fill=text_color)
+                x += step_x
+            y += step_y
 
-        for y in range(0, diag, step_y):
-            for x in range(0, diag, step_x):
-                tdraw.text((x, y), text, font=font, fill=text_color)
+        if pil_angle != 0:
+            tiled_canvas = tiled_canvas.rotate(pil_angle, resample=Image.Resampling.BICUBIC)
 
-        if angle != 0:
-            tiled_canvas = tiled_canvas.rotate(angle, resample=Image.Resampling.BICUBIC)
-
-        crop_left = (diag - w_width) // 2
-        crop_top = (diag - w_height) // 2
-        overlay = tiled_canvas.crop((crop_left, crop_top, crop_left + w_width, crop_top + w_height))
+        crop_x = cx - w_width // 2
+        crop_y = cy - w_height // 2
+        overlay = tiled_canvas.crop((crop_x, crop_y, crop_x + w_width, crop_y + w_height))
     else:
         overlay = Image.new("RGBA", (w_width, w_height), (0, 0, 0, 0))
         pad = max(10, padding // 4)
@@ -302,7 +312,7 @@ def apply_text_watermark(
         sdraw.text((pad, pad), text, font=font, fill=text_color)
 
         if angle != 0:
-            stamp = stamp.rotate(angle, expand=True, resample=Image.Resampling.BICUBIC)
+            stamp = stamp.rotate(-angle, expand=True, resample=Image.Resampling.BICUBIC)
 
         sw, sh = stamp.size
         m = padding
@@ -356,27 +366,44 @@ def apply_image_watermark(
     logo_resized = logo.resize((target_logo_w, target_logo_h), Image.Resampling.LANCZOS)
 
     if is_tiled:
-        diag = int(math.hypot(w_width, w_height) * 1.8)
-        tiled_canvas = Image.new("RGBA", (diag, diag), (0, 0, 0, 0))
+        # In HTML5 Canvas, negative angle (-30) rotates counter-clockwise (upwards-right tilt).
+        # In PIL, positive angle rotates counter-clockwise.
+        # Negate angle for PIL to match HTML5 Canvas orientation identically.
+        pil_angle = -angle
 
-        step_x = max(target_logo_w + 30, target_logo_w + padding)
-        step_y = max(target_logo_h + 30, target_logo_h + padding)
+        diag = int(math.hypot(w_width, w_height))
+        # Spacing matches WatermarkTool.tsx: stepX = targetLogoW * 2.2, stepY = targetLogoH * 2.2
+        step_x = max(int(target_logo_w * 2.2), target_logo_w + padding)
+        step_y = max(int(target_logo_h * 2.2), target_logo_h + padding)
 
-        for y in range(0, diag - target_logo_h, step_y):
-            for x in range(0, diag - target_logo_w, step_x):
-                tiled_canvas.alpha_composite(logo_resized, (x, y))
+        canvas_size = int(diag * 2 + max(target_logo_w, target_logo_h) * 2)
+        tiled_canvas = Image.new("RGBA", (canvas_size, canvas_size), (0, 0, 0, 0))
+        cx = canvas_size // 2
+        cy = canvas_size // 2
 
-        if angle != 0:
-            tiled_canvas = tiled_canvas.rotate(angle, resample=Image.Resampling.BICUBIC)
+        # Centered loop matching WatermarkTool.tsx exactly
+        y = -diag
+        while y <= diag:
+            x = -diag
+            while x <= diag:
+                px = cx + x - target_logo_w // 2
+                py = cy + y - target_logo_h // 2
+                tiled_canvas.alpha_composite(logo_resized, (px, py))
+                x += step_x
+            y += step_y
 
-        crop_left = (diag - w_width) // 2
-        crop_top = (diag - w_height) // 2
-        overlay = tiled_canvas.crop((crop_left, crop_top, crop_left + w_width, crop_top + w_height))
+        if pil_angle != 0:
+            tiled_canvas = tiled_canvas.rotate(pil_angle, resample=Image.Resampling.BICUBIC)
+
+        crop_x = cx - w_width // 2
+        crop_y = cy - w_height // 2
+        overlay = tiled_canvas.crop((crop_x, crop_y, crop_x + w_width, crop_y + w_height))
     else:
         overlay = Image.new("RGBA", (w_width, w_height), (0, 0, 0, 0))
         stamp = logo_resized
         if angle != 0:
-            stamp = stamp.rotate(angle, expand=True, resample=Image.Resampling.BICUBIC)
+            # For single stamps, match canvas coordinate rotation
+            stamp = stamp.rotate(-angle, expand=True, resample=Image.Resampling.BICUBIC)
 
         sw, sh = stamp.size
         m = padding
