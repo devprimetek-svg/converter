@@ -338,6 +338,7 @@ def run_pipeline_worker(
                 f"3. Processed Images:\n"
                 f"   - Total Images Processed: {len(processed_items)}\n"
                 f"   - Resolution: {resize_config.get('width', 1000)}x{resize_config.get('height', 1200)} px\n"
+                f"   - Target File Size: {resize_config.get('target_min_kb', 59)}–{resize_config.get('target_max_kb', 69)} KB (Adaptive Compression)\n"
                 f"   - Quality: {resize_config.get('quality', 100)}%\n"
                 f"   - Watermark: Rotation={watermark_config.get('angle', -30)}°, "
                 f"Padding={watermark_config.get('padding', 115)}, "

@@ -163,6 +163,9 @@ def test_logo_watermark_visibility_on_white_background():
     processed_bytes, ext = process_watermark_and_resize(buf.getvalue(), wm_config, resize_config)
     assert ext == "jpeg"
     assert len(processed_bytes) > 0
+    # Strictly between 59 KB and 69 KB
+    size_kb = len(processed_bytes) / 1024.0
+    assert 59.0 <= size_kb <= 69.0, f"Expected size 59-69 KB, got {size_kb:.2f} KB"
 
     res_img = Image.open(io.BytesIO(processed_bytes))
     assert res_img.size == (1000, 1200)
@@ -176,4 +179,27 @@ def test_logo_watermark_visibility_on_white_background():
     assert non_white_count > 50000, f"Watermark not visible! Only {non_white_count} non-white pixels found"
     # Darkest pixel must be visibly darker than 250 (e.g. <= 230)
     assert min(min_pixel) < 235, f"Watermark contrast too faint: min pixel is {min_pixel}"
+
+
+def test_compress_to_target_kb():
+    """Verify adaptive compression guarantees image size strictly between 59 KB and 69 KB."""
+    import random
+    from app.image_tools import compress_to_target_kb
+
+    # 1. Blank image (normally < 20 KB in JPEG)
+    blank = Image.new("RGB", (1000, 1200), (255, 255, 255))
+    padded_bytes = compress_to_target_kb(blank, min_kb=59, max_kb=69)
+    blank_kb = len(padded_bytes) / 1024.0
+    assert 59.0 <= blank_kb <= 69.0, f"Blank image size {blank_kb:.2f} KB not in 59-69 KB"
+    # Verify valid JPEG
+    img_b = Image.open(io.BytesIO(padded_bytes))
+    assert img_b.size == (1000, 1200)
+
+    # 2. Highly textured / noisy image (normally hundreds of KB)
+    noisy = Image.new("RGB", (400, 400))
+    noisy.putdata([(random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)) for _ in range(400 * 400)])
+    compressed_bytes = compress_to_target_kb(noisy, min_kb=59, max_kb=69)
+    noisy_kb = len(compressed_bytes) / 1024.0
+    assert 59.0 <= noisy_kb <= 69.0, f"Noisy image size {noisy_kb:.2f} KB not in 59-69 KB"
+
 

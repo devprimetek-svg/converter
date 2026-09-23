@@ -610,6 +610,8 @@ async def start_pipeline_endpoint(
     resize_width: int = Form(1000),
     resize_height: int = Form(1200),
     resize_quality: int = Form(100),
+    target_min_kb: int = Form(59),
+    target_max_kb: int = Form(69),
     clean_part_numbers: bool = Form(True),
 ):
     """Start the automated end-to-end studio pipeline."""
@@ -653,6 +655,8 @@ async def start_pipeline_endpoint(
         "width": resize_width,
         "height": resize_height,
         "quality": resize_quality,
+        "target_min_kb": target_min_kb,
+        "target_max_kb": target_max_kb,
     }
 
     job = pipeline_manager.create_job(file.filename)

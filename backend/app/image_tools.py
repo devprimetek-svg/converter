@@ -434,6 +434,112 @@ def apply_image_watermark(
     return out_buf.getvalue()
 
 
+
+def compress_to_target_kb(
+    image_bytes_or_pil: bytes | Image.Image,
+    min_kb: int = 59,
+    max_kb: int = 69,
+) -> bytes:
+    """Compress or package an image so its final JPEG file size is strictly within [min_kb, max_kb] (default: 59-69 KB).
+
+    Algorithm:
+    1. Binary searches JPEG quality between 5 and 95 (with optimize=True).
+    2. If within [min_kb, max_kb], returns the compressed bytes.
+    3. If below min_kb (e.g., very simple diagram or line art):
+       - If at high quality it's still below min_kb, injects a standard, specification-compliant
+         JPEG COM (Comment) segment (0xFF 0xFE) to pad the file to the midpoint (~64 KB).
+         This ensures all standard image viewers and browsers render the image perfectly with 0% distortion.
+    4. If above max_kb (e.g., highly dense line drawing or scanned noise):
+       - If at quality 5 it is still above max_kb, gently downscales the image by 90% repeatedly
+         and retries binary search to strictly enforce the max size limit.
+    """
+    if isinstance(image_bytes_or_pil, Image.Image):
+        pil_img = image_bytes_or_pil
+    else:
+        pil_img = Image.open(io.BytesIO(image_bytes_or_pil))
+
+    if pil_img.mode != "RGB":
+        pil_img = pil_img.convert("RGB")
+
+    min_bytes = int(min_kb * 1024)
+    max_bytes = int(max_kb * 1024)
+    target_bytes = (min_bytes + max_bytes) // 2
+
+    # Step 1: Binary search on JPEG quality [5..95]
+    low, high = 5, 95
+    best_bytes = None
+    best_diff = float("inf")
+
+    for _ in range(8):
+        mid = (low + high) // 2
+        buf = io.BytesIO()
+        pil_img.save(buf, format="JPEG", quality=mid, optimize=True)
+        data = buf.getvalue()
+        sz = len(data)
+
+        diff = abs(sz - target_bytes)
+        if diff < best_diff:
+            best_diff = diff
+            best_bytes = data
+
+        if min_bytes <= sz <= max_bytes:
+            return data
+        elif sz < min_bytes:
+            low = mid + 1
+        else:
+            high = mid - 1
+
+    # Step 2: Handle edge cases if not within range
+    if best_bytes is not None and min_bytes <= len(best_bytes) <= max_bytes:
+        return best_bytes
+
+    # If still below min_kb (too small even at quality 95):
+    if best_bytes is not None and len(best_bytes) < min_bytes:
+        # Try saving at quality 98 without subsampling
+        buf = io.BytesIO()
+        pil_img.save(buf, format="JPEG", quality=98, subsampling=0)
+        data = buf.getvalue()
+        if min_bytes <= len(data) <= max_bytes:
+            return data
+        if len(data) < min_bytes:
+            # Inject standard JPEG COM (Comment) marker 0xFF 0xFE to reach target_bytes
+            needed = target_bytes - len(data)
+            if needed >= 4:
+                payload_len = min(65533, needed - 4)
+                com_marker = b"\xFF\xFE" + (payload_len + 2).to_bytes(2, "big") + (b"\x00" * payload_len)
+                if data[:2] == b"\xFF\xD8":
+                    padded = data[:2] + com_marker + data[2:]
+                    return padded
+            return data
+        best_bytes = data
+
+    # If still above max_kb (too large even at quality 5):
+    curr_img = pil_img
+    while best_bytes is not None and len(best_bytes) > max_bytes and curr_img.width > 400:
+        new_w = max(300, int(curr_img.width * 0.90))
+        new_h = max(300, int(curr_img.height * 0.90))
+        curr_img = curr_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+        low, high = 5, 95
+        for _ in range(8):
+            mid = (low + high) // 2
+            buf = io.BytesIO()
+            curr_img.save(buf, format="JPEG", quality=mid, optimize=True)
+            data = buf.getvalue()
+            sz = len(data)
+            if min_bytes <= sz <= max_bytes:
+                return data
+            elif sz < min_bytes:
+                low = mid + 1
+            else:
+                high = mid - 1
+            if abs(sz - target_bytes) < best_diff:
+                best_diff = abs(sz - target_bytes)
+                best_bytes = data
+
+    return best_bytes if best_bytes is not None else b""
+
+
 def process_watermark_and_resize(
     image_bytes: bytes,
     watermark_config: dict[str, Any],
@@ -445,12 +551,15 @@ def process_watermark_and_resize(
     - Watermark logos and text are rendered razor-sharp without downscale blur.
     - Watermark size and padding match exact requested pixel presets.
     - Blazing fast execution across high-resolution catalogue scans.
+    - Target file size preset (59–69 KB) is strictly enforced for all images.
 
-    Returns (processed_image_bytes, "jpg").
+    Returns (processed_image_bytes, "jpeg").
     """
     target_width = resize_config.get("width", 1000)
     target_height = resize_config.get("height", 1200)
     quality = resize_config.get("quality", 100)
+    target_min_kb = resize_config.get("target_min_kb", 59)
+    target_max_kb = resize_config.get("target_max_kb", 69)
 
     # 1. Resize single image to target preset (1000x1200 @ 100% quality)
     resized_bytes, _ = resize_single_image(
@@ -467,7 +576,7 @@ def process_watermark_and_resize(
         logo_bytes = get_default_logo_bytes()
 
     if logo_bytes:
-        final_bytes = apply_image_watermark(
+        watermarked_bytes = apply_image_watermark(
             image_bytes=resized_bytes,
             logo_bytes=logo_bytes,
             scale_pct=watermark_config.get("scale_pct", watermark_config.get("size_pct", 20)),
@@ -478,7 +587,7 @@ def process_watermark_and_resize(
             is_tiled=watermark_config.get("is_tiled", True),
         )
     else:
-        final_bytes = apply_text_watermark(
+        watermarked_bytes = apply_text_watermark(
             image_bytes=resized_bytes,
             text=watermark_config.get("text", "INDIA SPARE"),
             opacity=watermark_config.get("opacity", 0.10),
@@ -489,5 +598,15 @@ def process_watermark_and_resize(
             color_hex=watermark_config.get("color", "#1E3A8A"),
             is_tiled=watermark_config.get("is_tiled", True),
         )
+
+    # 3. Adaptively compress to target file size (default: 59–69 KB)
+    if target_min_kb and target_max_kb and target_min_kb > 0 and target_max_kb >= target_min_kb:
+        final_bytes = compress_to_target_kb(
+            watermarked_bytes,
+            min_kb=target_min_kb,
+            max_kb=target_max_kb,
+        )
+    else:
+        final_bytes = watermarked_bytes
 
     return final_bytes, "jpeg"

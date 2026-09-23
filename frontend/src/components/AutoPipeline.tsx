@@ -74,7 +74,9 @@ export const AutoPipeline: React.FC = () => {
 
   const [resizeWidth, setResizeWidth] = useState<number>(1000);
   const [resizeHeight, setResizeHeight] = useState<number>(1200);
-  const [resizeQuality, setResizeQuality] = useState<number>(100);
+  const resizeQuality = 100;
+  const [targetMinKb, setTargetMinKb] = useState<number>(59);
+  const [targetMaxKb, setTargetMaxKb] = useState<number>(69);
 
   const [cleanParts, setCleanParts] = useState<boolean>(true);
   const [showPresetSettings, setShowPresetSettings] = useState<boolean>(false);
@@ -137,6 +139,8 @@ export const AutoPipeline: React.FC = () => {
     formData.append('resize_width', String(resizeWidth));
     formData.append('resize_height', String(resizeHeight));
     formData.append('resize_quality', String(resizeQuality));
+    formData.append('target_min_kb', String(targetMinKb || 59));
+    formData.append('target_max_kb', String(targetMaxKb || 69));
     formData.append('clean_part_numbers', String(cleanParts));
 
     try {
@@ -289,7 +293,7 @@ export const AutoPipeline: React.FC = () => {
             </span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-300 text-xs font-mono font-medium border border-zinc-200 dark:border-zinc-800">
               <Crop className="w-3 h-3 text-zinc-800 dark:text-white" />
-              {resizeWidth}x{resizeHeight} px • {resizeQuality}% JPG
+              {resizeWidth}x{resizeHeight} px • {targetMinKb}–{targetMaxKb} KB
             </span>
           </div>
 
@@ -464,11 +468,11 @@ export const AutoPipeline: React.FC = () => {
               </div>
             </div>
 
-            {/* Resizer Presets */}
+            {/* Resizer & Target Size Presets */}
             <div className="space-y-4">
               <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                 <Crop className="w-3.5 h-3.5" />
-                Resizer Preset Configuration
+                Resizer & Target Size Preset
               </h4>
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
@@ -490,24 +494,45 @@ export const AutoPipeline: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-500 font-semibold mb-1">Image Quality (%)</label>
+                  <label className="block text-slate-500 font-semibold mb-1">Min Target Size (KB)</label>
                   <input
                     type="number"
-                    value={resizeQuality}
-                    min={1}
-                    max={100}
-                    onChange={(e) => setResizeQuality(Number(e.target.value))}
+                    value={targetMinKb}
+                    min={10}
+                    max={500}
+                    onChange={(e) => setTargetMinKb(Number(e.target.value))}
                     className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono font-bold"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-500 font-semibold mb-1">Format</label>
-                  <div className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono font-bold">
-                    JPEG (.jpg)
-                  </div>
+                  <label className="block text-slate-500 font-semibold mb-1">Max Target Size (KB)</label>
+                  <input
+                    type="number"
+                    value={targetMaxKb}
+                    min={10}
+                    max={500}
+                    onChange={(e) => setTargetMaxKb(Number(e.target.value))}
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono font-bold"
+                  />
                 </div>
 
-                <div className="col-span-2 pt-2">
+                <div className="col-span-2 p-2.5 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/60 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
+                  <span>Target Range Preset: <strong>{targetMinKb}–{targetMaxKb} KB</strong> (~{Math.round((targetMinKb + targetMaxKb) / 2)} KB ideal sweet spot)</span>
+                  {(targetMinKb !== 59 || targetMaxKb !== 69) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTargetMinKb(59);
+                        setTargetMaxKb(69);
+                      }}
+                      className="text-[10px] font-bold underline hover:text-emerald-900 dark:hover:text-emerald-100 ml-2 cursor-pointer"
+                    >
+                      Reset to 59–69 KB
+                    </button>
+                  )}
+                </div>
+
+                <div className="col-span-2 pt-1">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -781,8 +806,8 @@ export const AutoPipeline: React.FC = () => {
                         <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-xs text-[10px] font-mono text-zinc-300 font-medium">
                           {img.width}x{img.height}
                         </span>
-                        <span className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-zinc-800 backdrop-blur-xs text-[10px] font-mono text-white font-semibold">
-                          JPEG
+                        <span className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-zinc-900/90 backdrop-blur-xs text-[10px] font-mono text-emerald-400 font-semibold border border-zinc-700">
+                          {formatBytes(img.size_bytes)}
                         </span>
                         {img.fig_no && (
                           <span className="absolute bottom-2 left-2 right-2 px-2 py-0.5 rounded-md bg-black/90 backdrop-blur-xs text-[10px] font-medium text-zinc-300 border border-zinc-800 truncate">
@@ -794,8 +819,11 @@ export const AutoPipeline: React.FC = () => {
                         <p className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate" title={img.filename}>
                           {img.filename}
                         </p>
-                        <p className="text-[11px] text-zinc-500 mt-0.5">
-                          Page {img.page} • {formatBytes(img.size_bytes)}
+                        <p className="text-[11px] text-zinc-500 mt-0.5 flex items-center justify-between">
+                          <span>Page {img.page}</span>
+                          <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 text-[10px]">
+                            {formatBytes(img.size_bytes)}
+                          </span>
                         </p>
                       </div>
                     </div>
