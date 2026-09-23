@@ -207,15 +207,18 @@ def run_pipeline_worker(
             else:
                 pipeline_model_code = "MODEL"
 
-        # Generate SEO and E-commerce Metadata for all parts
+        # Generate SEO and E-commerce Metadata for main parts only
         meta_items = generate_catalog_metadata(
             rows=job.rows,
             model_columns=job.model_columns,
-            brand="Yamaha",
-            style="ecommerce",
+            brand="YAMAHA",
+            model="",
+            series="series",
             model_code=pipeline_model_code,
+            main_parts_only=True,
+            figures=job.figures,
         )
-        meta_excel_bytes = export_metadata_excel(meta_items, brand="Yamaha").getvalue()
+        meta_excel_bytes = export_metadata_excel(meta_items, brand="YAMAHA").getvalue()
         meta_csv_bytes = export_metadata_csv(meta_items).getvalue()
         meta_filename = f"{base_name}_Product_Metadata"
 

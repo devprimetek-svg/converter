@@ -18,16 +18,22 @@ export interface FigureItem {
 export interface PartMetadataItem {
   page: number;
   fig_no: string;
-  fig_name: string;
+  fig_name?: string;
+  part_name?: string;
   ref_no: string;
   part_no: string;
   clean_part_no: string;
   description: string;
+  brand?: string;
+  model_code?: string;
+  model?: string;
+  series?: string;
   compatible_models: string;
   image_filename: string;
   product_title: string;
   meta_short_description: string;
   meta_long_description: string;
+  long_desc_length?: number;
   remarks?: string;
 }
 

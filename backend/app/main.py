@@ -776,51 +776,62 @@ def download_pipeline_metadata(job_id: str, format: str = "xlsx"):
 class MetaGenerateRequest(BaseModel):
     job_id: Optional[str] = None
     rows: Optional[list[dict[str, Any]]] = None
+    figures: Optional[list[dict[str, Any]]] = None
     model_columns: list[str] = Field(default_factory=list)
-    brand: str = "Yamaha"
+    brand: str = "YAMAHA"
+    model: str = ""
+    series: str = "series"
+    model_code: Optional[str] = None
+    main_parts_only: bool = True
     style: str = "ecommerce"
     custom_templates: Optional[dict[str, str]] = None
-    model_code: Optional[str] = None
 
 
 class MetaExportRequest(BaseModel):
     items: list[dict[str, Any]]
     format: str = "xlsx"  # "xlsx" or "csv"
     filename: str = "Product_Metadata"
-    brand: str = "Yamaha"
+    brand: str = "YAMAHA"
 
 
 @app.post("/api/meta/generate")
 def generate_metadata_endpoint(req: MetaGenerateRequest):
     """Generate SEO titles, short descriptions, and long descriptions for parts."""
     rows = req.rows or []
+    figures = req.figures or []
     model_cols = req.model_columns
 
-    if not rows and req.job_id:
+    if not rows and not figures and req.job_id:
         # Check extraction jobs first
         ext_job = jobs.get(req.job_id)
-        if ext_job and ext_job.rows:
-            rows = ext_job.rows
+        if ext_job:
+            rows = ext_job.rows or []
+            figures = ext_job.figures or []
             if not model_cols:
                 model_cols = ext_job.model_columns
         else:
             pipe_job = pipeline_manager.get_job(req.job_id)
-            if pipe_job and pipe_job.rows:
-                rows = pipe_job.rows
+            if pipe_job:
+                rows = pipe_job.rows or []
+                figures = pipe_job.figures or []
                 if not model_cols:
                     model_cols = pipe_job.model_columns
 
-    if not rows:
-        raise HTTPException(status_code=400, detail="No parts rows provided or job not found.")
+    if not rows and not figures:
+        raise HTTPException(status_code=400, detail="No parts rows or figures provided, or job not found.")
 
     m_code = req.model_code or ("_".join(model_cols) if model_cols else "")
     items = generate_catalog_metadata(
         rows=rows,
         model_columns=model_cols,
         brand=req.brand,
+        model=req.model,
+        series=req.series,
+        model_code=m_code,
+        main_parts_only=req.main_parts_only,
+        figures=figures,
         style=req.style,
         custom_templates=req.custom_templates,
-        model_code=m_code,
     )
     return {"total": len(items), "items": items}
 
