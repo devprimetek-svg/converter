@@ -405,7 +405,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
         {/* Live Rules Legend (per user prompt) */}
         <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-[11px] font-mono grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           <div>
-            <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Product Title (IN CAPS, no commas):</span>
+            <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Short Description (IN CAPS, no commas):</span>
             <span className="font-bold text-zinc-800 dark:text-zinc-200">
               {brand || 'YAMAHA'} {activeModelCode} {model ? `${model.toUpperCase()} ` : ''}[PARTS NAME]
             </span>
@@ -461,7 +461,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search main part name, title, image..."
+                placeholder="Search catalog name, short description, pic..."
                 className="w-full pl-9 pr-3 py-2 rounded-xl text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none font-medium"
               />
             </div>
@@ -497,9 +497,9 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                 <thead className="bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 font-semibold border-b border-zinc-200 dark:border-zinc-800">
                   <tr>
                     <th className="p-3 w-12 text-center">Fig</th>
-                    <th className="p-3">Main Part Name</th>
-                    <th className="p-3">Diagram Image</th>
-                    <th className="p-3">Product Title (IN CAPS)</th>
+                    <th className="p-3">Catalog Name</th>
+                    <th className="p-3">Pic</th>
+                    <th className="p-3">Short Description</th>
                     <th className="p-3">Meta Title</th>
                     <th className="p-3 w-28 text-center">Meta Desc</th>
                     <th className="p-3 w-28 text-center">Product Desc</th>
@@ -555,7 +555,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                               </p>
                               <button
                                 onClick={() => copyToClipboard(item.product_title, `prod_title_${itemKey}`)}
-                                title="Copy Product Title"
+                                title="Copy Short Description"
                                 className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
                               >
                                 {copiedId === `prod_title_${itemKey}` ? (

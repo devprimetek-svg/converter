@@ -311,7 +311,9 @@ def test_metadata_generate_and_export_endpoints():
     assert export_csv.status_code == 200
     assert "Test_Meta.csv" in export_csv.headers.get("content-disposition", "")
     csv_txt = export_csv.content.decode("utf-8-sig")
-    assert "Product Title (IN CAPS)" in csv_txt
+    assert "Short Description" in csv_txt
+    assert "Catalog Name" in csv_txt
+    assert "Pic" in csv_txt
     assert "Meta Title" in csv_txt
     assert "Meta Short Description" not in csv_txt
     assert "Meta Description (151-158 Chars)" in csv_txt

@@ -545,13 +545,13 @@ def export_metadata_excel(meta_rows: list[dict[str, Any]], brand: str = "YAMAHA"
 
     headers = [
         ("Fig No.", "fig_no", center_align, 10),
-        ("Main Part Name", "part_name", left_align, 28),
+        ("Catalog Name", "part_name", left_align, 28),
         ("Brand", "brand", center_align, 14),
         ("Model Code", "model_code", center_align, 14),
         ("Model", "model", center_align, 14),
         ("Series", "series", center_align, 14),
-        ("Associated Diagram Image", "image_filename", left_align, 32),
-        ("Product Title (IN CAPS)", "product_title", wrap_left_align, 36),
+        ("Pic", "image_filename", left_align, 32),
+        ("Short Description", "product_title", wrap_left_align, 36),
         ("Meta Title", "meta_title", wrap_left_align, 36),
         ("Meta Description (151-158 Chars)", "meta_description", wrap_left_align, 60),
         ("Meta Desc Chars", "meta_desc_chars", center_align, 15),
@@ -598,13 +598,13 @@ def export_metadata_csv(meta_rows: list[dict[str, Any]]) -> io.BytesIO:
 
     headers = [
         "Fig No.",
-        "Main Part Name",
+        "Catalog Name",
         "Brand",
         "Model Code",
         "Model",
         "Series",
-        "Associated Diagram Image",
-        "Product Title (IN CAPS)",
+        "Pic",
+        "Short Description",
         "Meta Title",
         "Meta Description (151-158 Chars)",
         "Meta Desc Chars",

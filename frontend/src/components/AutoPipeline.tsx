@@ -915,9 +915,9 @@ export const AutoPipeline: React.FC = () => {
                   <thead className="bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 font-semibold border-b border-zinc-200 dark:border-zinc-800">
                     <tr>
                       <th className="p-2.5 w-12 text-center">Fig</th>
-                      <th className="p-2.5">Main Part Name</th>
-                      <th className="p-2.5">Diagram Image</th>
-                      <th className="p-2.5">Product Title (IN CAPS)</th>
+                      <th className="p-2.5">Catalog Name</th>
+                      <th className="p-2.5">Pic</th>
+                      <th className="p-2.5">Short Description</th>
                       <th className="p-2.5">Meta Title</th>
                       <th className="p-2.5 text-center">Meta Desc</th>
                       <th className="p-2.5 text-center">Product Desc</th>
@@ -973,7 +973,7 @@ export const AutoPipeline: React.FC = () => {
                                   </span>
                                   <button
                                     onClick={() => copyMetaText(m.product_title, `prod_title_${itemKey}`)}
-                                    title="Copy Product Title"
+                                    title="Copy Short Description"
                                     className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white shrink-0 cursor-pointer"
                                   >
                                     {copiedMetaId === `prod_title_${itemKey}` ? (

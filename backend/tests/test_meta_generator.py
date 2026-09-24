@@ -242,7 +242,9 @@ def test_export_metadata_excel_and_csv():
     ws = wb.active
     assert ws.title == "Product Metadata"
     assert ws.cell(row=1, column=1).value == "Fig No."
-    assert ws.cell(row=1, column=2).value == "Main Part Name"
+    assert ws.cell(row=1, column=2).value == "Catalog Name"
+    assert ws.cell(row=1, column=7).value == "Pic"
+    assert ws.cell(row=1, column=8).value == "Short Description"
     assert ws.cell(row=2, column=1).value == "1"
     assert ws.cell(row=2, column=2).value == "CYLINDER HEAD"
     assert ws.cell(row=2, column=7).value == "YAM_BGPK_CYLINDER HEAD.jpeg"
@@ -255,7 +257,9 @@ def test_export_metadata_excel_and_csv():
     csv_buf = export_metadata_csv(meta_items)
     assert csv_buf.getbuffer().nbytes > 0
     csv_content = csv_buf.getvalue().decode("utf-8-sig")
-    assert "Product Title (IN CAPS)" in csv_content
+    assert "Short Description" in csv_content
+    assert "Catalog Name" in csv_content
+    assert "Pic" in csv_content
     assert "Meta Title" in csv_content
     assert "Meta Short Description" not in csv_content
     assert "Meta Description (151-158 Chars)" in csv_content
