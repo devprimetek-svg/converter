@@ -15,8 +15,6 @@ import {
   CheckCircle2,
   Sparkles,
   Zap,
-  Eye,
-  EyeOff,
   AlertCircle,
 } from 'lucide-react';
 import type { PartRow, PartMetadataItem } from '../types';
@@ -108,7 +106,6 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
   const [aiPrompt, setAiPrompt] = useState<string>(
     'Generate authentic OEM eCommerce descriptions emphasizing factory precision, durability, heat resistance, direct vehicle fitment, and India Spare verified quality.'
   );
-  const [showApiKey, setShowApiKey] = useState<boolean>(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
   // Processing state
@@ -538,25 +535,17 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                   <span>Google AI Studio API Key</span>
                   <span className="text-[10px] text-zinc-400 normal-case">Saved locally in browser</span>
                 </label>
-                <div className="relative">
+                <div>
                   <input
-                    type={showApiKey ? 'text' : 'password'}
+                    type="password"
                     value={geminiApiKey}
                     onChange={(e) => {
                       setGeminiApiKey(e.target.value);
                       localStorage.setItem('converter_gemini_api_key', e.target.value);
                     }}
                     placeholder="AIzaSy... (or leave blank if GEMINI_API_KEY is configured on server)"
-                    className="w-full pl-3.5 pr-10 py-2 rounded-xl text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:border-purple-500 font-mono placeholder:font-sans placeholder:text-zinc-400"
+                    className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:border-purple-500 font-mono placeholder:font-sans placeholder:text-zinc-400"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1 cursor-pointer"
-                    title={showApiKey ? 'Hide API Key' : 'Show API Key'}
-                  >
-                    {showApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  </button>
                 </div>
               </div>
 
