@@ -39,6 +39,7 @@ export interface PartMetadataItem {
   product_description?: string;
   product_desc_words?: number;
   remarks?: string;
+  ai_generated?: boolean;
 }
 
 export interface MetaTemplateConfig {

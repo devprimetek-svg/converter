@@ -13,8 +13,32 @@ import {
   ChevronUp,
   Image as ImageIcon,
   CheckCircle2,
+  Sparkles,
+  Zap,
+  Eye,
+  EyeOff,
+  AlertCircle,
 } from 'lucide-react';
 import type { PartRow, PartMetadataItem } from '../types';
+
+const PROMPT_PRESETS = [
+  {
+    label: '🌟 OEM Durability',
+    prompt: 'Emphasize genuine factory OEM specifications, strict automotive quality testing, high heat resistance, and India Spare verified fitment.',
+  },
+  {
+    label: '🚀 Performance & Longevity',
+    prompt: 'Highlight optimum engine efficiency, zero vibration, seamless mechanical compatibility, long-term road reliability, and India Spare authenticity.',
+  },
+  {
+    label: '🛡️ Warranty & Safe Packaging',
+    prompt: 'Focus on 100% genuine replacement guarantee, damage-free protective packaging, verified vehicle fitment, and India Spare customer support.',
+  },
+  {
+    label: '🛒 eCommerce Conversion',
+    prompt: 'Write in an energetic, persuasive, high-converting eCommerce style encouraging two-wheeler riders to upgrade with genuine parts from India Spare.',
+  },
+];
 
 interface MetaGeneratorProps {
   initialRows?: PartRow[];
@@ -48,6 +72,17 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
   // Main parts only vs all child parts
   const [mainPartsOnly, setMainPartsOnly] = useState<boolean>(true);
+
+  // Google AI Studio (Gemini) State
+  const [aiMode, setAiMode] = useState<boolean>(false);
+  const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
+    return localStorage.getItem('converter_gemini_api_key') || '';
+  });
+  const [aiPrompt, setAiPrompt] = useState<string>(
+    'Generate authentic OEM eCommerce descriptions emphasizing factory precision, durability, heat resistance, direct vehicle fitment, and India Spare verified quality.'
+  );
+  const [showApiKey, setShowApiKey] = useState<boolean>(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   // Processing state
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -87,16 +122,18 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
   const activeModelCode = (modelCode.trim() || resolvedModelCode).toUpperCase();
 
-  // Trigger generation whenever inputs change
+  // Trigger generation whenever inputs change (only automatic in rule-based mode)
   useEffect(() => {
-    if ((rows && rows.length > 0) || (figures && figures.length > 0)) {
-      generateMetadata();
+    if (!aiMode && ((rows && rows.length > 0) || (figures && figures.length > 0))) {
+      generateMetadata(false);
     }
-  }, [rows, figures, brand, modelCode, model, series, mainPartsOnly, resolvedModelCode]);
+  }, [rows, figures, brand, modelCode, model, series, mainPartsOnly, resolvedModelCode, aiMode]);
 
-  const generateMetadata = async () => {
+  const generateMetadata = async (overrideAiMode?: boolean) => {
     if ((!rows || rows.length === 0) && (!figures || figures.length === 0)) return;
+    const isAi = overrideAiMode !== undefined ? overrideAiMode : aiMode;
     setIsGenerating(true);
+    setAiError(null);
     try {
       const payload: any = {
         rows,
@@ -107,6 +144,9 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
         series: series.trim() || 'series',
         model_code: activeModelCode,
         main_parts_only: mainPartsOnly,
+        ai_mode: isAi,
+        ai_prompt: isAi ? aiPrompt.trim() : undefined,
+        gemini_api_key: isAi && geminiApiKey.trim() ? geminiApiKey.trim() : undefined,
       };
 
       const res = await fetch('/api/meta/generate', {
@@ -116,13 +156,15 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
       });
 
       if (!res.ok) {
-        throw new Error('Failed to generate metadata');
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.detail || 'Failed to generate metadata');
       }
 
       const data = await res.json();
       setMetadataItems(data.items || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Metadata generation error:', err);
+      setAiError(err.message || 'Generation failed');
     } finally {
       setIsGenerating(false);
     }
@@ -402,6 +444,165 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
           </div>
         </div>
 
+        {/* Generator Engine Mode Switcher */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-2 rounded-2xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setAiMode(false);
+                setAiError(null);
+              }}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                !aiMode
+                  ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5" />
+              Rule-Based Mode (Instant)
+            </button>
+            <button
+              type="button"
+              onClick={() => setAiMode(true)}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                aiMode
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs'
+                  : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-purple-300" />
+              Google AI Studio (Gemini)
+            </button>
+          </div>
+          <div className="text-[11px] text-zinc-500 font-mono pr-2">
+            {aiMode ? '✨ Unique AI Prompts + Strict Constraint Enforcement' : '⚡ Algorithmic templates & strict bounding'}
+          </div>
+        </div>
+
+        {/* Google AI Studio Configuration Panel */}
+        {aiMode && (
+          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-purple-50/60 to-white dark:from-purple-950/20 dark:to-zinc-900/60 border border-purple-200 dark:border-purple-800/60 space-y-4 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="p-1 rounded-lg bg-purple-600 text-white">
+                  <Sparkles className="w-3.5 h-3.5" />
+                </span>
+                <span className="text-xs font-bold uppercase tracking-wider text-purple-900 dark:text-purple-300 font-mono">
+                  Google AI Studio (Gemini 2.5 Flash) Prompt & Settings
+                </span>
+              </div>
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-600 dark:text-purple-400 hover:underline"
+              >
+                Get API Key at aistudio.google.com &rarr;
+              </a>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* API Key Box */}
+              <div>
+                <label className="block text-xs font-mono uppercase text-zinc-600 dark:text-zinc-400 font-semibold mb-1.5 flex items-center justify-between">
+                  <span>Google AI Studio API Key</span>
+                  <span className="text-[10px] text-zinc-400 normal-case">Saved locally in browser</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={geminiApiKey}
+                    onChange={(e) => {
+                      setGeminiApiKey(e.target.value);
+                      localStorage.setItem('converter_gemini_api_key', e.target.value);
+                    }}
+                    placeholder="AIzaSy... (or leave blank if GEMINI_API_KEY is configured on server)"
+                    className="w-full pl-3.5 pr-10 py-2 rounded-xl text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:border-purple-500 font-mono placeholder:font-sans placeholder:text-zinc-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1 cursor-pointer"
+                    title={showApiKey ? 'Hide API Key' : 'Show API Key'}
+                  >
+                    {showApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Quick Presets */}
+              <div>
+                <label className="block text-xs font-mono uppercase text-zinc-600 dark:text-zinc-400 font-semibold mb-1.5">
+                  Prompt Presets
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {PROMPT_PRESETS.map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => setAiPrompt(p.prompt)}
+                      className="px-2.5 py-1.5 rounded-lg text-[10px] font-semibold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-purple-400 hover:text-purple-600 dark:hover:text-purple-300 transition-colors cursor-pointer"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Custom Prompt Textarea */}
+            <div>
+              <label className="block text-xs font-mono uppercase text-zinc-600 dark:text-zinc-400 font-semibold mb-1.5">
+                Custom Prompt / Copywriting Directives
+              </label>
+              <textarea
+                rows={2}
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder="Enter custom prompt for tone, USPs, fitment guarantees, or target audience..."
+                className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:border-purple-500 placeholder:text-zinc-400 font-sans"
+              />
+            </div>
+
+            {/* Generate with AI Button */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+              <div className="text-[11px] text-zinc-500 font-mono">
+                Auto-enforces: 151–158 chars (Meta Desc) • 120–140 words (Prod Desc) • zero commas • India Spare casing.
+              </div>
+              <button
+                type="button"
+                onClick={() => generateMetadata(true)}
+                disabled={isGenerating}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    Generating with Gemini...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Generate with Gemini AI
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Error Banner */}
+            {aiError && (
+              <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">Google AI Studio Notice: </span>
+                  {aiError}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Live Rules Legend (per user prompt) */}
         <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-[11px] font-mono grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           <div>
@@ -528,8 +729,15 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
                           {/* Main Part Name */}
                           <td className="p-3">
-                            <div className="font-bold text-zinc-900 dark:text-white font-mono text-xs uppercase">
-                              {item.part_name || item.description}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-zinc-900 dark:text-white font-mono text-xs uppercase">
+                                {item.part_name || item.description}
+                              </span>
+                              {item.ai_generated && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                  <Sparkles className="w-2.5 h-2.5" /> AI
+                                </span>
+                              )}
                             </div>
                             <div className="text-[10px] text-zinc-500 font-mono mt-0.5">
                               Model: <span className="font-semibold text-zinc-700 dark:text-zinc-300">{item.model_code}</span>

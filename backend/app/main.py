@@ -787,6 +787,9 @@ def download_pipeline_metadata(job_id: str, format: str = "xlsx"):
 # ---------------------------------------------------------------------------
 
 
+from app.gemini_service import enhance_metadata_with_gemini
+
+
 class MetaGenerateRequest(BaseModel):
     job_id: Optional[str] = None
     rows: Optional[list[dict[str, Any]]] = None
@@ -799,6 +802,9 @@ class MetaGenerateRequest(BaseModel):
     main_parts_only: bool = True
     style: str = "ecommerce"
     custom_templates: Optional[dict[str, str]] = None
+    ai_mode: bool = False
+    ai_prompt: Optional[str] = None
+    gemini_api_key: Optional[str] = None
 
 
 class MetaExportRequest(BaseModel):
@@ -847,7 +853,23 @@ def generate_metadata_endpoint(req: MetaGenerateRequest):
         style=req.style,
         custom_templates=req.custom_templates,
     )
-    return {"total": len(items), "items": items}
+
+    if req.ai_mode:
+        try:
+            items = enhance_metadata_with_gemini(
+                metadata_items=items,
+                user_prompt=req.ai_prompt or "",
+                brand=req.brand,
+                model_code=m_code,
+                model=req.model,
+                series=req.series,
+                api_key=req.gemini_api_key,
+            )
+        except Exception as e:
+            logger.warning("AI generation error: %s", e)
+            raise HTTPException(status_code=400, detail=str(e))
+
+    return {"total": len(items), "items": items, "ai_mode": req.ai_mode}
 
 
 @app.post("/api/meta/export")

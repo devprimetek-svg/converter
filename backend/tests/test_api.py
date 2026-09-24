@@ -325,4 +325,55 @@ def test_metadata_generate_and_export_endpoints():
     assert "Yamaha BGPK Cylinder Head | India Spare" in csv_txt
 
 
+from unittest.mock import patch
+
+@patch("app.gemini_service.call_gemini_batch")
+def test_metadata_generate_endpoint_with_gemini_ai(mock_call):
+    """Verify /api/meta/generate with ai_mode=True produces valid Gemini AI enhanced metadata."""
+    mock_call.return_value = {
+        "1": {
+            "meta_description": "buy authentic yamaha bgpk ray zr cylinder head genuine oem spare parts diagram from india spare with verified vehicle fitment today.",
+            "product_description": "This authentic Yamaha BGPK Ray ZR cylinder head is engineered to official factory specifications from India Spare. " * 6,
+        }
+    }
+    rows = [
+        {
+            "page": 7,
+            "fig_no": "1",
+            "fig_name": "CYLINDER HEAD",
+            "ref_no": "1",
+            "part_no": "BGP-E1111-00",
+            "description": "HEAD, CYLINDER 1",
+            "remarks": "",
+            "BGPK": "1",
+        }
+    ]
+    res = client.post(
+        "/api/meta/generate",
+        json={
+            "rows": rows,
+            "model_columns": ["BGPK"],
+            "brand": "YAMAHA",
+            "model": "RAY ZR",
+            "series": "SERIES",
+            "main_parts_only": True,
+            "ai_mode": True,
+            "ai_prompt": "Focus on high durability and performance",
+            "gemini_api_key": "test-key-123",
+        },
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["ai_mode"] is True
+    item = data["items"][0]
+    assert item["ai_generated"] is True
+    assert 151 <= len(item["meta_description"]) <= 158
+    assert "," not in item["meta_description"]
+    assert "India Spare" in item["meta_description"]
+    assert 120 <= len(item["product_description"].split()) <= 140
+    assert "," not in item["product_description"]
+    assert "India Spare" in item["product_description"]
+
+
+
 
