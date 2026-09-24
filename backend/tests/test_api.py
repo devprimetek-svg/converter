@@ -259,11 +259,12 @@ def test_metadata_generate_and_export_endpoints():
     assert "meta_short_description" not in item
     assert 151 <= len(item["meta_description"]) <= 158
     assert "," not in item["meta_description"]
-    assert item["meta_description"].islower()
+    assert "India Spare" in item["meta_description"]
     assert 120 <= len(item["product_description"].split()) <= 140
     assert "," not in item["product_description"]
+    assert "India Spare" in item["product_description"]
 
-    # Test /api/meta/generate with custom model (typed before model code in meta title only)
+    # Test /api/meta/generate with custom model (series visible after model)
     gen_custom = client.post(
         "/api/meta/generate",
         json={
@@ -277,14 +278,15 @@ def test_metadata_generate_and_export_endpoints():
     )
     assert gen_custom.status_code == 200
     custom_item = gen_custom.json()["items"][0]
-    assert custom_item["product_title"] == "YAMAHA BGPK R15 CYLINDER HEAD"
-    assert custom_item["meta_title"] == "Yamaha R15 BGPK Cylinder Head | India Spare"
+    assert custom_item["product_title"] == "YAMAHA BGPK R15 SERIES CYLINDER HEAD"
+    assert custom_item["meta_title"] == "Yamaha R15 Series BGPK Cylinder Head | India Spare"
     assert "meta_short_description" not in custom_item
     assert 151 <= len(custom_item["meta_description"]) <= 158
     assert "," not in custom_item["meta_description"]
-    assert custom_item["meta_description"].islower()
+    assert "India Spare" in custom_item["meta_description"]
     assert 120 <= len(custom_item["product_description"].split()) <= 140
     assert "," not in custom_item["product_description"]
+    assert "India Spare" in custom_item["product_description"]
 
     # 2. Test /api/meta/export as xlsx
     export_xlsx = client.post(

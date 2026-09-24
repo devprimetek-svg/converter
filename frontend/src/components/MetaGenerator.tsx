@@ -407,13 +407,13 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
           <div>
             <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Short Description (IN CAPS, no commas):</span>
             <span className="font-bold text-zinc-800 dark:text-zinc-200">
-              {brand || 'YAMAHA'} {activeModelCode} {model ? `${model.toUpperCase()} ` : ''}[PARTS NAME]
+              {brand || 'YAMAHA'} {activeModelCode} {model ? `${model.toUpperCase()} ${series ? `${series.toUpperCase()} ` : ''}` : (series && series.toLowerCase() !== 'series' ? `${series.toUpperCase()} ` : '')}[PARTS NAME]
             </span>
           </div>
           <div>
             <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Meta Title (Separate, no commas):</span>
             <span className="font-bold text-zinc-800 dark:text-zinc-200">
-              {brand ? brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase() : 'Yamaha'} {model ? `${model} ` : ''}{activeModelCode} [Parts Name] | India Spare
+              {brand ? brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase() : 'Yamaha'} {model ? `${model} ${series ? `${series} ` : ''}` : (series && series.toLowerCase() !== 'series' ? `${series} ` : '')}{activeModelCode} [Parts Name] | India Spare
             </span>
           </div>
           <div>
@@ -534,6 +534,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                             <div className="text-[10px] text-zinc-500 font-mono mt-0.5">
                               Model: <span className="font-semibold text-zinc-700 dark:text-zinc-300">{item.model_code}</span>
                               {item.model ? ` • ${item.model}` : ''}
+                              {item.series ? ` • ${item.series}` : ''}
                             </div>
                           </td>
 

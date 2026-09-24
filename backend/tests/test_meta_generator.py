@@ -32,16 +32,24 @@ def test_no_commas_between_words():
 
 
 def test_product_title_in_caps_separate_from_meta_title_and_no_commas():
-    """Verify product title is ALL CAPS, no commas, and meta title is separate (Title Case, no commas)."""
-    pt = build_product_title("YAMAHA", "BGPK", "cylinder head", model="ray zr")
-    assert pt == "YAMAHA BGPK RAY ZR CYLINDER HEAD"
+    """Verify product title is ALL CAPS, no commas, and meta title is separate (Title Case, no commas).
+    Series is visible after Model in both short description and meta title.
+    """
+    pt = build_product_title("YAMAHA", "BGPK", "cylinder head", model="ray zr", series="series")
+    assert pt == "YAMAHA BGPK RAY ZR SERIES CYLINDER HEAD"
     assert "," not in pt
     assert pt.isupper()
 
-    mt = build_meta_title("YAMAHA", "BGPK", "cylinder head", model="ray zr")
-    assert mt == "Yamaha Ray Zr BGPK Cylinder Head | India Spare"
+    mt = build_meta_title("YAMAHA", "BGPK", "cylinder head", model="ray zr", series="series")
+    assert mt == "Yamaha Ray Zr Series BGPK Cylinder Head | India Spare"
     assert "," not in mt
     assert mt != pt  # Separate from product title
+
+    # Without model, series 'series' is not shown
+    pt_no_model = build_product_title("YAMAHA", "BGPK", "cylinder head", model="", series="series")
+    assert pt_no_model == "YAMAHA BGPK CYLINDER HEAD"
+    mt_no_model = build_meta_title("YAMAHA", "BGPK", "cylinder head", model="", series="series")
+    assert mt_no_model == "Yamaha BGPK Cylinder Head | India Spare"
 
 
 def test_meta_short_description_no_commas():
@@ -53,7 +61,7 @@ def test_meta_short_description_no_commas():
 
 
 def test_meta_description_character_length_151_to_158_without_caps_no_commas():
-    """Verify meta descriptions are strictly bounded between 151 and 158 characters, without caps, and zero commas."""
+    """Verify meta descriptions are strictly bounded between 151 and 158 characters, without caps except India Spare, and zero commas."""
     sample_parts = [
         "CYLINDER HEAD",
         "CRANKSHAFT & PISTON",
@@ -81,8 +89,11 @@ def test_meta_description_character_length_151_to_158_without_caps_no_commas():
             )
             assert 151 <= len(desc) <= 158, f"Part '{part}' (m='{m}') desc length {len(desc)} not in [151, 158]: '{desc}'"
             assert "," not in desc, f"Comma found in meta description: '{desc}'"
-            assert desc.islower(), f"Meta description must be without caps (all lowercase): '{desc}'"
-            assert not any(c.isupper() for c in desc), f"Capital letter found in meta description: '{desc}'"
+            assert "India Spare" in desc, f"'India Spare' missing from meta description: '{desc}'"
+            assert "india spare" not in desc, f"Lowercase 'india spare' found in meta description: '{desc}'"
+            assert "INDIA SPARE" not in desc, f"Uppercase 'INDIA SPARE' found in meta description: '{desc}'"
+            rest = desc.replace("India Spare", "")
+            assert rest.islower(), f"Meta description outside 'India Spare' must be without caps: '{desc}'"
 
 
 def test_product_description_words_120_to_140_no_commas():
@@ -134,11 +145,12 @@ def test_generate_main_part_metadata():
     # 3. Meta Short description: removed from entire app
     assert "meta_short_description" not in meta
 
-    # 4. Meta description: strictly 151-158 characters without caps, no commas
+    # 4. Meta description: strictly 151-158 characters without caps except 'India Spare', no commas
     assert 151 <= len(meta["meta_description"]) <= 158
     assert "," not in meta["meta_description"]
-    assert meta["meta_description"].islower()
-    assert not any(c.isupper() for c in meta["meta_description"])
+    assert "India Spare" in meta["meta_description"]
+    assert "india spare" not in meta["meta_description"]
+    assert meta["meta_description"].replace("India Spare", "").islower()
     assert meta["meta_desc_chars"] == len(meta["meta_description"])
 
     # 5. Product description: strictly 120-140 words, no commas
@@ -146,6 +158,7 @@ def test_generate_main_part_metadata():
     assert 120 <= p_words <= 140
     assert "," not in meta["product_description"]
     assert meta["product_desc_words"] == p_words
+    assert "India Spare" in meta["product_description"]
 
     # 6. Image filename & fields
     assert meta["image_filename"] == "YAM_BGPK_CYLINDER HEAD.jpeg"
@@ -165,27 +178,29 @@ def test_generate_main_part_with_custom_model_and_series():
         series="STREET RALLY",
     )
 
-    # Title with model after model code in ALL CAPS, no commas
-    assert meta["product_title"] == "YAMAHA BGPK RAY ZR CRANKSHAFT & PISTON"
+    # Title with series after model in ALL CAPS, no commas
+    assert meta["product_title"] == "YAMAHA BGPK RAY ZR STREET RALLY CRANKSHAFT & PISTON"
     assert "," not in meta["product_title"]
 
-    # Separate Meta Title (model typed before model code)
-    assert meta["meta_title"] == "Yamaha Ray Zr BGPK Crankshaft & Piston | India Spare"
+    # Separate Meta Title (series visible after model, model before model code)
+    assert meta["meta_title"] == "Yamaha Ray Zr Street Rally BGPK Crankshaft & Piston | India Spare"
     assert "," not in meta["meta_title"]
 
     # Short desc removed from entire app
     assert "meta_short_description" not in meta
 
-    # Meta desc strictly 151-158 chars without caps, no commas
+    # Meta desc strictly 151-158 chars without caps except 'India Spare', no commas
     assert 151 <= len(meta["meta_description"]) <= 158
     assert "," not in meta["meta_description"]
-    assert meta["meta_description"].islower()
-    assert not any(c.isupper() for c in meta["meta_description"])
+    assert "India Spare" in meta["meta_description"]
+    assert "india spare" not in meta["meta_description"]
+    assert meta["meta_description"].replace("India Spare", "").islower()
 
     # Product desc strictly 120-140 words, no commas
     w_count = len(meta["product_description"].split())
     assert 120 <= w_count <= 140
     assert "," not in meta["product_description"]
+    assert "India Spare" in meta["product_description"]
 
 
 def test_main_parts_only_catalog_extraction():
