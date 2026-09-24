@@ -184,3 +184,29 @@ def test_call_gemini_batch_429_fallback():
         assert results["1"]["meta_description"] == "test meta"
         assert mock_client.post.call_count == 2
 
+
+@patch("app.gemini_service.call_gemini_batch")
+@patch("time.sleep")
+def test_enhance_metadata_with_gemini_multibatch(mock_sleep, mock_call):
+    """Verify enhance_metadata_with_gemini correctly paces multiple batches using time.sleep."""
+    mock_call.return_value = {
+        "1": {"meta_description": "meta 1 from India Spare", "product_description": "prod 1 from India Spare"},
+        "2": {"meta_description": "meta 2 from India Spare", "product_description": "prod 2 from India Spare"},
+    }
+
+    items = [
+        {"fig_no": "1", "part_name": "VALVE"},
+        {"fig_no": "2", "part_name": "PISTON"},
+    ]
+
+    enhanced = enhance_metadata_with_gemini(
+        metadata_items=items,
+        api_key="valid-key",
+        batch_size=1,  # Forces 2 separate batches
+    )
+
+    assert len(enhanced) == 2
+    assert mock_call.call_count == 2
+    assert mock_sleep.call_count == 1
+    mock_sleep.assert_called_with(1.5)
+
