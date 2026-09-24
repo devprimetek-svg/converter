@@ -32,7 +32,6 @@ export interface PartMetadataItem {
   image_filename: string;
   product_title: string;
   meta_title?: string;
-  meta_short_description?: string;
   meta_description?: string;
   meta_long_description: string;
   meta_desc_chars?: number;
@@ -46,7 +45,6 @@ export interface MetaTemplateConfig {
   brand: string;
   style: 'ecommerce' | 'marketplace' | 'minimalist' | 'custom';
   customTitle?: string;
-  customShortDesc?: string;
   customLongDesc?: string;
 }
 

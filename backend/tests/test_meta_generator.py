@@ -131,9 +131,8 @@ def test_generate_main_part_metadata():
     assert meta["meta_title"] == "Yamaha BGPK Cylinder Head"
     assert "," not in meta["meta_title"]
 
-    # 3. Meta Short description: ends with INDIA SPARE, no commas
-    assert meta["meta_short_description"] == "YAMAHA BGPK CYLINDER HEAD INDIA SPARE"
-    assert "," not in meta["meta_short_description"]
+    # 3. Meta Short description: removed from entire app
+    assert "meta_short_description" not in meta
 
     # 4. Meta description: strictly 151-158 characters without caps, no commas
     assert 151 <= len(meta["meta_description"]) <= 158
@@ -174,9 +173,8 @@ def test_generate_main_part_with_custom_model_and_series():
     assert meta["meta_title"] == "Yamaha Ray Zr BGPK Crankshaft & Piston"
     assert "," not in meta["meta_title"]
 
-    # Short desc with model after model code and INDIA SPARE, no commas
-    assert meta["meta_short_description"] == "YAMAHA BGPK RAY ZR CRANKSHAFT & PISTON INDIA SPARE"
-    assert "," not in meta["meta_short_description"]
+    # Short desc removed from entire app
+    assert "meta_short_description" not in meta
 
     # Meta desc strictly 151-158 chars without caps, no commas
     assert 151 <= len(meta["meta_description"]) <= 158
@@ -214,14 +212,14 @@ def test_main_parts_only_catalog_extraction():
     assert meta_items[0]["part_name"] == "CYLINDER HEAD"
     assert meta_items[0]["product_title"] == "YAMAHA BGPK CYLINDER HEAD"
     assert meta_items[0]["meta_title"] == "Yamaha BGPK Cylinder Head"
-    assert meta_items[0]["meta_short_description"] == "YAMAHA BGPK CYLINDER HEAD INDIA SPARE"
+    assert "meta_short_description" not in meta_items[0]
     assert 151 <= len(meta_items[0]["meta_description"]) <= 158
     assert 120 <= len(meta_items[0]["product_description"].split()) <= 140
 
     assert meta_items[1]["part_name"] == "CRANKSHAFT & PISTON"
     assert meta_items[1]["product_title"] == "YAMAHA BGPK CRANKSHAFT & PISTON"
     assert meta_items[1]["meta_title"] == "Yamaha BGPK Crankshaft & Piston"
-    assert meta_items[1]["meta_short_description"] == "YAMAHA BGPK CRANKSHAFT & PISTON INDIA SPARE"
+    assert "meta_short_description" not in meta_items[1]
     assert 151 <= len(meta_items[1]["meta_description"]) <= 158
     assert 120 <= len(meta_items[1]["product_description"].split()) <= 140
 

@@ -363,16 +363,13 @@ def generate_main_part_metadata(
     # 1. Product Title: strictly in CAPS, separate, no commas
     prod_title = build_product_title(brand=b, model_code=mc, part_name=part_name, model=mn)
 
-    # 2. Meta Title: separate from product title, Title Case, no commas
+    # 2. Meta Title: separate from product title, Title Case, no commas (model before model code)
     meta_title = build_meta_title(brand=b, model_code=mc, part_name=part_name, model=mn)
 
-    # 3. Meta Short Description: ends with INDIA SPARE, no commas
-    short_desc = build_meta_short_description(brand=b, model_code=mc, part_name=part_name, model=mn)
-
-    # 4. Meta Description: strictly 151-158 characters without caps (sentence case), no commas
+    # 3. Meta Description: strictly 151-158 characters without caps (sentence case), no commas
     meta_desc = build_meta_description(brand=b, model_code=mc, part_name=part_name, model=mn, series=ser)
 
-    # 5. Product Description: strictly 120-140 words, no commas
+    # 4. Product Description: strictly 120-140 words, no commas
     prod_desc = build_product_description(brand=b, model_code=mc, part_name=part_name, model=mn, series=ser)
 
     img_filename = resolve_image_filename(part_name, model_code=mc)
@@ -392,7 +389,6 @@ def generate_main_part_metadata(
         "image_filename": img_filename,
         "product_title": prod_title,
         "meta_title": meta_title,
-        "meta_short_description": short_desc,
         "meta_description": meta_desc,
         "meta_long_description": meta_desc,
         "meta_desc_chars": len(meta_desc),
@@ -431,7 +427,6 @@ def generate_child_part_metadata(
 
     prod_title = build_product_title(brand=b, model_code=mc, part_name=full_part_name, model=mn)
     meta_title = build_meta_title(brand=b, model_code=mc, part_name=full_part_name, model=mn)
-    short_desc = build_meta_short_description(brand=b, model_code=mc, part_name=full_part_name, model=mn)
     meta_desc = build_meta_description(brand=b, model_code=mc, part_name=desc, model=mn, series=ser)
     prod_desc = build_product_description(brand=b, model_code=mc, part_name=desc, model=mn, series=ser)
     img_filename = resolve_image_filename(fig_name, model_code=mc)
@@ -451,7 +446,6 @@ def generate_child_part_metadata(
         "image_filename": img_filename,
         "product_title": prod_title,
         "meta_title": meta_title,
-        "meta_short_description": short_desc,
         "meta_description": meta_desc,
         "meta_long_description": meta_desc,
         "meta_desc_chars": len(meta_desc),
