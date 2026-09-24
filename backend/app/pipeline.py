@@ -201,11 +201,11 @@ def run_pipeline_worker(
         if job.model_columns:
             pipeline_model_code = "_".join(str(c).strip() for c in job.model_columns if str(c).strip())
         if not pipeline_model_code:
-            m = re.search(r"\b([A-Z0-9]{4})\b", job.filename.upper())
+            m = re.search(r"\b([A-Z0-9]{3,6})\b", job.filename.upper())
             if m:
                 pipeline_model_code = m.group(1)
             else:
-                pipeline_model_code = "MODL"
+                pipeline_model_code = "MODEL"
 
         # Generate SEO and E-commerce Metadata for main parts only
         meta_items = generate_catalog_metadata(

@@ -147,177 +147,6 @@ def cluster_words_into_lines(words: list[dict], tolerance: float = 2.0) -> list[
     return lines
 
 
-COMMON_EXCLUDE_4CHAR = {
-    "PAGE", "YEAR", "PART", "CODE", "DATE", "NAME", "UNIT", "DISC", "DRUM", "REAR",
-    "CAST", "NOTE", "COPY", "BOOK", "HEAD", "PUMP", "FORK", "STOP", "TANK", "SEAT",
-    "SIDE", "TUBE", "TIRE", "WHEE", "BULB", "CORD", "SHOW", "NEWS", "TYPE", "ITEM",
-    "MAIN", "SEAL", "RING", "PIPE", "PLUG", "BOLT", "GEAR", "WIRE", "ROD", "LEVR",
-    "TEXT", "INFO", "FORM", "FULL", "TRUE", "NONE", "NULL", "LIST", "DATA", "USER",
-    "SPEC", "STEP", "DRAW", "SIZE", "MAKE", "LOGO", "FONT", "TOOL", "LOCK", "PACK",
-    "ROAD", "BASE", "ONLY", "SOME", "MORE", "LESS", "HIGH", "LAST", "NEXT", "BACK",
-    "DOWN", "LEFT", "FROM", "WITH", "INTO", "THEN", "ALSO", "HAVE", "THIS", "THAT",
-    "WHEN", "WHAT", "EACH", "BOTH", "UR", "INDIA", "GENUINE", "MOTOR", "JAPAN", "CORP",
-    "PRINTED", "REMARKS", "DESCRIPTION", "ASSY", "STUD", "COVER", "VENT", "HOSE", "FOR",
-    "KITS", "BODY", "CASE", "STEM", "KICK", "LINE", "DROP", "WASH", "CLIP", "WIRE",
-    "VIEW", "EDIT", "OPEN", "SAVE", "TEST", "APPR", "REMR", "MOTO", "AUTO", "OVER",
-}
-
-GENERIC_HEADER_TERMS = {
-    "DESCRIPTION", "REMARKS", "REF", "PART", "NO", "QTY", "QUANTITY", "MODEL", "CODE",
-    "TOTAL", "UNIT", "SERIES", "TYPE", "ITEM"
-}
-
-YAMAHA_DIGRAPHS = {
-    "BG", "BJ", "BK", "B7", "B6", "BB", "BD", "1W", "2D", "34", "54", "F5", "31",
-    "2P", "5T", "2N", "3J", "2F", "11", "5Y", "4S", "3C", "1S", "2B", "5D"
-}
-
-
-def is_valid_4char_model_code(cand: str) -> bool:
-    """Check if candidate string is a strictly valid 4-character alphanumeric model code.
-    Examples of valid formats:
-    - All letters: BJPK, BGPK, BGPJ, BGPL
-    - Letters and digit: BK2C
-    - Digits and letters: 34VD, 54B1, 1WD1, 2DP1
-    - Pure 4 digits: 3453
-    - Letter, digits, letter: F54D
-    """
-    if not cand or len(cand) != 4 or not cand.isalnum():
-        return False
-    u = cand.upper()
-    if u in COMMON_EXCLUDE_4CHAR:
-        return False
-    # If 4 digits, exclude publication/catalogue years (e.g. 1980 - 2035)
-    if u.isdigit():
-        year = int(u)
-        if 1980 <= year <= 2035:
-            return False
-    return True
-
-
-def score_model_candidate(code: str) -> float:
-    """Score 4-character candidate string based on vehicle/Yamaha model code conventions."""
-    if len(code) != 4:
-        return -100.0
-    s = 0.0
-    if re.match(r"^[A-Z]{2}[0-9][A-Z]$", code):      # e.g. BK2C
-        s += 25.0
-    elif re.match(r"^[0-9]{2}[A-Z]{2}$", code):    # e.g. 34VD, 54B1
-        s += 25.0
-    elif re.match(r"^[A-Z][0-9]{2}[A-Z]$", code):    # e.g. F54D
-        s += 25.0
-    elif re.match(r"^[A-Z]{3}[0-9]$", code):        # e.g. BGP1
-        s += 20.0
-    elif re.match(r"^[0-9][A-Z]{2}[0-9]$", code):    # e.g. 1WD1
-        s += 20.0
-    elif re.match(r"^[A-Z]{4}$", code):              # e.g. BJPK, BGPK, BGPJ
-        s += 15.0
-    elif re.match(r"^[0-9]{4}$", code):              # e.g. 3453
-        s += 15.0
-
-    if code[:2] in YAMAHA_DIGRAPHS:
-        s += 10.0
-    if code[0] in "B12345F":
-        s += 5.0
-    # Heavy penalty for reverse reading artifacts
-    if re.match(r"^[A-Z]{2}[0-9]{2}$", code):       # e.g. DV43
-        s -= 25.0
-    if re.match(r"^[0-9][A-Z]{3}$", code):          # e.g. 1PGB
-        s -= 25.0
-    return s
-
-
-def resolve_model_code(cand: str, known_codes: Optional[list[str]] = None) -> str:
-    """Resolve whether forward string or reversed string represents the true 4-character model code."""
-    cand = cand.strip().upper()
-    if len(cand) != 4:
-        return cand
-    fwd = cand
-    rev = cand[::-1]
-
-    if known_codes:
-        known_set = {k.upper() for k in known_codes if is_valid_4char_model_code(k)}
-        if fwd in known_set and rev not in known_set:
-            return fwd
-        if rev in known_set and fwd not in known_set:
-            return rev
-        for k in known_codes:
-            ku = k.upper()
-            if ku == fwd:
-                return fwd
-            if ku == rev:
-                return rev
-
-    s_fwd = score_model_candidate(fwd)
-    s_rev = score_model_candidate(rev)
-    if s_fwd > s_rev:
-        return fwd
-    elif s_rev > s_fwd:
-        return rev
-    else:
-        if fwd[0] in "KJL" and rev[0] == "B":
-            return rev
-        return fwd
-
-
-def match_partial_to_known(cand: str, known_codes: Optional[list[str]] = None) -> str:
-    """Expand 3-character or trim 5-character string to known 4-character model code if matched."""
-    cand = cand.strip().upper()
-    if len(cand) == 4:
-        return cand
-    if not known_codes:
-        return cand
-    for k in known_codes:
-        ku = k.upper()
-        if not is_valid_4char_model_code(ku):
-            continue
-        if len(cand) == 3:
-            if cand in ku or cand[::-1] in ku:
-                return ku
-        elif len(cand) == 5:
-            if cand[:4] == ku or cand[:4][::-1] == ku:
-                return ku
-            if cand[1:5] == ku or cand[1:5][::-1] == ku:
-                return ku
-    return cand
-
-
-def scan_catalog_model_codes(pdf: Any) -> list[str]:
-    """Scan PDF Cover, Foreword, and sample pages to discover authoritative 4-character model codes."""
-    found_codes: list[str] = []
-    seen: set[str] = set()
-
-    def add_code(c: str):
-        c = c.strip().upper()
-        if is_valid_4char_model_code(c) and c not in seen:
-            seen.add(c)
-            found_codes.append(c)
-
-    # 1. Inspect first 5 pages (Cover, Foreword, Contents)
-    for p_idx in range(min(5, len(pdf.pages))):
-        text = pdf.pages[p_idx].extract_text() or ""
-        # Pattern A: Parenthesized codes on cover or foreword, e.g. (BGPK), (BGPJ / BGPL), (34VD), (3453), (BK2C), (F54D), (BJPK)
-        for pm in re.findall(r"\(\s*([A-Z0-9]{4}(?:\s*[/,\-]\s*[A-Z0-9]{4})*)\s*\)", text, re.I):
-            for part in re.split(r"[/,\-]", pm):
-                add_code(part)
-        # Pattern B: Foreword Model Code declarations
-        for mc in re.findall(r"(?:Model\s*Code|Column\s*Name|Q['’]?TY\s*Column)[:\s]+([A-Z0-9]{4})\b", text, re.I):
-            add_code(mc)
-        # Pattern C: Model code following color descriptions
-        for cm in re.findall(r"\([A-Z0-9]+\)\s+([A-Z0-9]{4})\b", text):
-            add_code(cm)
-
-    # 2. Inspect remarks across first 10 pages for model references (e.g. UR FOR BGPJ, FOR 34VD)
-    for p_idx in range(min(10, len(pdf.pages))):
-        text = pdf.pages[p_idx].extract_text() or ""
-        for rm in re.findall(r"\b(?:UR\s+)?FOR\s+([A-Z0-9]{4})\b", text, re.I):
-            add_code(rm)
-        for rm in re.findall(r"\bFOR\s+[A-Z0-9]+\s*\(([A-Z0-9]{4})\)", text, re.I):
-            add_code(rm)
-
-    return found_codes
-
-
 def detect_vertical_model_columns(
     words: list[dict],
     header_top: float,
@@ -327,17 +156,17 @@ def detect_vertical_model_columns(
     tolerance: float = 6.0,
     padding: float = 4.0,
     first_data_row_top: Optional[float] = None,
-    known_model_codes: Optional[list[str]] = None,
 ) -> list[ModelColumn]:
-    """Detect 4-character model-code column header(s) between DESCRIPTION and REMARKS columns.
-    Enforces that every extracted model code is strictly 4 characters across all formats:
-    - All letters: BJPK, BGPK, BGPJ, BGPL
-    - Letters and digit: BK2C
-    - Digits and letters: 34VD, 54B1, 1WD1
-    - Pure 4 digits: 3453
-    - Letter, digits, letter: F54D
+    """Detect vertical model-code header(s):
+    Single uppercase-letter or digit words positioned between the DESCRIPTION column
+    and the REMARKS column, all with 'top' close to the header row.
+    Group these characters by x-position proximity into vertical stacks.
+    Sort each stack's characters by 'top' ascending and concatenate, then REVERSE
+    the resulting string (e.g. read top-to-bottom as 1, P, G, B -> 1PGB -> reversed -> BGP1).
+    Also supports multi-character alphanumeric words (e.g. BGP1, 1WD1) already assembled in the header model zone.
     """
-    y_min = max(0.0, header_top - 35.0)
+    # Vertical search band: strictly around and above the header row (never below into data rows)
+    y_min = max(0.0, header_top - 30.0)
     if first_data_row_top is not None:
         y_max = min(header_bottom + 4.0, first_data_row_top - 1.0)
     else:
@@ -350,76 +179,89 @@ def detect_vertical_model_columns(
         if y_min <= w["top"] <= y_max and x_min <= ((w["x0"] + w["x1"]) / 2.0) <= x_max
     ]
 
-    header_words: list[dict] = []
-    for w in candidate_words:
-        clean_txt = re.sub(r"[^A-Za-z0-9]", "", w["text"]).upper()
-        if clean_txt in GENERIC_HEADER_TERMS:
-            continue
-        header_words.append(w)
+    # Filter out words that belong to DESCRIPTION or REMARKS itself
+    header_words = [
+        w for w in candidate_words
+        if "DESCRIPTION" not in w["text"].upper() and "REMARKS" not in w["text"].upper()
+    ]
 
     if not header_words:
         return []
 
+    # Single alphanumeric characters (vertical rotated model codes like BGPK, BGP1, 1WD1, 54B1)
+    # Includes uppercase letters A-Z and digits 0-9 (do not omit/leave out digits)
+    single_chars = [
+        w for w in header_words
+        if len(w["text"]) == 1 and w["text"].isalnum() and (w["text"] == w["text"].upper())
+    ]
+    multi_char_words = [
+        w for w in header_words
+        if len(w["text"]) > 1 and w["text"].isalnum() and (w["text"] == w["text"].upper()) and len(w["text"]) <= 6
+    ]
+
     model_columns: list[ModelColumn] = []
 
-    # 1. Single characters and multi-character fragments grouped into vertical stacks by x-coordinate
-    sorted_words = sorted(header_words, key=lambda w: (w["x0"] + w["x1"]) / 2.0)
-    stacks: list[list[dict]] = []
-    current_stack: list[dict] = [sorted_words[0]]
-    current_x = (sorted_words[0]["x0"] + sorted_words[0]["x1"]) / 2.0
+    # Handle vertical stacks of single alphanumeric characters
+    if single_chars:
+        # Group by x-position proximity
+        single_chars.sort(key=lambda w: (w["x0"] + w["x1"]) / 2.0)
+        stacks: list[list[dict]] = []
+        current_stack: list[dict] = [single_chars[0]]
+        current_x = (single_chars[0]["x0"] + single_chars[0]["x1"]) / 2.0
 
-    for w in sorted_words[1:]:
-        mid_x = (w["x0"] + w["x1"]) / 2.0
-        if abs(mid_x - current_x) <= tolerance:
-            current_stack.append(w)
-        else:
+        for w in single_chars[1:]:
+            mid_x = (w["x0"] + w["x1"]) / 2.0
+            if abs(mid_x - current_x) <= tolerance:
+                current_stack.append(w)
+            else:
+                stacks.append(current_stack)
+                current_stack = [w]
+                current_x = mid_x
+
+        if current_stack:
             stacks.append(current_stack)
-            current_stack = [w]
-            current_x = mid_x
-    if current_stack:
-        stacks.append(current_stack)
 
-    for stack in stacks:
-        stack.sort(key=lambda w: w["top"])
-        cand_str = "".join(w["text"].upper() for w in stack)
-        clean_cand = re.sub(r"[^A-Z0-9]", "", cand_str)
+        for stack in stacks:
+            # Sort stack by top ascending (top-to-bottom in PDF)
+            stack.sort(key=lambda w: w["top"])
+            top_to_bottom_str = "".join(w["text"].upper() for w in stack)
+            # Rule: REVERSE the resulting string to get the real alphanumeric model code
+            real_model_code = top_to_bottom_str[::-1]
+            min_x0 = min(w["x0"] for w in stack) - padding
+            max_x1 = max(w["x1"] for w in stack) + padding
+            model_columns.append({
+                "name": real_model_code,
+                "x0": min_x0,
+                "x1": max_x1,
+            })
 
-        if len(clean_cand) in (3, 5):
-            clean_cand = match_partial_to_known(clean_cand, known_model_codes)
+    # Handle any multi-character alphanumeric words (if pdfplumber already merged vertical characters or regular word)
+    for mw in multi_char_words:
+        # Check if already covered by an existing stack
+        mid_x = (mw["x0"] + mw["x1"]) / 2.0
+        already_covered = any(col["x0"] <= mid_x <= col["x1"] for col in model_columns)
+        if not already_covered:
+            raw_text = mw["text"].upper()
+            w_h = mw["bottom"] - mw["top"]
+            w_w = mw["x1"] - mw["x0"]
+            # If word is vertically elongated (height > width * 1.5), pdfplumber read top-to-bottom; reverse it
+            if w_h > w_w * 1.5:
+                name = raw_text[::-1]
+            else:
+                name = raw_text
+            model_columns.append({
+                "name": name,
+                "x0": mw["x0"] - padding,
+                "x1": mw["x1"] + padding,
+            })
 
-        if len(clean_cand) == 4:
-            resolved_code = resolve_model_code(clean_cand, known_model_codes)
-            if is_valid_4char_model_code(resolved_code):
-                min_x0 = min(w["x0"] for w in stack) - padding
-                max_x1 = max(w["x1"] for w in stack) + padding
-                # Ensure no overlapping duplicate column
-                mid_col_x = (min_x0 + max_x1) / 2.0
-                if not any(abs((c["x0"] + c["x1"]) / 2.0 - mid_col_x) < tolerance for c in model_columns):
-                    model_columns.append({
-                        "name": resolved_code,
-                        "x0": min_x0,
-                        "x1": max_x1,
-                    })
-
-    # 2. Check if any standalone 4-char word exists that wasn't in a multi-word stack
-    for w in header_words:
-        clean_w = re.sub(r"[^A-Z0-9]", "", w["text"].upper())
-        if len(clean_w) == 4:
-            mid_w_x = (w["x0"] + w["x1"]) / 2.0
-            if not any(c["x0"] <= mid_w_x <= c["x1"] for c in model_columns):
-                resolved_w = resolve_model_code(clean_w, known_model_codes)
-                if is_valid_4char_model_code(resolved_w):
-                    model_columns.append({
-                        "name": resolved_w,
-                        "x0": w["x0"] - padding,
-                        "x1": w["x1"] + padding,
-                    })
-
-    # Strictly filter: only exact 4-character valid model codes
+    # Filter out invalid model column names (e.g. a stray single digit like "1", which is never a valid model code)
     model_columns = [
         col for col in model_columns
-        if len(col["name"]) == 4 and is_valid_4char_model_code(col["name"])
+        if not (len(col["name"]) == 1 and col["name"].isdigit())
     ]
+
+    # Sort model columns left-to-right by x0
     model_columns.sort(key=lambda col: col["x0"])
     return model_columns
 
@@ -452,9 +294,6 @@ def extract_parts_from_pdf(
     total_pages = len(pdf.pages)
     if total_pages == 0:
         raise ExtractionError("PDF document contains no pages.")
-
-    # Pre-scan Cover, Foreword, and sample pages to discover authoritative 4-character model codes
-    catalog_model_codes = scan_catalog_model_codes(pdf)
 
     all_rows: list[dict] = []
     document_model_columns: list[str] = []
@@ -612,7 +451,7 @@ def extract_parts_from_pdf(
                 else None
             )
 
-            # Rule 5: Detect vertical model columns with strictly 4-character codes
+            # Rule 5: Detect vertical model columns
             model_columns = detect_vertical_model_columns(
                 words=words,
                 header_top=header_top,
@@ -620,7 +459,6 @@ def extract_parts_from_pdf(
                 desc_x1=desc_x1,
                 remarks_x0=remarks_x0,
                 first_data_row_top=first_data_row_top,
-                known_model_codes=catalog_model_codes,
             )
 
             if model_columns:
@@ -631,18 +469,6 @@ def extract_parts_from_pdf(
             elif last_known_model_columns:
                 # Reuse model columns from previous figure/page if header didn't have new ones
                 model_columns = last_known_model_columns
-            elif catalog_model_codes:
-                # Fallback for single-model catalogues with Q'TY or unlabelled quantity column
-                primary_code = next((c for c in catalog_model_codes if is_valid_4char_model_code(c)), "")
-                if primary_code:
-                    model_columns = [{
-                        "name": primary_code,
-                        "x0": desc_x1 + 2.0,
-                        "x1": remarks_x0 - 2.0,
-                    }]
-                    last_known_model_columns = model_columns
-                    if primary_code not in document_model_columns:
-                        document_model_columns.append(primary_code)
 
             # Determine column boundary between description and model columns
             if model_columns:
@@ -761,41 +587,9 @@ def extract_parts_from_pdf(
             "OCR is not supported. Please provide a digital vector PDF catalogue."
         )
 
-    # Ensure document_model_columns has strictly 4-character valid model codes
+    # Ensure document_model_columns has all models found
     if not document_model_columns and last_known_model_columns:
         document_model_columns = [col["name"] for col in last_known_model_columns]
-
-    final_model_cols: list[str] = []
-    col_name_mapping: dict[str, str] = {}
-    for col_name in document_model_columns:
-        resolved = resolve_model_code(col_name, catalog_model_codes)
-        if is_valid_4char_model_code(resolved):
-            if resolved not in final_model_cols:
-                final_model_cols.append(resolved)
-            if resolved != col_name:
-                col_name_mapping[col_name] = resolved
-
-    if not final_model_cols and catalog_model_codes:
-        for c in catalog_model_codes:
-            if is_valid_4char_model_code(c) and c not in final_model_cols:
-                final_model_cols.append(c)
-
-    if not final_model_cols:
-        clean_src = str(pdf_source) if isinstance(pdf_source, str) else ""
-        fn_match = re.search(r"\b([A-Z0-9]{4})\b", clean_src.upper())
-        if fn_match and is_valid_4char_model_code(fn_match.group(1)):
-            final_model_cols.append(fn_match.group(1))
-        else:
-            final_model_cols.append("MODL")
-
-    document_model_columns = final_model_cols
-
-    # Migrate any renamed column keys in all_rows
-    if col_name_mapping:
-        for row in all_rows:
-            for old_k, new_k in col_name_mapping.items():
-                if old_k in row:
-                    row[new_k] = row.pop(old_k)
 
     # Fill default empty string for any model columns missing in earlier rows
     for row in all_rows:
