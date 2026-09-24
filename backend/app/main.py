@@ -805,6 +805,7 @@ class MetaGenerateRequest(BaseModel):
     ai_mode: bool = False
     ai_prompt: Optional[str] = None
     gemini_api_key: Optional[str] = None
+    blank_descriptions: Optional[bool] = None
 
 
 class MetaExportRequest(BaseModel):
@@ -841,6 +842,8 @@ def generate_metadata_endpoint(req: MetaGenerateRequest):
         raise HTTPException(status_code=400, detail="No parts rows or figures provided, or job not found.")
 
     m_code = req.model_code or ("_".join(model_cols) if model_cols else "")
+    should_blank = req.blank_descriptions if req.blank_descriptions is not None else (not req.ai_mode)
+
     items = generate_catalog_metadata(
         rows=rows,
         model_columns=model_cols,
@@ -852,6 +855,7 @@ def generate_metadata_endpoint(req: MetaGenerateRequest):
         figures=figures,
         style=req.style,
         custom_templates=req.custom_templates,
+        blank_descriptions=should_blank,
     )
 
     if req.ai_mode:
@@ -868,6 +872,15 @@ def generate_metadata_endpoint(req: MetaGenerateRequest):
         except Exception as e:
             logger.warning("AI generation error: %s", e)
             raise HTTPException(status_code=400, detail=str(e))
+
+    # If job_id was provided (e.g. from AutoPipeline), update the job state so exports reflect generated descriptions!
+    if req.job_id:
+        pipe_job = pipeline_manager.get_job(req.job_id)
+        if pipe_job:
+            with pipe_job.lock:
+                pipe_job.metadata_items = items
+                pipe_job.metadata_excel_bytes = export_metadata_excel(items, brand=req.brand).getvalue()
+                pipe_job.metadata_csv_bytes = export_metadata_csv(items).getvalue()
 
     return {"total": len(items), "items": items, "ai_mode": req.ai_mode}
 

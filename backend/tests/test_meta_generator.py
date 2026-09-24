@@ -122,8 +122,8 @@ def test_product_description_words_120_to_140_no_commas():
             assert "," not in pdesc, f"Comma found in product description: '{pdesc}'"
 
 
-def test_generate_main_part_metadata():
-    """Verify title in CAPS, separate meta title, short desc, 151-158 char meta desc, 120-140 word prod desc."""
+def test_generate_main_part_metadata_blank_by_default():
+    """Verify that by default (blank_descriptions=True), descriptions are blank."""
     figure = {"fig_no": "1", "fig_name": "CYLINDER HEAD", "first_page": 7}
     meta = generate_main_part_metadata(
         figure=figure,
@@ -145,26 +145,41 @@ def test_generate_main_part_metadata():
     # 3. Meta Short description: removed from entire app
     assert "meta_short_description" not in meta
 
-    # 4. Meta description: strictly 151-158 characters without caps except 'India Spare', no commas
-    assert 151 <= len(meta["meta_description"]) <= 158
-    assert "," not in meta["meta_description"]
-    assert "India Spare" in meta["meta_description"]
-    assert "india spare" not in meta["meta_description"]
-    assert meta["meta_description"].replace("India Spare", "").islower()
-    assert meta["meta_desc_chars"] == len(meta["meta_description"])
+    # 4. Meta description & Product description: blank by default during scan
+    assert meta["meta_description"] == ""
+    assert meta["meta_long_description"] == ""
+    assert meta["meta_desc_chars"] == 0
+    assert meta["product_description"] == ""
+    assert meta["product_desc_words"] == 0
 
-    # 5. Product description: strictly 120-140 words, no commas
-    p_words = len(meta["product_description"].split())
-    assert 120 <= p_words <= 140
-    assert "," not in meta["product_description"]
-    assert meta["product_desc_words"] == p_words
-    assert "India Spare" in meta["product_description"]
-
-    # 6. Image filename & fields
+    # 5. Image filename & fields
     assert meta["image_filename"] == "YAM_BGPK_CYLINDER HEAD.jpeg"
     assert meta["brand"] == "YAMAHA"
     assert meta["model"] == ""
     assert meta["series"] == "series"
+
+
+def test_generate_main_part_with_descriptions_explicit():
+    """Verify that when blank_descriptions=False, descriptions are populated and bounded."""
+    figure = {"fig_no": "1", "fig_name": "CYLINDER HEAD", "first_page": 7}
+    meta = generate_main_part_metadata(
+        figure=figure,
+        model_code="BGPK",
+        brand="YAMAHA",
+        model="",
+        series="series",
+        blank_descriptions=False,
+    )
+
+    assert 151 <= len(meta["meta_description"]) <= 158
+    assert "," not in meta["meta_description"]
+    assert "India Spare" in meta["meta_description"]
+    assert meta["meta_desc_chars"] == len(meta["meta_description"])
+
+    p_words = len(meta["product_description"].split())
+    assert 120 <= p_words <= 140
+    assert "," not in meta["product_description"]
+    assert meta["product_desc_words"] == p_words
 
 
 def test_generate_main_part_with_custom_model_and_series():
@@ -176,6 +191,7 @@ def test_generate_main_part_with_custom_model_and_series():
         brand="YAMAHA",
         model="RAY ZR",
         series="STREET RALLY",
+        blank_descriptions=False,
     )
 
     # Title with series after model in ALL CAPS, no commas
@@ -204,7 +220,7 @@ def test_generate_main_part_with_custom_model_and_series():
 
 
 def test_main_parts_only_catalog_extraction():
-    """Verify catalog metadata contains ONLY the main parts (figures), not child parts."""
+    """Verify catalog metadata contains ONLY the main parts (figures), and descriptions are blank by default."""
     rows = [
         {"fig_no": "1", "fig_name": "CYLINDER HEAD", "ref_no": "1", "part_no": "BGP-E1111-00", "description": "HEAD, CYLINDER 1", "page": 7},
         {"fig_no": "1", "fig_name": "CYLINDER HEAD", "ref_no": "2", "part_no": "90430-06817", "description": "GASKET", "page": 7},
@@ -213,6 +229,7 @@ def test_main_parts_only_catalog_extraction():
         {"fig_no": "2", "fig_name": "CRANKSHAFT & PISTON", "ref_no": "2", "part_no": "BGP-E1631-00", "description": "PISTON", "page": 8},
     ]
 
+    # Default: blank descriptions
     meta_items = generate_catalog_metadata(
         rows=rows,
         model_columns=["BGPK"],
@@ -227,16 +244,22 @@ def test_main_parts_only_catalog_extraction():
     assert meta_items[0]["part_name"] == "CYLINDER HEAD"
     assert meta_items[0]["product_title"] == "YAMAHA BGPK CYLINDER HEAD"
     assert meta_items[0]["meta_title"] == "Yamaha BGPK Cylinder Head | India Spare"
-    assert "meta_short_description" not in meta_items[0]
-    assert 151 <= len(meta_items[0]["meta_description"]) <= 158
-    assert 120 <= len(meta_items[0]["product_description"].split()) <= 140
+    assert meta_items[0]["meta_description"] == ""
+    assert meta_items[0]["product_description"] == ""
 
-    assert meta_items[1]["part_name"] == "CRANKSHAFT & PISTON"
-    assert meta_items[1]["product_title"] == "YAMAHA BGPK CRANKSHAFT & PISTON"
-    assert meta_items[1]["meta_title"] == "Yamaha BGPK Crankshaft & Piston | India Spare"
-    assert "meta_short_description" not in meta_items[1]
-    assert 151 <= len(meta_items[1]["meta_description"]) <= 158
-    assert 120 <= len(meta_items[1]["product_description"].split()) <= 140
+    # With blank_descriptions=False
+    meta_filled = generate_catalog_metadata(
+        rows=rows,
+        model_columns=["BGPK"],
+        brand="YAMAHA",
+        model="",
+        series="series",
+        model_code="BGPK",
+        main_parts_only=True,
+        blank_descriptions=False,
+    )
+    assert 151 <= len(meta_filled[0]["meta_description"]) <= 158
+    assert 120 <= len(meta_filled[0]["product_description"].split()) <= 140
 
 
 def test_export_metadata_excel_and_csv():
@@ -247,6 +270,7 @@ def test_export_metadata_excel_and_csv():
         brand="YAMAHA",
         model="",
         series="series",
+        blank_descriptions=False,
     )
     meta_items = [meta_item]
 

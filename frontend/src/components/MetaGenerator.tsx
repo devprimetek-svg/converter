@@ -73,8 +73,8 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
   // Main parts only vs all child parts
   const [mainPartsOnly, setMainPartsOnly] = useState<boolean>(true);
 
-  // Google AI Studio (Gemini) State
-  const [aiMode, setAiMode] = useState<boolean>(false);
+  // Google AI Studio (Gemini) State (prompt box open and ready by default)
+  const [aiMode, setAiMode] = useState<boolean>(true);
   const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
     return localStorage.getItem('converter_gemini_api_key') || '';
   });
@@ -122,12 +122,12 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
   const activeModelCode = (modelCode.trim() || resolvedModelCode).toUpperCase();
 
-  // Trigger generation whenever inputs change (only automatic in rule-based mode)
+  // Load initial metadata with blank descriptions when inputs or catalogue change
   useEffect(() => {
-    if (!aiMode && ((rows && rows.length > 0) || (figures && figures.length > 0))) {
+    if ((rows && rows.length > 0) || (figures && figures.length > 0)) {
       generateMetadata(false);
     }
-  }, [rows, figures, brand, modelCode, model, series, mainPartsOnly, resolvedModelCode, aiMode]);
+  }, [rows, figures, brand, modelCode, model, series, mainPartsOnly, resolvedModelCode]);
 
   const generateMetadata = async (overrideAiMode?: boolean) => {
     if ((!rows || rows.length === 0) && (!figures || figures.length === 0)) return;
@@ -295,7 +295,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
               )}
             </div>
             <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-              Extracts main parts (assemblies like cylinder) with CAPS product titles, separate meta titles, 151–158 char meta descriptions, and 120–140 word product descriptions (zero commas).
+              Extracts main parts with Short Description and Meta Title. Meta Description & Product Description remain blank during scan. Enter prompt below and click "Generate with Gemini AI", then Export Excel.
             </p>
           </div>
 
@@ -799,44 +799,56 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
                           {/* Meta Description (151-158 Chars without caps) */}
                           <td className="p-3 text-center">
-                            <div className="space-y-1">
-                              <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                                {metaChars} chars
-                              </span>
-                              <div>
-                                <button
-                                  onClick={() => setExpandedItemKey(isExpandedMeta ? null : `meta_${itemKey}`)}
-                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
-                                >
-                                  {isExpandedMeta ? (
-                                    <>Hide <ChevronUp className="w-3 h-3" /></>
-                                  ) : (
-                                    <>View <ChevronDown className="w-3 h-3" /></>
-                                  )}
-                                </button>
+                            {metaDesc ? (
+                              <div className="space-y-1">
+                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                                  {metaChars} chars
+                                </span>
+                                <div>
+                                  <button
+                                    onClick={() => setExpandedItemKey(isExpandedMeta ? null : `meta_${itemKey}`)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+                                  >
+                                    {isExpandedMeta ? (
+                                      <>Hide <ChevronUp className="w-3 h-3" /></>
+                                    ) : (
+                                      <>View <ChevronDown className="w-3 h-3" /></>
+                                    )}
+                                  </button>
+                                </div>
                               </div>
-                            </div>
+                            ) : (
+                              <span className="text-[11px] text-zinc-400 font-mono italic">
+                                Blank
+                              </span>
+                            )}
                           </td>
 
                           {/* Product Description (120-140 Words) */}
                           <td className="p-3 text-center">
-                            <div className="space-y-1">
-                              <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-                                {prodWords} words
-                              </span>
-                              <div>
-                                <button
-                                  onClick={() => setExpandedItemKey(isExpandedProd ? null : `prod_${itemKey}`)}
-                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
-                                >
-                                  {isExpandedProd ? (
-                                    <>Hide <ChevronUp className="w-3 h-3" /></>
-                                  ) : (
-                                    <>View <ChevronDown className="w-3 h-3" /></>
-                                  )}
-                                </button>
+                            {prodDesc ? (
+                              <div className="space-y-1">
+                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                                  {prodWords} words
+                                </span>
+                                <div>
+                                  <button
+                                    onClick={() => setExpandedItemKey(isExpandedProd ? null : `prod_${itemKey}`)}
+                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+                                  >
+                                    {isExpandedProd ? (
+                                      <>Hide <ChevronUp className="w-3 h-3" /></>
+                                    ) : (
+                                      <>View <ChevronDown className="w-3 h-3" /></>
+                                    )}
+                                  </button>
+                                </div>
                               </div>
-                            </div>
+                            ) : (
+                              <span className="text-[11px] text-zinc-400 font-mono italic">
+                                Blank
+                              </span>
+                            )}
                           </td>
                         </tr>
 

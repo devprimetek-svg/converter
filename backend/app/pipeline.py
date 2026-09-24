@@ -207,7 +207,7 @@ def run_pipeline_worker(
             else:
                 pipeline_model_code = "MODEL"
 
-        # Generate SEO and E-commerce Metadata for main parts only
+        # Generate SEO and E-commerce Metadata for main parts only (blank descriptions during scan per user rule)
         meta_items = generate_catalog_metadata(
             rows=job.rows,
             model_columns=job.model_columns,
@@ -217,6 +217,7 @@ def run_pipeline_worker(
             model_code=pipeline_model_code,
             main_parts_only=True,
             figures=job.figures,
+            blank_descriptions=True,
         )
         meta_excel_bytes = export_metadata_excel(meta_items, brand="YAMAHA").getvalue()
         meta_csv_bytes = export_metadata_csv(meta_items).getvalue()

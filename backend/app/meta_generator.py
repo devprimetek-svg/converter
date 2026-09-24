@@ -381,6 +381,7 @@ def generate_main_part_metadata(
     model: str = "",
     series: str = "series",
     page: int = 1,
+    blank_descriptions: bool = True,
 ) -> dict[str, Any]:
     """Generate SEO and product metadata for a single main part (Figure Assembly)."""
     fig_no = str(figure.get("fig_no") or "").strip()
@@ -406,11 +407,13 @@ def generate_main_part_metadata(
     # 2. Meta Title: separate from product title, Title Case, no commas, Series visible after Model
     meta_title = build_meta_title(brand=b, model_code=mc, part_name=part_name, model=mn, series=ser)
 
-    # 3. Meta Description: strictly 151-158 characters without caps (sentence case), no commas, India Spare strictly cased
-    meta_desc = build_meta_description(brand=b, model_code=mc, part_name=part_name, model=mn, series=ser)
-
-    # 4. Product Description: strictly 120-140 words, no commas, India Spare strictly cased
-    prod_desc = build_product_description(brand=b, model_code=mc, part_name=part_name, model=mn, series=ser)
+    # 3. Meta Description & Product Description: blank during PDF scan/initial extraction per user specification
+    if blank_descriptions:
+        meta_desc = ""
+        prod_desc = ""
+    else:
+        meta_desc = build_meta_description(brand=b, model_code=mc, part_name=part_name, model=mn, series=ser)
+        prod_desc = build_product_description(brand=b, model_code=mc, part_name=part_name, model=mn, series=ser)
 
     img_filename = resolve_image_filename(part_name, model_code=mc)
 
@@ -434,7 +437,7 @@ def generate_main_part_metadata(
         "meta_desc_chars": len(meta_desc),
         "long_desc_length": len(meta_desc),
         "product_description": prod_desc,
-        "product_desc_words": len(prod_desc.split()),
+        "product_desc_words": len(prod_desc.split()) if prod_desc else 0,
         "page": p,
         "remarks": "",
     }
@@ -451,6 +454,7 @@ def generate_child_part_metadata(
     model: str = "",
     series: str = "series",
     model_code: str = "",
+    blank_descriptions: bool = True,
 ) -> dict[str, Any]:
     """Generate SEO and product metadata for an individual child part row (fallback mode)."""
     part_no = str(row.get("part_no") or "").strip()
@@ -478,8 +482,12 @@ def generate_child_part_metadata(
 
     prod_title = build_product_title(brand=b, model_code=mc, part_name=full_part_name, model=mn, series=ser)
     meta_title = build_meta_title(brand=b, model_code=mc, part_name=full_part_name, model=mn, series=ser)
-    meta_desc = build_meta_description(brand=b, model_code=mc, part_name=desc, model=mn, series=ser)
-    prod_desc = build_product_description(brand=b, model_code=mc, part_name=desc, model=mn, series=ser)
+    if blank_descriptions:
+        meta_desc = ""
+        prod_desc = ""
+    else:
+        meta_desc = build_meta_description(brand=b, model_code=mc, part_name=desc, model=mn, series=ser)
+        prod_desc = build_product_description(brand=b, model_code=mc, part_name=desc, model=mn, series=ser)
     img_filename = resolve_image_filename(fig_name, model_code=mc)
 
     record = {
@@ -502,7 +510,7 @@ def generate_child_part_metadata(
         "meta_desc_chars": len(meta_desc),
         "long_desc_length": len(meta_desc),
         "product_description": prod_desc,
-        "product_desc_words": len(prod_desc.split()),
+        "product_desc_words": len(prod_desc.split()) if prod_desc else 0,
         "page": page,
         "remarks": str(row.get("remarks") or ""),
     }
@@ -523,8 +531,11 @@ def generate_catalog_metadata(
     figures: Optional[list[dict[str, Any]]] = None,
     style: str = "ecommerce",
     custom_templates: Optional[dict[str, str]] = None,
+    blank_descriptions: bool = True,
 ) -> list[dict[str, Any]]:
-    """Generate SEO metadata for catalog. Defaults to main parts only (figure assemblies)."""
+    """Generate SEO metadata for catalog. Defaults to main parts only (figure assemblies).
+    By default during PDF scan, meta_description and product_description are kept blank.
+    """
     mc = model_code
     if not mc:
         if model_columns:
@@ -558,6 +569,7 @@ def generate_catalog_metadata(
                 brand=brand,
                 model=model,
                 series=series,
+                blank_descriptions=blank_descriptions,
             )
             results.append(item)
     else:
@@ -569,6 +581,7 @@ def generate_catalog_metadata(
                 model=model,
                 series=series,
                 model_code=mc,
+                blank_descriptions=blank_descriptions,
             )
             results.append(item)
 

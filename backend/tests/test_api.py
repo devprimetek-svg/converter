@@ -257,14 +257,13 @@ def test_metadata_generate_and_export_endpoints():
     assert item["product_title"] == "YAMAHA BGPK CYLINDER HEAD"
     assert item["meta_title"] == "Yamaha BGPK Cylinder Head | India Spare"
     assert "meta_short_description" not in item
-    assert 151 <= len(item["meta_description"]) <= 158
-    assert "," not in item["meta_description"]
-    assert "India Spare" in item["meta_description"]
-    assert 120 <= len(item["product_description"].split()) <= 140
-    assert "," not in item["product_description"]
-    assert "India Spare" in item["product_description"]
+    # Kept blank during initial scan/generation per user requirement
+    assert item["meta_description"] == ""
+    assert item["meta_desc_chars"] == 0
+    assert item["product_description"] == ""
+    assert item["product_desc_words"] == 0
 
-    # Test /api/meta/generate with custom model (series visible after model)
+    # Test /api/meta/generate with custom model and blank_descriptions=False
     gen_custom = client.post(
         "/api/meta/generate",
         json={
@@ -274,6 +273,7 @@ def test_metadata_generate_and_export_endpoints():
             "model": "R15",
             "series": "series",
             "main_parts_only": True,
+            "blank_descriptions": False,
         },
     )
     assert gen_custom.status_code == 200
