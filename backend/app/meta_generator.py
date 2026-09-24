@@ -81,7 +81,7 @@ def build_meta_title(
     model: str = "",
 ) -> str:
     """Build meta title separate from product title (Title Case, no commas between words).
-    Model is typed before model code: BRAND MODEL MODEL_CODE PARTS_NAME.
+    Model is typed before model code: BRAND MODEL MODEL_CODE PARTS_NAME | India Spare.
     """
     b = (brand or "Yamaha").strip().title()
     mc = (model_code or "Model").strip().upper()
@@ -89,9 +89,9 @@ def build_meta_title(
     p = (part_name or "Parts").strip().title()
 
     if mn:
-        title = f"{b} {mn} {mc} {p}"
+        title = f"{b} {mn} {mc} {p} | India Spare"
     else:
-        title = f"{b} {mc} {p}"
+        title = f"{b} {mc} {p} | India Spare"
     return clean_no_commas(title)
 
 

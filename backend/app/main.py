@@ -603,7 +603,7 @@ async def start_pipeline_endpoint(
     watermark_opacity: float = Form(0.10),
     watermark_angle: float = Form(-30.0),
     watermark_padding: int = Form(115),
-    watermark_size_pct: int = Form(20),
+    watermark_size_pct: int = Form(25),
     watermark_color: str = Form("#FFFFFF"),
     watermark_is_tiled: bool = Form(True),
     watermark_logo: Optional[UploadFile] = File(None),
@@ -628,11 +628,11 @@ async def start_pipeline_endpoint(
         if len(logo_content) > 0:
             logo_bytes = logo_content
 
-    # Normalize presets: if watermark_size_pct was passed as <= 10 (e.g. from cached browser client state),
-    # ensure it defaults to the 20% preset unless user explicitly gave a non-default custom size.
+    # Normalize presets: if watermark_size_pct was passed as <= 10 or 20 (e.g. from cached browser client state),
+    # ensure it defaults to the 25% preset unless user explicitly gave a non-default custom size.
     effective_size_pct = watermark_size_pct
-    if effective_size_pct <= 10:
-        effective_size_pct = 20
+    if effective_size_pct <= 10 or effective_size_pct == 20:
+        effective_size_pct = 25
 
     effective_opacity = watermark_opacity
     if 0.14 <= effective_opacity <= 0.16:  # Old 15% default from stale browser cache

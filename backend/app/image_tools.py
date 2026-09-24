@@ -579,7 +579,7 @@ def process_watermark_and_resize(
         watermarked_bytes = apply_image_watermark(
             image_bytes=resized_bytes,
             logo_bytes=logo_bytes,
-            scale_pct=watermark_config.get("scale_pct", watermark_config.get("size_pct", 20)),
+            scale_pct=watermark_config.get("scale_pct", watermark_config.get("size_pct", 25)),
             opacity=watermark_config.get("opacity", 0.10),
             angle=watermark_config.get("angle", -30.0),
             padding=watermark_config.get("padding", 115),
@@ -593,7 +593,7 @@ def process_watermark_and_resize(
             opacity=watermark_config.get("opacity", 0.10),
             angle=watermark_config.get("angle", -30.0),
             padding=watermark_config.get("padding", 115),
-            size_pct=watermark_config.get("size_pct", 20),
+            size_pct=watermark_config.get("size_pct", 25),
             position=watermark_config.get("position", "center"),
             color_hex=watermark_config.get("color", "#1E3A8A"),
             is_tiled=watermark_config.get("is_tiled", True),

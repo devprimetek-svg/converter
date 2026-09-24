@@ -413,7 +413,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
           <div>
             <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Meta Title (Separate, no commas):</span>
             <span className="font-bold text-zinc-800 dark:text-zinc-200">
-              {brand ? brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase() : 'Yamaha'} {model ? `${model} ` : ''}{activeModelCode} [Parts Name]
+              {brand ? brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase() : 'Yamaha'} {model ? `${model} ` : ''}{activeModelCode} [Parts Name] | India Spare
             </span>
           </div>
           <div>

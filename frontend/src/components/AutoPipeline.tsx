@@ -60,12 +60,12 @@ interface PipelineStatus {
 }
 
 export const AutoPipeline: React.FC = () => {
-  // Preset States (Pre-filled exactly per user specifications: Company logo, -30° rotation, 115 padding, 20% scale, 10% opacity, tiled)
+  // Preset States (Pre-filled exactly per user specifications: Company logo, -30° rotation, 115 padding, 25% scale, 10% opacity, tiled)
   const [wmType, setWmType] = useState<'logo' | 'text'>('logo');
   const [wmText, setWmText] = useState<string>('INDIA SPARE');
   const [wmRotation, setWmRotation] = useState<number>(-30);
   const [wmPadding, setWmPadding] = useState<number>(115);
-  const [wmSizePct, setWmSizePct] = useState<number>(20);
+  const [wmSizePct, setWmSizePct] = useState<number>(25);
   const [wmOpacity, setWmOpacity] = useState<number>(10);
   const [wmColor, setWmColor] = useState<string>('#1E3A8A');
   const [wmIsTiled, setWmIsTiled] = useState<boolean>(true);
@@ -127,7 +127,7 @@ export const AutoPipeline: React.FC = () => {
     formData.append('watermark_rotation', String(wmRotation ?? -30));
     formData.append('watermark_angle', String(wmRotation ?? -30));
     formData.append('watermark_padding', String(wmPadding ?? 115));
-    formData.append('watermark_size_pct', String(wmSizePct || 20));
+    formData.append('watermark_size_pct', String(wmSizePct || 25));
     formData.append('watermark_opacity', String((wmOpacity || 10) / 100));
     formData.append('watermark_color', wmColor || '#1E3A8A');
     formData.append('watermark_is_tiled', String(wmIsTiled ?? true));

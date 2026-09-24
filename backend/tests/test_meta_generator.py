@@ -39,7 +39,7 @@ def test_product_title_in_caps_separate_from_meta_title_and_no_commas():
     assert pt.isupper()
 
     mt = build_meta_title("YAMAHA", "BGPK", "cylinder head", model="ray zr")
-    assert mt == "Yamaha Ray Zr BGPK Cylinder Head"
+    assert mt == "Yamaha Ray Zr BGPK Cylinder Head | India Spare"
     assert "," not in mt
     assert mt != pt  # Separate from product title
 
@@ -128,7 +128,7 @@ def test_generate_main_part_metadata():
     assert meta["product_title"].isupper()
 
     # 2. Meta Title: separate from product title, Title Case, no commas
-    assert meta["meta_title"] == "Yamaha BGPK Cylinder Head"
+    assert meta["meta_title"] == "Yamaha BGPK Cylinder Head | India Spare"
     assert "," not in meta["meta_title"]
 
     # 3. Meta Short description: removed from entire app
@@ -170,7 +170,7 @@ def test_generate_main_part_with_custom_model_and_series():
     assert "," not in meta["product_title"]
 
     # Separate Meta Title (model typed before model code)
-    assert meta["meta_title"] == "Yamaha Ray Zr BGPK Crankshaft & Piston"
+    assert meta["meta_title"] == "Yamaha Ray Zr BGPK Crankshaft & Piston | India Spare"
     assert "," not in meta["meta_title"]
 
     # Short desc removed from entire app
@@ -211,14 +211,14 @@ def test_main_parts_only_catalog_extraction():
     assert len(meta_items) == 2
     assert meta_items[0]["part_name"] == "CYLINDER HEAD"
     assert meta_items[0]["product_title"] == "YAMAHA BGPK CYLINDER HEAD"
-    assert meta_items[0]["meta_title"] == "Yamaha BGPK Cylinder Head"
+    assert meta_items[0]["meta_title"] == "Yamaha BGPK Cylinder Head | India Spare"
     assert "meta_short_description" not in meta_items[0]
     assert 151 <= len(meta_items[0]["meta_description"]) <= 158
     assert 120 <= len(meta_items[0]["product_description"].split()) <= 140
 
     assert meta_items[1]["part_name"] == "CRANKSHAFT & PISTON"
     assert meta_items[1]["product_title"] == "YAMAHA BGPK CRANKSHAFT & PISTON"
-    assert meta_items[1]["meta_title"] == "Yamaha BGPK Crankshaft & Piston"
+    assert meta_items[1]["meta_title"] == "Yamaha BGPK Crankshaft & Piston | India Spare"
     assert "meta_short_description" not in meta_items[1]
     assert 151 <= len(meta_items[1]["meta_description"]) <= 158
     assert 120 <= len(meta_items[1]["product_description"].split()) <= 140
@@ -247,7 +247,7 @@ def test_export_metadata_excel_and_csv():
     assert ws.cell(row=2, column=2).value == "CYLINDER HEAD"
     assert ws.cell(row=2, column=7).value == "YAM_BGPK_CYLINDER HEAD.jpeg"
     assert ws.cell(row=2, column=8).value == "YAMAHA BGPK CYLINDER HEAD"
-    assert ws.cell(row=2, column=9).value == "Yamaha BGPK Cylinder Head"
+    assert ws.cell(row=2, column=9).value == "Yamaha BGPK Cylinder Head | India Spare"
     assert 151 <= len(ws.cell(row=2, column=10).value) <= 158
     assert 120 <= len(ws.cell(row=2, column=12).value.split()) <= 140
 
@@ -261,5 +261,5 @@ def test_export_metadata_excel_and_csv():
     assert "Meta Description (151-158 Chars)" in csv_content
     assert "Product Description (120-140 Words)" in csv_content
     assert "YAMAHA BGPK CYLINDER HEAD" in csv_content
-    assert "Yamaha BGPK Cylinder Head" in csv_content
+    assert "Yamaha BGPK Cylinder Head | India Spare" in csv_content
     assert "INDIA SPARE" not in csv_content

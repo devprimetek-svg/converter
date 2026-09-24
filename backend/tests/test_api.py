@@ -255,7 +255,7 @@ def test_metadata_generate_and_export_endpoints():
     assert item["part_name"] == "CYLINDER HEAD"
     assert item["image_filename"] == "YAM_BGPK_CYLINDER HEAD.jpeg"
     assert item["product_title"] == "YAMAHA BGPK CYLINDER HEAD"
-    assert item["meta_title"] == "Yamaha BGPK Cylinder Head"
+    assert item["meta_title"] == "Yamaha BGPK Cylinder Head | India Spare"
     assert "meta_short_description" not in item
     assert 151 <= len(item["meta_description"]) <= 158
     assert "," not in item["meta_description"]
@@ -278,7 +278,7 @@ def test_metadata_generate_and_export_endpoints():
     assert gen_custom.status_code == 200
     custom_item = gen_custom.json()["items"][0]
     assert custom_item["product_title"] == "YAMAHA BGPK R15 CYLINDER HEAD"
-    assert custom_item["meta_title"] == "Yamaha R15 BGPK Cylinder Head"
+    assert custom_item["meta_title"] == "Yamaha R15 BGPK Cylinder Head | India Spare"
     assert "meta_short_description" not in custom_item
     assert 151 <= len(custom_item["meta_description"]) <= 158
     assert "," not in custom_item["meta_description"]
@@ -318,7 +318,7 @@ def test_metadata_generate_and_export_endpoints():
     assert "Product Description (120-140 Words)" in csv_txt
     assert "1,CYLINDER HEAD,YAMAHA,BGPK,,series,YAM_BGPK_CYLINDER HEAD.jpeg" in csv_txt
     assert "YAMAHA BGPK CYLINDER HEAD" in csv_txt
-    assert "Yamaha BGPK Cylinder Head" in csv_txt
+    assert "Yamaha BGPK Cylinder Head | India Spare" in csv_txt
 
 
 
