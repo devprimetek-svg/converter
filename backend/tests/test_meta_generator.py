@@ -81,7 +81,8 @@ def test_meta_description_character_length_151_to_158_without_caps_no_commas():
             )
             assert 151 <= len(desc) <= 158, f"Part '{part}' (m='{m}') desc length {len(desc)} not in [151, 158]: '{desc}'"
             assert "," not in desc, f"Comma found in meta description: '{desc}'"
-            assert not desc.isupper(), f"Meta description must be without caps (sentence case): '{desc}'"
+            assert desc.islower(), f"Meta description must be without caps (all lowercase): '{desc}'"
+            assert not any(c.isupper() for c in desc), f"Capital letter found in meta description: '{desc}'"
 
 
 def test_product_description_words_120_to_140_no_commas():
@@ -137,7 +138,8 @@ def test_generate_main_part_metadata():
     # 4. Meta description: strictly 151-158 characters without caps, no commas
     assert 151 <= len(meta["meta_description"]) <= 158
     assert "," not in meta["meta_description"]
-    assert not meta["meta_description"].isupper()
+    assert meta["meta_description"].islower()
+    assert not any(c.isupper() for c in meta["meta_description"])
     assert meta["meta_desc_chars"] == len(meta["meta_description"])
 
     # 5. Product description: strictly 120-140 words, no commas
@@ -179,7 +181,8 @@ def test_generate_main_part_with_custom_model_and_series():
     # Meta desc strictly 151-158 chars without caps, no commas
     assert 151 <= len(meta["meta_description"]) <= 158
     assert "," not in meta["meta_description"]
-    assert not meta["meta_description"].isupper()
+    assert meta["meta_description"].islower()
+    assert not any(c.isupper() for c in meta["meta_description"])
 
     # Product desc strictly 120-140 words, no commas
     w_count = len(meta["product_description"].split())

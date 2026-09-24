@@ -259,6 +259,7 @@ def test_metadata_generate_and_export_endpoints():
     assert item["meta_short_description"] == "YAMAHA BGPK CYLINDER HEAD INDIA SPARE"
     assert 151 <= len(item["meta_description"]) <= 158
     assert "," not in item["meta_description"]
+    assert item["meta_description"].islower()
     assert 120 <= len(item["product_description"].split()) <= 140
     assert "," not in item["product_description"]
 
@@ -281,6 +282,7 @@ def test_metadata_generate_and_export_endpoints():
     assert custom_item["meta_short_description"] == "YAMAHA BGPK R15 CYLINDER HEAD INDIA SPARE"
     assert 151 <= len(custom_item["meta_description"]) <= 158
     assert "," not in custom_item["meta_description"]
+    assert custom_item["meta_description"].islower()
     assert 120 <= len(custom_item["product_description"].split()) <= 140
     assert "," not in custom_item["product_description"]
 

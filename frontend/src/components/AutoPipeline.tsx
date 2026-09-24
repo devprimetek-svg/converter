@@ -18,7 +18,6 @@ import {
   ChevronUp,
   Tag,
   Copy,
-  FileText,
 } from 'lucide-react';
 import type { PartMetadataItem } from '../types';
 
@@ -908,13 +907,6 @@ export const AutoPipeline: React.FC = () => {
                     <Download className="w-3.5 h-3.5" />
                     Download (.xlsx)
                   </button>
-                  <button
-                    onClick={() => downloadMetadataOnly('csv')}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-semibold border border-zinc-200 dark:border-zinc-800 transition-all cursor-pointer"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    CSV
-                  </button>
                 </div>
               </div>
 
@@ -1139,8 +1131,8 @@ export const AutoPipeline: React.FC = () => {
                       })
                     ) : (
                       <tr>
-                        <td colSpan={6} className="p-6 text-center text-zinc-500 text-xs">
-                          Metadata is bundled in the Master ZIP download as Excel and CSV.
+                        <td colSpan={8} className="p-6 text-center text-zinc-500 text-xs">
+                          Metadata is bundled in the Master ZIP download as Excel (.xlsx).
                         </td>
                       </tr>
                     )}

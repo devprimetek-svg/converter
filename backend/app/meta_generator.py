@@ -115,8 +115,8 @@ def build_meta_short_description(
 
 
 def enforce_meta_desc_length(text: str) -> str:
-    """Enforce strictly 151 to 158 characters without commas."""
-    text = clean_no_commas(text)
+    """Enforce strictly 151 to 158 characters without caps and without commas."""
+    text = clean_no_commas(text).lower()
     if 151 <= len(text) <= 158:
         return text
 
@@ -124,16 +124,16 @@ def enforce_meta_desc_length(text: str) -> str:
         "with verified vehicle fit.",
         "with guaranteed vehicle fitment.",
         "factory replacement parts.",
-        "from India Spare today.",
-        "genuine OEM spare.",
-        "genuine OEM factory diagram assembly.",
+        "from india spare today.",
+        "genuine oem spare.",
+        "genuine oem factory diagram assembly.",
     ]
     while len(text) < 151:
         for phrase in pad_pool:
-            cand = clean_no_commas(text.rstrip(".") + " " + phrase)
+            cand = clean_no_commas(text.rstrip(".") + " " + phrase).lower()
             if 151 <= len(cand) <= 158:
                 return cand
-        text = clean_no_commas(text.rstrip(".") + " genuine factory replacement.")
+        text = clean_no_commas(text.rstrip(".") + " genuine factory replacement.").lower()
         if 151 <= len(text) <= 158:
             return text
 
@@ -150,29 +150,30 @@ def enforce_meta_desc_length(text: str) -> str:
             if len(built) + 1 <= 158:
                 built += "."
         if 151 <= len(built) <= 158:
-            return built
+            return built.lower()
 
     closers = [
         "fit.", "now.", "part.", "today.", "spare.", "parts.",
         "with fit.", "exact fit.", "direct fit.",
         "with verified fit.", "with guaranteed fit.",
-        "for your motorcycle.", "from India Spare.",
+        "for your motorcycle.", "from india spare.",
     ]
     for c in sorted(closers, key=len):
-        cand = clean_no_commas(built.rstrip(".") + " " + c)
+        cand = clean_no_commas(built.rstrip(".") + " " + c).lower()
         if 151 <= len(cand) <= 158:
             return cand
 
     while len(built) < 151:
         built = (built.rstrip(".") + " genuine").strip()
     if 151 <= len(built) <= 158:
-        return built.rstrip(".") + "." if len(built) + 1 <= 158 else built
+        res = built.rstrip(".") + "." if len(built) + 1 <= 158 else built
+        return res.lower()
     if len(built) > 158:
         last_space = built[:157].rfind(" ")
         if last_space >= 150:
-            return built[:last_space] + "."
-        return built[:157] + "."
-    return built
+            return (built[:last_space] + ".").lower()
+        return (built[:157] + ".").lower()
+    return built.lower()
 
 
 def build_meta_description(
@@ -183,65 +184,65 @@ def build_meta_description(
     series: str = "series",
 ) -> str:
     """Build meta description strictly bounded between 151 and 158 characters without caps and without commas."""
-    b = (brand or "Yamaha").strip().title()
-    mc = (model_code or "Model").strip().upper()
-    mn = (model or "").strip().title()
+    b = (brand or "yamaha").strip().lower()
+    mc = (model_code or "model").strip().lower()
+    mn = (model or "").strip().lower()
     ser = (series or "series").strip().lower()
     p = clean_no_commas((part_name or "part").strip().lower())
     m_disp = f"{mc} {mn}".strip() if mn else mc
 
-    # Ordered candidate sentences designed for various part name lengths
+    # Ordered candidate sentences designed for various part name lengths (without caps)
     candidates = [
-        f"Buy authentic {b} {m_disp} {ser} {p} genuine OEM spare parts diagram from India Spare. High quality factory replacement parts with verified vehicle fit.",
-        f"Buy genuine {b} {m_disp} {ser} {p} original OEM spare parts diagram from India Spare. Factory direct replacement component with verified vehicle fit.",
-        f"Authentic {b} {m_disp} {ser} {p} OEM spare parts diagram illustration by India Spare. Factory standard direct replacement parts with verified vehicle fit.",
-        f"Buy authentic {b} {m_disp} {p} genuine OEM spare parts diagram from India Spare. High quality factory replacement parts with verified vehicle fit.",
-        f"Genuine {b} {m_disp} {p} authentic OEM spare parts diagram from India Spare. High quality factory replacement parts with verified vehicle fitment today.",
-        f"Buy genuine {b} {m_disp} {ser} {p} replacement parts from India Spare. Authentic OEM factory specification diagram assembly with guaranteed vehicle fit.",
-        f"Authentic {b} {m_disp} {p} spare part from India Spare. Genuine factory standard OEM diagram illustration with guaranteed durability and vehicle fitment.",
-        f"Original {b} {m_disp} {ser} {p} replacement component from India Spare. Premium OEM factory diagram spare with guaranteed vehicle fitment and durability.",
-        f"Buy official {b} {m_disp} {p} genuine spare parts from India Spare. Authentic OEM factory replacement diagram assembly with guaranteed fit and quality.",
-        f"Official {b} {m_disp} {p} spare parts from India Spare. Genuine OEM factory specification replacement diagram illustration with guaranteed vehicle fitment.",
-        f"Authentic {b} {m_disp} {p} diagram spare part from India Spare. High quality factory replacement component with guaranteed vehicle fit and durability.",
-        f"Genuine {b} {m_disp} {p} spare parts from India Spare. Authentic OEM factory specification diagram assembly with guaranteed durable vehicle fitment.",
-        f"Buy genuine {b} {m_disp} {p} spare parts from India Spare. Authentic OEM diagram assembly with guaranteed durable vehicle fitment and satisfaction.",
+        f"buy authentic {b} {m_disp} {ser} {p} genuine oem spare parts diagram from india spare. high quality factory replacement parts with verified vehicle fit.",
+        f"buy genuine {b} {m_disp} {ser} {p} original oem spare parts diagram from india spare. factory direct replacement component with verified vehicle fit.",
+        f"authentic {b} {m_disp} {ser} {p} oem spare parts diagram illustration by india spare. factory standard direct replacement parts with verified vehicle fit.",
+        f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from india spare. high quality factory replacement parts with verified vehicle fit.",
+        f"genuine {b} {m_disp} {p} authentic oem spare parts diagram from india spare. high quality factory replacement parts with verified vehicle fitment today.",
+        f"buy genuine {b} {m_disp} {ser} {p} replacement parts from india spare. authentic oem factory specification diagram assembly with guaranteed vehicle fit.",
+        f"authentic {b} {m_disp} {p} spare part from india spare. genuine factory standard oem diagram illustration with guaranteed durability and vehicle fitment.",
+        f"original {b} {m_disp} {ser} {p} replacement component from india spare. premium oem factory diagram spare with guaranteed vehicle fitment and durability.",
+        f"buy official {b} {m_disp} {p} genuine spare parts from india spare. authentic oem factory replacement diagram assembly with guaranteed fit and quality.",
+        f"official {b} {m_disp} {p} spare parts from india spare. genuine oem factory specification replacement diagram illustration with guaranteed vehicle fitment.",
+        f"authentic {b} {m_disp} {p} diagram spare part from india spare. high quality factory replacement component with guaranteed vehicle fit and durability.",
+        f"genuine {b} {m_disp} {p} spare parts from india spare. authentic oem factory specification diagram assembly with guaranteed durable vehicle fitment.",
+        f"buy genuine {b} {m_disp} {p} spare parts from india spare. authentic oem diagram assembly with guaranteed durable vehicle fitment and satisfaction.",
     ]
 
     for c in candidates:
-        c = clean_no_commas(c)
+        c = clean_no_commas(c).lower()
         if 151 <= len(c) <= 158:
             return c
 
     # Algorithmic prefix + suffix combinations
-    prefix = clean_no_commas(f"Buy authentic {b} {m_disp} {p} genuine OEM spare parts diagram from India Spare.")
+    prefix = clean_no_commas(f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from india spare.").lower()
 
     suffix_bank = [
-        "High quality factory replacement parts with verified vehicle fit.",
-        "High quality factory replacement parts with guaranteed fitment.",
-        "Premium OEM factory standard replacement for your vehicle.",
-        "Guaranteed authentic OEM factory replacement with exact fit.",
-        "Factory direct replacement spare with guaranteed fitment.",
-        "Direct factory replacement component with verified fit.",
-        "Factory standard OEM replacement with guaranteed fit.",
-        "Genuine factory replacement with guaranteed durability.",
-        "Authentic OEM factory replacement with guaranteed fit.",
-        "Guaranteed authentic factory replacement spare parts.",
-        "Factory replacement diagram with verified fitment.",
-        "Verified factory replacement with guaranteed fit.",
-        "Genuine OEM factory replacement with verified vehicle fit.",
-        "Direct factory replacement parts with verified fit.",
-        "Premium factory replacement with guaranteed fitment.",
+        "high quality factory replacement parts with verified vehicle fit.",
+        "high quality factory replacement parts with guaranteed fitment.",
+        "premium oem factory standard replacement for your vehicle.",
+        "guaranteed authentic oem factory replacement with exact fit.",
+        "factory direct replacement spare with guaranteed fitment.",
+        "direct factory replacement component with verified fit.",
+        "factory standard oem replacement with guaranteed fit.",
+        "genuine factory replacement with guaranteed durability.",
+        "authentic oem factory replacement with guaranteed fit.",
+        "guaranteed authentic factory replacement spare parts.",
+        "factory replacement diagram with verified fitment.",
+        "verified factory replacement with guaranteed fit.",
+        "genuine oem factory replacement with verified vehicle fit.",
+        "direct factory replacement parts with verified fit.",
+        "premium factory replacement with guaranteed fitment.",
     ]
 
     for s in suffix_bank:
-        cand = clean_no_commas(f"{prefix} {s}")
+        cand = clean_no_commas(f"{prefix} {s}").lower()
         if 151 <= len(cand) <= 158:
             return cand
 
     base = clean_no_commas(
-        f"Buy authentic {b} {m_disp} {p} genuine OEM spare parts diagram from India Spare. "
-        f"Factory replacement with verified fitment and durable performance guarantee."
-    )
+        f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from india spare. "
+        f"factory replacement with verified fitment and durable performance guarantee."
+    ).lower()
     words = base.split()
     cand = ""
     for w in words:
@@ -254,11 +255,11 @@ def build_meta_description(
         " with verified fit.",
         " with guaranteed fit.",
         " for your vehicle.",
-        " from India Spare.",
+        " from india spare.",
         " today.",
     ]
     for cp in closing_phrases:
-        test = clean_no_commas(cand.rstrip(".") + cp)
+        test = clean_no_commas(cand.rstrip(".") + cp).lower()
         if 151 <= len(test) <= 158:
             return test
 
