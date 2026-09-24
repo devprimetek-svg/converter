@@ -145,6 +145,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
   }, [models, filename]);
 
   const activeModelCode = (modelCode.trim() || resolvedModelCode).toUpperCase();
+  const isModelFilled = model.trim().length > 0;
 
   // Load initial metadata with blank descriptions when inputs or catalogue change
   useEffect(() => {
@@ -251,6 +252,10 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
   const downloadExport = async (format: 'xlsx' | 'csv') => {
     if (!metadataItems || metadataItems.length === 0) return;
+    if (!isModelFilled) {
+      alert('Model is mandatory! Please fill in the Model text box before exporting.');
+      return;
+    }
     setIsExporting(true);
     try {
       const res = await fetch('/api/meta/export', {
@@ -331,20 +336,44 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
               <>
                 <button
                   onClick={() => downloadExport('xlsx')}
-                  disabled={isExporting}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-black hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-zinc-200 dark:text-black font-bold text-xs uppercase tracking-wider transition-all shadow-xs active:scale-95 cursor-pointer disabled:opacity-50"
+                  disabled={isExporting || !isModelFilled}
+                  title={
+                    !isModelFilled
+                      ? 'Model is mandatory: please fill the Model text box below to enable Excel export'
+                      : 'Export Excel (.xlsx)'
+                  }
+                  className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider transition-all shadow-xs active:scale-95 ${
+                    isModelFilled
+                      ? 'bg-black hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-zinc-200 dark:text-black cursor-pointer'
+                      : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 cursor-not-allowed'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   <FileSpreadsheet className="w-4 h-4" />
                   Export Excel (.xlsx)
                 </button>
                 <button
                   onClick={() => downloadExport('csv')}
-                  disabled={isExporting}
-                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-semibold text-xs border border-zinc-200 dark:border-zinc-800 transition-all font-mono cursor-pointer disabled:opacity-50"
+                  disabled={isExporting || !isModelFilled}
+                  title={
+                    !isModelFilled
+                      ? 'Model is mandatory: please fill the Model text box below to enable CSV export'
+                      : 'Export CSV'
+                  }
+                  className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full font-semibold text-xs border transition-all font-mono ${
+                    isModelFilled
+                      ? 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border-zinc-200 dark:border-zinc-800 cursor-pointer'
+                      : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-400 dark:text-zinc-600 border-zinc-200 dark:border-zinc-800 cursor-not-allowed'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   <FileText className="w-3.5 h-3.5" />
                   Export CSV
                 </button>
+                {!isModelFilled && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-xs font-semibold">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>Fill Model to enable Export</span>
+                  </div>
+                )}
               </>
             )}
 
@@ -408,18 +437,40 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
             />
           </div>
 
-          {/* Model Box (typed after Model Code, blank by default per user rule) */}
+          {/* Model Box (typed after Model Code, mandatory per user rule) */}
           <div>
-            <label className="block text-xs font-mono uppercase text-zinc-500 font-semibold mb-1.5">
-              Model <span className="text-zinc-400 font-normal lowercase">(optional)</span>
+            <label className="block text-xs font-mono uppercase font-semibold mb-1.5 flex items-center justify-between">
+              <span className={`flex items-center gap-1.5 ${!isModelFilled ? 'text-rose-600 dark:text-rose-400 font-bold' : 'text-zinc-600 dark:text-zinc-400'}`}>
+                <span>Model</span>
+                <span className="text-rose-500 font-bold text-sm leading-none">*</span>
+                <span
+                  className={`text-[10px] font-mono uppercase px-1.5 py-0.5 rounded font-bold ${
+                    !isModelFilled
+                      ? 'bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 border border-rose-300 dark:border-rose-800'
+                      : 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800'
+                  }`}
+                >
+                  {!isModelFilled ? 'Mandatory' : 'Filled ✓'}
+                </span>
+              </span>
             </label>
             <input
               type="text"
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              placeholder="Leave blank or enter model"
-              className="w-full px-3.5 py-2 rounded-xl text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-600 font-semibold uppercase placeholder:normal-case placeholder:text-zinc-400"
+              placeholder="Enter Model (e.g. FZ-S, R15) - Mandatory *"
+              className={`w-full px-3.5 py-2 rounded-xl text-xs font-semibold uppercase transition-all ${
+                !isModelFilled
+                  ? 'bg-rose-50/70 dark:bg-rose-950/25 border-2 border-rose-500 dark:border-rose-500 text-rose-950 dark:text-rose-200 placeholder:text-rose-400/80 focus:outline-none focus:border-rose-600 focus:ring-2 focus:ring-rose-500/20 shadow-xs'
+                  : 'bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-600'
+              }`}
             />
+            {!isModelFilled && (
+              <p className="text-[11px] text-rose-600 dark:text-rose-400 font-medium mt-1.5 flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                <span>Model is mandatory to enable Excel &amp; CSV export</span>
+              </p>
+            )}
           </div>
 
           {/* Series Box (filled by default with "series" per user rule) */}
