@@ -179,6 +179,75 @@ def _build_gemini_payload(
     }
 
 
+# Global cache of discovered working models per API key: api_key -> list of (api_version, model_path)
+_DISCOVERED_MODELS_CACHE: dict[str, list[tuple[str, str]]] = {}
+
+
+def discover_supported_models(api_key: str, client: httpx.Client) -> list[tuple[str, str]]:
+    """Query Google AI Studio ModelService.ListModels to get the exact models available for this API key."""
+    if api_key in _DISCOVERED_MODELS_CACHE and _DISCOVERED_MODELS_CACHE[api_key]:
+        return _DISCOVERED_MODELS_CACHE[api_key]
+
+    discovered: list[tuple[str, str]] = []
+
+    for api_version in ("v1beta", "v1"):
+        try:
+            list_url = f"https://generativelanguage.googleapis.com/{api_version}/models?key={api_key}"
+            resp = client.get(list_url, timeout=12.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                for m in data.get("models", []):
+                    methods = m.get("supportedGenerationMethods", [])
+                    if "generateContent" in methods:
+                        m_name = m.get("name", "")
+                        if m_name:
+                            discovered.append((api_version, m_name))
+        except Exception as e:
+            logger.info("ListModels on %s returned: %s", api_version, e)
+
+    if discovered:
+        # Score and rank available models
+        def score_model(item: tuple[str, str]) -> int:
+            ver, name = item
+            n = name.lower()
+            s = 0
+            if "2.5-flash" in n:
+                s += 100
+            elif "2.0-flash" in n:
+                s += 90
+            elif "flash" in n and ("latest" in n or "002" in n or "001" in n):
+                s += 80
+            elif "flash" in n:
+                s += 70
+            elif "pro" in n:
+                s += 50
+            elif "gemini" in n:
+                s += 40
+            if ver == "v1beta":
+                s += 5
+            return s
+
+        sorted_models = sorted(discovered, key=score_model, reverse=True)
+        _DISCOVERED_MODELS_CACHE[api_key] = sorted_models
+        logger.info("Discovered %d models for API key: best is %s", len(sorted_models), sorted_models[0])
+        return sorted_models
+
+    # Fallback static candidates if ListModels was not reachable
+    fallbacks = [
+        ("v1beta", "models/gemini-2.5-flash"),
+        ("v1beta", "models/gemini-2.0-flash"),
+        ("v1beta", "models/gemini-2.0-flash-exp"),
+        ("v1beta", "models/gemini-1.5-flash-latest"),
+        ("v1beta", "models/gemini-1.5-flash-002"),
+        ("v1beta", "models/gemini-1.5-flash-001"),
+        ("v1beta", "models/gemini-1.5-flash"),
+        ("v1", "models/gemini-1.5-flash"),
+        ("v1beta", "models/gemini-1.5-pro"),
+        ("v1", "models/gemini-pro"),
+    ]
+    return fallbacks
+
+
 def call_gemini_batch(
     items: list[dict[str, Any]],
     user_prompt: str,
@@ -200,8 +269,11 @@ def call_gemini_batch(
 
     last_error = None
     with httpx.Client(timeout=45.0) as client:
-        for model_name in GEMINI_MODELS:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        models_to_try = discover_supported_models(api_key, client)
+
+        for api_version, model_identifier in models_to_try:
+            clean_path = model_identifier if model_identifier.startswith("models/") else f"models/{model_identifier}"
+            url = f"https://generativelanguage.googleapis.com/{api_version}/{clean_path}:generateContent?key={api_key}"
             try:
                 resp = client.post(url, json=payload)
                 if resp.status_code == 200:
@@ -210,6 +282,12 @@ def call_gemini_batch(
                     if candidates:
                         text_content = candidates[0].get("content", {}).get("parts", [{}])[0].get("text", "")
                         if text_content:
+                            # Strip markdown code blocks if Gemini returns ```json ... ```
+                            text_content = text_content.strip()
+                            if text_content.startswith("```"):
+                                text_content = re.sub(r"^```(?:json)?\s*", "", text_content)
+                                text_content = re.sub(r"\s*```$", "", text_content)
+
                             parsed = json.loads(text_content)
                             results_map = {}
                             for res_it in parsed.get("items", []):
@@ -220,11 +298,15 @@ def call_gemini_batch(
                                     "meta_description": res_it.get("meta_description", ""),
                                     "product_description": res_it.get("product_description", ""),
                                 }
+
+                            # Remember this successful model at top of cache
+                            _DISCOVERED_MODELS_CACHE[api_key] = [(api_version, model_identifier)] + [
+                                m for m in models_to_try if m != (api_version, model_identifier)
+                            ]
                             return results_map
                 elif resp.status_code in (404, 400):
-                    # Try next model if current model is not found in API version
-                    last_error = f"{model_name} HTTP {resp.status_code}: {resp.text}"
-                    logger.info("Model %s returned %s, trying fallback...", model_name, resp.status_code)
+                    last_error = f"{clean_path} ({api_version}) HTTP {resp.status_code}: {resp.text}"
+                    logger.info("Model %s returned %s, trying next...", clean_path, resp.status_code)
                     continue
                 else:
                     last_error = f"HTTP {resp.status_code}: {resp.text}"
@@ -232,10 +314,10 @@ def call_gemini_batch(
                     break
             except Exception as e:
                 last_error = str(e)
-                logger.warning("Gemini request exception with %s: %s", model_name, e)
+                logger.warning("Gemini request exception with %s: %s", clean_path, e)
                 continue
 
-    raise RuntimeError(f"Google AI Studio API error: {last_error or 'No response generated'}")
+    raise RuntimeError(f"Google AI Studio API error: {last_error or 'No supported model response generated'}")
 
 
 def enhance_metadata_with_gemini(

@@ -92,3 +92,30 @@ def test_enhance_metadata_with_gemini_mocked(mock_call):
 
     # Flag
     assert item["ai_generated"] is True
+
+
+def test_discover_supported_models():
+    """Verify discover_supported_models parses ListModels response and ranks them accurately."""
+    from app.gemini_service import discover_supported_models
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "models": [
+            {"name": "models/gemini-1.0-pro", "supportedGenerationMethods": ["generateContent"]},
+            {"name": "models/gemini-2.0-flash", "supportedGenerationMethods": ["generateContent"]},
+            {"name": "models/gemini-2.5-flash", "supportedGenerationMethods": ["generateContent"]},
+            {"name": "models/embedding-001", "supportedGenerationMethods": ["embedContent"]},
+        ]
+    }
+
+    mock_client = MagicMock()
+    mock_client.get.return_value = mock_resp
+
+    models = discover_supported_models("test-dynamic-key-456", mock_client)
+    assert len(models) >= 3
+    # Top ranked model should be 2.5-flash
+    assert "2.5-flash" in models[0][1]
+    # embedding model must NOT be included (doesn't support generateContent)
+    assert not any("embedding" in m[1] for m in models)
+
