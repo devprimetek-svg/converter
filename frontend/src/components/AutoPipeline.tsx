@@ -16,31 +16,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  Tag,
-  Copy,
-  Eye,
-  EyeOff,
 } from 'lucide-react';
-import type { PartMetadataItem } from '../types';
-
-const PROMPT_PRESETS = [
-  {
-    label: '🌟 OEM Durability',
-    prompt: 'Emphasize genuine factory OEM specifications, strict automotive quality testing, high heat resistance, and India Spare verified fitment.',
-  },
-  {
-    label: '🚀 Performance & Longevity',
-    prompt: 'Highlight optimum engine efficiency, zero vibration, seamless mechanical compatibility, long-term road reliability, and India Spare authenticity.',
-  },
-  {
-    label: '🛡️ Warranty & Safe Packaging',
-    prompt: 'Focus on 100% genuine replacement guarantee, damage-free protective packaging, verified vehicle fitment, and India Spare customer support.',
-  },
-  {
-    label: '🛒 eCommerce Conversion',
-    prompt: 'Write in an energetic, persuasive, high-converting eCommerce style encouraging two-wheeler riders to upgrade with genuine parts from India Spare.',
-  },
-];
 
 interface PipelineStatus {
   job_id: string;
@@ -59,9 +35,6 @@ interface PipelineStatus {
   total_images: number;
   images_processed: number;
   excel_ready: boolean;
-  metadata_ready?: boolean;
-  metadata_count?: number;
-  metadata_sample?: PartMetadataItem[];
   zip_ready: boolean;
   zip_filename: string;
   bundle_size_bytes: number;
@@ -77,10 +50,22 @@ interface PipelineStatus {
     fig_name?: string;
   }>;
   rows_sample: Array<Record<string, any>>;
+  rows?: Array<Record<string, any>>;
+  figures?: Array<{ fig_no: string; fig_name: string; first_page?: number }>;
   error?: string;
 }
 
-export const AutoPipeline: React.FC = () => {
+export interface AutoPipelineProps {
+  onProceedToMeta?: (data: {
+    jobId: string;
+    rows: any[];
+    figures: any[];
+    modelColumns: string[];
+    filename: string;
+  }) => void;
+}
+
+export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta }) => {
   // Preset States (Pre-filled exactly per user specifications: Company logo, -30° rotation, 115 padding, 25% scale, 10% opacity, tiled)
   const [wmType, setWmType] = useState<'logo' | 'text'>('logo');
   const [wmText, setWmText] = useState<string>('INDIA SPARE');
@@ -106,57 +91,7 @@ export const AutoPipeline: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [status, setStatus] = useState<PipelineStatus | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [activeResultTab, setActiveResultTab] = useState<'images' | 'parts' | 'meta'>('images');
-  const [copiedMetaId, setCopiedMetaId] = useState<string | null>(null);
-  const [expandedMetaKey, setExpandedMetaKey] = useState<string | null>(null);
-
-  // Pipeline AI Description Generation State
-  const [pipelineAiPrompt, setPipelineAiPrompt] = useState<string>(
-    'Generate authentic OEM eCommerce descriptions emphasizing factory precision, durability, heat resistance, direct vehicle fitment, and India Spare verified quality.'
-  );
-  const [pipelineApiKey, setPipelineApiKey] = useState<string>(() => {
-    return localStorage.getItem('converter_gemini_api_key') || '';
-  });
-  const [isGeneratingPipelineAi, setIsGeneratingPipelineAi] = useState<boolean>(false);
-  const [pipelineAiError, setPipelineAiError] = useState<string | null>(null);
-  const [showPipelineApiKey, setShowPipelineApiKey] = useState<boolean>(false);
-  const [pipelineAiSuccess, setPipelineAiSuccess] = useState<boolean>(false);
-
-  const generatePipelineAiDescriptions = async () => {
-    if (!status?.job_id) return;
-    setIsGeneratingPipelineAi(true);
-    setPipelineAiError(null);
-    setPipelineAiSuccess(false);
-    try {
-      const res = await fetch('/api/meta/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          job_id: status.job_id,
-          brand: 'YAMAHA',
-          series: 'series',
-          main_parts_only: true,
-          ai_mode: true,
-          ai_prompt: pipelineAiPrompt.trim(),
-          gemini_api_key: pipelineApiKey.trim() || undefined,
-        }),
-      });
-
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.detail || 'Failed to generate descriptions');
-      }
-
-      const data = await res.json();
-      setStatus((prev) => (prev ? { ...prev, metadata_sample: data.items || [] } : prev));
-      setPipelineAiSuccess(true);
-    } catch (err: any) {
-      console.error('Pipeline AI generation error:', err);
-      setPipelineAiError(err.message || 'Generation failed');
-    } finally {
-      setIsGeneratingPipelineAi(false);
-    }
-  };
+  const [activeResultTab, setActiveResultTab] = useState<'images' | 'parts'>('images');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -296,21 +231,6 @@ export const AutoPipeline: React.FC = () => {
   const downloadExcelOnly = () => {
     if (!status?.job_id) return;
     window.location.href = `/api/pipeline/download-excel/${status.job_id}`;
-  };
-
-  const downloadMetadataOnly = (format: 'xlsx' | 'csv' = 'xlsx') => {
-    if (!status?.job_id) return;
-    window.location.href = `/api/pipeline/download-metadata/${status.job_id}?format=${format}`;
-  };
-
-  const copyMetaText = async (text: string, id: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedMetaId(id);
-      setTimeout(() => setCopiedMetaId(null), 2000);
-    } catch (e) {
-      console.error('Failed to copy', e);
-    }
   };
 
   const handleReset = () => {
@@ -780,13 +700,23 @@ export const AutoPipeline: React.FC = () => {
                   <FileSpreadsheet className="w-4 h-4 text-zinc-700 dark:text-white" />
                   Excel Only
                 </button>
-                <button
-                  onClick={() => downloadMetadataOnly('xlsx')}
-                  className="inline-flex items-center gap-1.5 px-4 py-3 rounded-full bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:text-black dark:hover:text-white text-xs sm:text-sm font-semibold border border-zinc-200 dark:border-zinc-800 transition-all font-mono cursor-pointer"
-                >
-                  <Tag className="w-4 h-4 text-zinc-700 dark:text-white" />
-                  Metadata (.xlsx)
-                </button>
+                {onProceedToMeta && (
+                  <button
+                    onClick={() =>
+                      onProceedToMeta({
+                        jobId: status.job_id,
+                        rows: status.rows || status.rows_sample || [],
+                        figures: status.figures || [],
+                        modelColumns: status.model_columns || [],
+                        filename: status.filename.replace(/\.pdf$/i, ''),
+                      })
+                    }
+                    className="inline-flex items-center gap-2 px-5 py-3 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 text-purple-200" />
+                    SEO & Metadata Module &rarr;
+                  </button>
+                )}
                 <button
                   onClick={handleReset}
                   className="inline-flex items-center gap-1.5 px-4 py-3 rounded-full bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white text-xs sm:text-sm font-semibold border border-zinc-200 dark:border-zinc-800 transition-all font-mono cursor-pointer"
@@ -841,17 +771,6 @@ export const AutoPipeline: React.FC = () => {
             >
               <FileSpreadsheet className={`w-4 h-4 ${activeResultTab === 'parts' ? 'text-white dark:text-black' : 'text-zinc-500 dark:text-zinc-400'}`} />
               Catalogue Records ({status.total_rows})
-            </button>
-            <button
-              onClick={() => setActiveResultTab('meta')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all ${
-                activeResultTab === 'meta'
-                  ? 'bg-black text-white dark:bg-white dark:text-black font-bold shadow-xs'
-                  : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900'
-              }`}
-            >
-              <Tag className={`w-4 h-4 ${activeResultTab === 'meta' ? 'text-white dark:text-black' : 'text-zinc-500 dark:text-zinc-400'}`} />
-              SEO & Metadata ({status.metadata_count || status.total_rows})
             </button>
           </div>
 
@@ -950,383 +869,6 @@ export const AutoPipeline: React.FC = () => {
                         <td className="p-2.5 text-zinc-500">{r.remarks || '-'}</td>
                       </tr>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* SEO & Metadata Tab */}
-          {activeResultTab === 'meta' && (
-            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4 animate-in fade-in duration-150">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h4 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                    Product & Parts SEO Metadata ({status.metadata_count || status.total_rows} items)
-                  </h4>
-                  <p className="text-[11px] text-zinc-500 mt-0.5">
-                    Descriptions are blank after initial scan. Generate unique Meta & Product Descriptions below with Google AI Studio before exporting.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => downloadMetadataOnly('csv')}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Export (.csv)
-                  </button>
-                  <button
-                    onClick={() => downloadMetadataOnly('xlsx')}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black text-white dark:bg-white dark:text-black text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Export (.xlsx)
-                  </button>
-                </div>
-              </div>
-
-              {/* Google AI Studio Prompt Generator Card */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-purple-50/60 to-white dark:from-purple-950/20 dark:to-zinc-900/60 border border-purple-200 dark:border-purple-800/60 space-y-4 shadow-xs">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="p-1 rounded-lg bg-purple-600 text-white">
-                      <Sparkles className="w-3.5 h-3.5" />
-                    </span>
-                    <span className="text-xs font-bold uppercase tracking-wider text-purple-900 dark:text-purple-300 font-mono">
-                      Google AI Studio (Gemini 2.5 Flash) Generator
-                    </span>
-                  </div>
-                  <a
-                    href="https://aistudio.google.com/app/apikey"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple-600 dark:text-purple-400 hover:underline"
-                  >
-                    Get API Key at aistudio.google.com &rarr;
-                  </a>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* API Key Box */}
-                  <div>
-                    <label className="block text-xs font-mono uppercase text-zinc-600 dark:text-zinc-400 font-semibold mb-1.5 flex items-center justify-between">
-                      <span>Google AI Studio API Key</span>
-                      <span className="text-[10px] text-zinc-400 normal-case">Saved locally in browser</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showPipelineApiKey ? 'text' : 'password'}
-                        value={pipelineApiKey}
-                        onChange={(e) => {
-                          setPipelineApiKey(e.target.value);
-                          localStorage.setItem('converter_gemini_api_key', e.target.value);
-                        }}
-                        placeholder="AIzaSy... (or leave blank if GEMINI_API_KEY is configured on server)"
-                        className="w-full pl-3.5 pr-10 py-2 rounded-xl text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:border-purple-500 font-mono placeholder:font-sans placeholder:text-zinc-400"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPipelineApiKey(!showPipelineApiKey)}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1 cursor-pointer"
-                        title={showPipelineApiKey ? 'Hide API Key' : 'Show API Key'}
-                      >
-                        {showPipelineApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Quick Presets */}
-                  <div>
-                    <label className="block text-xs font-mono uppercase text-zinc-600 dark:text-zinc-400 font-semibold mb-1.5">
-                      Prompt Presets
-                    </label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {PROMPT_PRESETS.map((p) => (
-                        <button
-                          key={p.label}
-                          type="button"
-                          onClick={() => setPipelineAiPrompt(p.prompt)}
-                          className="px-2.5 py-1.5 rounded-lg text-[10px] font-semibold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-purple-400 hover:text-purple-600 dark:hover:text-purple-300 transition-colors cursor-pointer"
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Custom Prompt Textarea */}
-                <div>
-                  <label className="block text-xs font-mono uppercase text-zinc-600 dark:text-zinc-400 font-semibold mb-1.5">
-                    Custom Prompt / Copywriting Directives
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={pipelineAiPrompt}
-                    onChange={(e) => setPipelineAiPrompt(e.target.value)}
-                    placeholder="Enter custom prompt for tone, USPs, fitment guarantees, or target audience..."
-                    className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:border-purple-500 placeholder:text-zinc-400 font-sans"
-                  />
-                </div>
-
-                {pipelineAiError && (
-                  <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 text-xs flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{pipelineAiError}</span>
-                  </div>
-                )}
-
-                {pipelineAiSuccess && (
-                  <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-emerald-600 dark:text-emerald-400 text-xs flex items-center gap-2 font-medium">
-                    <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    <span>Descriptions generated successfully with Google AI Studio! You can now download the updated Excel file.</span>
-                  </div>
-                )}
-
-                {/* Action button row */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-                  <div className="text-[11px] text-zinc-500 font-mono">
-                    Auto-enforces: 151–158 chars (Meta Desc) • 120–140 words (Prod Desc) • zero commas • India Spare casing.
-                  </div>
-                  <button
-                    type="button"
-                    onClick={generatePipelineAiDescriptions}
-                    disabled={isGeneratingPipelineAi}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-50"
-                  >
-                    {isGeneratingPipelineAi ? (
-                      <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        Generating Descriptions with AI...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-3.5 h-3.5" />
-                        Generate Descriptions with AI
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 font-semibold border-b border-zinc-200 dark:border-zinc-800">
-                    <tr>
-                      <th className="p-2.5 w-12 text-center">Fig</th>
-                      <th className="p-2.5">Catalog Name</th>
-                      <th className="p-2.5">Pic</th>
-                      <th className="p-2.5">Short Description</th>
-                      <th className="p-2.5">Meta Title</th>
-                      <th className="p-2.5 text-center">Meta Desc</th>
-                      <th className="p-2.5 text-center">Product Desc</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
-                    {status.metadata_sample && status.metadata_sample.length > 0 ? (
-                      status.metadata_sample.map((m, i) => {
-                        const itemKey = `meta_${i}_${m.fig_no}`;
-                        const isExpandedMeta = expandedMetaKey === `meta_${itemKey}`;
-                        const isExpandedProd = expandedMetaKey === `prod_${itemKey}`;
-                        const metaDesc = m.meta_description || m.meta_long_description || '';
-                        const metaChars = m.meta_desc_chars || metaDesc.length;
-                        const prodDesc = m.product_description || '';
-                        const prodWords = m.product_desc_words || prodDesc.split(/\s+/).filter(Boolean).length;
-                        const partDisplayName = m.part_name || m.description || m.fig_name;
-
-                        return (
-                          <React.Fragment key={itemKey}>
-                            <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
-                              <td className="p-2.5 text-center">
-                                <span className="font-mono font-bold text-zinc-900 dark:text-white">
-                                  #{m.fig_no}
-                                </span>
-                                {m.page ? <div className="text-[10px] text-zinc-400">p.{m.page}</div> : null}
-                              </td>
-                              <td className="p-2.5">
-                                <div className="font-mono font-bold text-zinc-900 dark:text-white uppercase">
-                                  {partDisplayName}
-                                </div>
-                                <div className="text-[10px] text-zinc-500 font-mono mt-0.5">
-                                  Brand: <span className="font-semibold text-zinc-700 dark:text-zinc-300">{m.brand || 'YAMAHA'}</span>
-                                  {m.model_code && (
-                                    <> • Code: <span className="font-semibold text-zinc-700 dark:text-zinc-300">{m.model_code}</span></>
-                                  )}
-                                  {m.series && (
-                                    <> • Series: <span className="font-semibold text-zinc-700 dark:text-zinc-300">{m.series}</span></>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="p-2.5 font-mono text-zinc-600 dark:text-zinc-400">
-                                <div className="flex items-center gap-1.5">
-                                  <ImageIcon className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                                  <span className="truncate block max-w-[150px] text-[11px] font-semibold text-zinc-800 dark:text-zinc-200" title={m.image_filename}>
-                                    {m.image_filename}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="p-2.5 max-w-xs">
-                                <div className="flex items-start justify-between gap-1.5">
-                                  <span className="font-bold text-zinc-900 dark:text-white line-clamp-2 uppercase font-mono">
-                                    {m.product_title}
-                                  </span>
-                                  <button
-                                    onClick={() => copyMetaText(m.product_title, `prod_title_${itemKey}`)}
-                                    title="Copy Short Description"
-                                    className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white shrink-0 cursor-pointer"
-                                  >
-                                    {copiedMetaId === `prod_title_${itemKey}` ? (
-                                      <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                    ) : (
-                                      <Copy className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                </div>
-                              </td>
-                              <td className="p-2.5 max-w-xs">
-                                <div className="flex items-start justify-between gap-1.5">
-                                  <span className="font-medium text-zinc-800 dark:text-zinc-200 line-clamp-2">
-                                    {m.meta_title || m.product_title}
-                                  </span>
-                                  <button
-                                    onClick={() => copyMetaText(m.meta_title || m.product_title, `meta_title_${itemKey}`)}
-                                    title="Copy Meta Title"
-                                    className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white shrink-0 cursor-pointer"
-                                  >
-                                    {copiedMetaId === `meta_title_${itemKey}` ? (
-                                      <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                    ) : (
-                                      <Copy className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                </div>
-                              </td>
-                              <td className="p-2.5 text-center">
-                                {metaDesc ? (
-                                  <div className="space-y-1">
-                                    <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                                      {metaChars} chars
-                                    </span>
-                                    <div>
-                                      <button
-                                        onClick={() => setExpandedMetaKey(isExpandedMeta ? null : `meta_${itemKey}`)}
-                                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
-                                      >
-                                        {isExpandedMeta ? (
-                                          <>Hide <ChevronUp className="w-3 h-3" /></>
-                                        ) : (
-                                          <>View <ChevronDown className="w-3 h-3" /></>
-                                        )}
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <span className="text-[11px] text-zinc-400 font-mono italic">Blank</span>
-                                )}
-                              </td>
-                              <td className="p-2.5 text-center">
-                                {prodDesc ? (
-                                  <div className="space-y-1">
-                                    <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-                                      {prodWords} words
-                                    </span>
-                                    <div>
-                                      <button
-                                        onClick={() => setExpandedMetaKey(isExpandedProd ? null : `prod_${itemKey}`)}
-                                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
-                                      >
-                                        {isExpandedProd ? (
-                                          <>Hide <ChevronUp className="w-3 h-3" /></>
-                                        ) : (
-                                          <>View <ChevronDown className="w-3 h-3" /></>
-                                        )}
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <span className="text-[11px] text-zinc-400 font-mono italic">Blank</span>
-                                )}
-                              </td>
-                            </tr>
-                            {isExpandedMeta && (
-                              <tr className="bg-zinc-50 dark:bg-zinc-900/60 border-y border-zinc-200 dark:border-zinc-800">
-                                <td colSpan={8} className="p-4 sm:p-5 space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs font-bold font-mono text-zinc-900 dark:text-white uppercase tracking-wider">
-                                        Meta Description (151–158 Chars without Caps, No Commas)
-                                      </span>
-                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
-                                        Exact: {metaChars} Characters
-                                      </span>
-                                    </div>
-                                    <button
-                                      onClick={() => copyMetaText(metaDesc, `meta_desc_${itemKey}`)}
-                                      disabled={!metaDesc}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-black text-white dark:bg-white dark:text-black text-xs font-bold transition-all active:scale-95 cursor-pointer disabled:opacity-40"
-                                    >
-                                      {copiedMetaId === `meta_desc_${itemKey}` ? (
-                                        <>
-                                          <Check className="w-3 h-3 text-emerald-400" /> Copied Meta Desc!
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Copy className="w-3 h-3" /> Copy Meta Desc
-                                        </>
-                                      )}
-                                    </button>
-                                  </div>
-                                  <p className="text-xs text-zinc-800 dark:text-zinc-200 font-sans leading-relaxed bg-white dark:bg-zinc-950 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                                    {metaDesc || <span className="italic text-zinc-400 font-mono">Blank (not yet generated)</span>}
-                                  </p>
-                                </td>
-                              </tr>
-                            )}
-                            {isExpandedProd && (
-                              <tr className="bg-zinc-50 dark:bg-zinc-900/60 border-y border-zinc-200 dark:border-zinc-800">
-                                <td colSpan={8} className="p-4 sm:p-5 space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs font-bold font-mono text-zinc-900 dark:text-white uppercase tracking-wider">
-                                        Product Description (120–140 Words, No Commas)
-                                      </span>
-                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
-                                        Exact: {prodWords} Words
-                                      </span>
-                                    </div>
-                                    <button
-                                      onClick={() => copyMetaText(prodDesc, `prod_desc_${itemKey}`)}
-                                      disabled={!prodDesc}
-                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-black text-white dark:bg-white dark:text-black text-xs font-bold transition-all active:scale-95 cursor-pointer disabled:opacity-40"
-                                    >
-                                      {copiedMetaId === `prod_desc_${itemKey}` ? (
-                                        <>
-                                          <Check className="w-3 h-3 text-emerald-400" /> Copied Product Desc!
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Copy className="w-3 h-3" /> Copy Product Desc
-                                        </>
-                                      )}
-                                    </button>
-                                  </div>
-                                  <p className="text-xs text-zinc-800 dark:text-zinc-200 font-sans leading-relaxed bg-white dark:bg-zinc-950 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 whitespace-pre-wrap">
-                                    {prodDesc || <span className="italic text-zinc-400 font-mono">Blank (not yet generated)</span>}
-                                  </p>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan={8} className="p-6 text-center text-zinc-500 text-xs">
-                          Metadata is bundled in the Master ZIP download as Excel (.xlsx).
-                        </td>
-                      </tr>
-                    )}
                   </tbody>
                 </table>
               </div>

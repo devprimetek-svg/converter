@@ -29,6 +29,15 @@ export function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // AutoPipeline to separate Meta Generator context handover
+  const [pipelineMetaContext, setPipelineMetaContext] = useState<{
+    jobId: string;
+    rows: any[];
+    figures: any[];
+    modelColumns: string[];
+    filename: string;
+  } | null>(null);
+
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollingTimerRef = useRef<number | null>(null);
 
@@ -264,7 +273,12 @@ export function App() {
         {/* Tab 0: Automated End-to-End Pipeline */}
         {activeTab === 'auto-pipeline' && (
           <div className="animate-in fade-in duration-200">
-            <AutoPipeline />
+            <AutoPipeline
+              onProceedToMeta={(data) => {
+                setPipelineMetaContext(data);
+                setActiveTab('meta-generator');
+              }}
+            />
           </div>
         )}
 
@@ -323,9 +337,11 @@ export function App() {
         {activeTab === 'meta-generator' && (
           <div className="animate-in fade-in duration-200">
             <MetaGenerator
-              initialRows={status?.rows || []}
-              modelColumns={status?.model_columns || []}
-              initialFilename={status?.filename?.replace(/\.pdf$/i, '') || 'Catalogue'}
+              initialRows={pipelineMetaContext?.rows || status?.rows || []}
+              initialFigures={pipelineMetaContext?.figures || status?.figures || []}
+              modelColumns={pipelineMetaContext?.modelColumns || status?.model_columns || []}
+              initialFilename={pipelineMetaContext?.filename || status?.filename?.replace(/\.pdf$/i, '') || 'Catalogue'}
+              jobId={pipelineMetaContext?.jobId}
             />
           </div>
         )}

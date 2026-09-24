@@ -42,9 +42,10 @@ const PROMPT_PRESETS = [
 
 interface MetaGeneratorProps {
   initialRows?: PartRow[];
-  initialFigures?: Array<{ fig_no: string; fig_name: string; first_page: number }>;
+  initialFigures?: Array<{ fig_no: string; fig_name: string; first_page?: number }>;
   modelColumns?: string[];
   initialFilename?: string;
+  jobId?: string;
 }
 
 export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
@@ -52,13 +53,39 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
   initialFigures = [],
   modelColumns = [],
   initialFilename = 'Catalogue',
+  jobId,
 }) => {
   const [rows, setRows] = useState<PartRow[]>(initialRows);
-  const [figures, setFigures] = useState<Array<{ fig_no: string; fig_name: string; first_page: number }>>(
+  const [figures, setFigures] = useState<Array<{ fig_no: string; fig_name: string; first_page?: number }>>(
     initialFigures
   );
   const [models, setModels] = useState<string[]>(modelColumns);
   const [filename, setFilename] = useState<string>(initialFilename);
+
+  // Sync state if incoming props change (e.g. navigated from AutoPipeline)
+  useEffect(() => {
+    if (initialRows && initialRows.length > 0) {
+      setRows(initialRows);
+    }
+  }, [initialRows]);
+
+  useEffect(() => {
+    if (initialFigures && initialFigures.length > 0) {
+      setFigures(initialFigures);
+    }
+  }, [initialFigures]);
+
+  useEffect(() => {
+    if (modelColumns && modelColumns.length > 0) {
+      setModels(modelColumns);
+    }
+  }, [modelColumns]);
+
+  useEffect(() => {
+    if (initialFilename && initialFilename !== 'Catalogue') {
+      setFilename(initialFilename);
+    }
+  }, [initialFilename]);
 
   // User Requested Text Boxes:
   // 1. Brand (default YAMAHA)
@@ -124,20 +151,21 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
   // Load initial metadata with blank descriptions when inputs or catalogue change
   useEffect(() => {
-    if ((rows && rows.length > 0) || (figures && figures.length > 0)) {
+    if ((rows && rows.length > 0) || (figures && figures.length > 0) || jobId) {
       generateMetadata(false);
     }
-  }, [rows, figures, brand, modelCode, model, series, mainPartsOnly, resolvedModelCode]);
+  }, [rows, figures, brand, modelCode, model, series, mainPartsOnly, resolvedModelCode, jobId]);
 
   const generateMetadata = async (overrideAiMode?: boolean) => {
-    if ((!rows || rows.length === 0) && (!figures || figures.length === 0)) return;
+    if ((!rows || rows.length === 0) && (!figures || figures.length === 0) && !jobId) return;
     const isAi = overrideAiMode !== undefined ? overrideAiMode : aiMode;
     setIsGenerating(true);
     setAiError(null);
     try {
       const payload: any = {
-        rows,
-        figures,
+        job_id: jobId || undefined,
+        rows: rows && rows.length > 0 ? rows : undefined,
+        figures: figures && figures.length > 0 ? figures : undefined,
         model_columns: models,
         brand: brand.trim() || 'YAMAHA',
         model: model.trim(),
@@ -147,6 +175,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
         ai_mode: isAi,
         ai_prompt: isAi ? aiPrompt.trim() : undefined,
         gemini_api_key: isAi && geminiApiKey.trim() ? geminiApiKey.trim() : undefined,
+        blank_descriptions: !isAi,
       };
 
       const res = await fetch('/api/meta/generate', {
@@ -628,7 +657,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
       </div>
 
       {/* Main Content Area */}
-      {rows.length === 0 && figures.length === 0 ? (
+      {rows.length === 0 && figures.length === 0 && metadataItems.length === 0 ? (
         <div className="p-12 text-center rounded-3xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 space-y-4">
           <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center mx-auto text-zinc-700 dark:text-zinc-300">
             <Tag className="w-6 h-6" />

@@ -124,10 +124,9 @@ def test_pipeline_worker_execution():
     assert any("CYLINDER HEAD ASSY" in c for c in cells)
     assert any("BGP1" in c for c in cells)
 
-    # 2. Check Summary text file and Metadata files exist
+    # 2. Check Summary text file exists and Metadata files are excluded from auto pipeline
     assert "PROCESSING_SUMMARY.txt" in filenames
-    assert any("Product_Metadata.xlsx" in f for f in filenames)
-    assert any("Product_Metadata.csv" in f for f in filenames)
+    assert not any("Product_Metadata" in f for f in filenames)
 
     # 3. Check processed images exist inside images/ and meet 1000x1200 preset
     image_files = [f for f in filenames if f.startswith("images/") and f.endswith(".jpeg")]
