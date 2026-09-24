@@ -254,9 +254,13 @@ def test_metadata_generate_and_export_endpoints():
     assert item["fig_no"] == "1"
     assert item["part_name"] == "CYLINDER HEAD"
     assert item["image_filename"] == "YAM_BGPK_CYLINDER HEAD.jpeg"
-    assert item["product_title"] == "YAMAHA, BGPK, CYLINDER HEAD"
-    assert item["meta_short_description"] == "YAMAHA, BGPK, CYLINDER HEAD, INDIA SPARE"
-    assert 120 <= len(item["meta_long_description"]) <= 140
+    assert item["product_title"] == "YAMAHA BGPK CYLINDER HEAD"
+    assert item["meta_title"] == "Yamaha BGPK Cylinder Head"
+    assert item["meta_short_description"] == "YAMAHA BGPK CYLINDER HEAD INDIA SPARE"
+    assert 151 <= len(item["meta_description"]) <= 158
+    assert "," not in item["meta_description"]
+    assert 120 <= len(item["product_description"].split()) <= 140
+    assert "," not in item["product_description"]
 
     # Test /api/meta/generate with custom model typed after model code
     gen_custom = client.post(
@@ -272,10 +276,13 @@ def test_metadata_generate_and_export_endpoints():
     )
     assert gen_custom.status_code == 200
     custom_item = gen_custom.json()["items"][0]
-    assert custom_item["product_title"] == "YAMAHA, BGPK, R15, CYLINDER HEAD"
-    assert custom_item["meta_short_description"] == "YAMAHA, BGPK, R15, CYLINDER HEAD, INDIA SPARE"
-    assert 120 <= len(custom_item["meta_long_description"]) <= 140
-    assert "BGPK R15" in custom_item["meta_long_description"]
+    assert custom_item["product_title"] == "YAMAHA BGPK R15 CYLINDER HEAD"
+    assert custom_item["meta_title"] == "Yamaha BGPK R15 Cylinder Head"
+    assert custom_item["meta_short_description"] == "YAMAHA BGPK R15 CYLINDER HEAD INDIA SPARE"
+    assert 151 <= len(custom_item["meta_description"]) <= 158
+    assert "," not in custom_item["meta_description"]
+    assert 120 <= len(custom_item["product_description"].split()) <= 140
+    assert "," not in custom_item["product_description"]
 
     # 2. Test /api/meta/export as xlsx
     export_xlsx = client.post(
@@ -302,8 +309,13 @@ def test_metadata_generate_and_export_endpoints():
     assert export_csv.status_code == 200
     assert "Test_Meta.csv" in export_csv.headers.get("content-disposition", "")
     csv_txt = export_csv.content.decode("utf-8-sig")
-    assert "Fig No.,Main Part Name,Brand,Model Code" in csv_txt
+    assert "Product Title (IN CAPS)" in csv_txt
+    assert "Meta Title" in csv_txt
+    assert "Meta Description (151-158 Chars)" in csv_txt
+    assert "Product Description (120-140 Words)" in csv_txt
     assert "1,CYLINDER HEAD,YAMAHA,BGPK,,series,YAM_BGPK_CYLINDER HEAD.jpeg" in csv_txt
+    assert "YAMAHA BGPK CYLINDER HEAD" in csv_txt
+    assert "Yamaha BGPK Cylinder Head" in csv_txt
 
 
 

@@ -31,9 +31,14 @@ export interface PartMetadataItem {
   compatible_models: string;
   image_filename: string;
   product_title: string;
+  meta_title?: string;
   meta_short_description: string;
+  meta_description?: string;
   meta_long_description: string;
+  meta_desc_chars?: number;
   long_desc_length?: number;
+  product_description?: string;
+  product_desc_words?: number;
   remarks?: string;
 }
 

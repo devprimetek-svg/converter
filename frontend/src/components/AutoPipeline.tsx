@@ -925,18 +925,25 @@ export const AutoPipeline: React.FC = () => {
                       <th className="p-2.5 w-12 text-center">Fig</th>
                       <th className="p-2.5">Main Part Name</th>
                       <th className="p-2.5">Diagram Image</th>
-                      <th className="p-2.5">Product Title</th>
-                      <th className="p-2.5">Meta Short Description</th>
-                      <th className="p-2.5 text-center">Long Desc</th>
+                      <th className="p-2.5">Product Title (IN CAPS)</th>
+                      <th className="p-2.5">Meta Title</th>
+                      <th className="p-2.5">Meta Short Desc</th>
+                      <th className="p-2.5 text-center">Meta Desc</th>
+                      <th className="p-2.5 text-center">Product Desc</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
                     {status.metadata_sample && status.metadata_sample.length > 0 ? (
                       status.metadata_sample.map((m, i) => {
                         const itemKey = `meta_${i}_${m.fig_no}`;
-                        const isExpanded = expandedMetaKey === itemKey;
-                        const charCount = m.long_desc_length || m.meta_long_description?.length || 0;
+                        const isExpandedMeta = expandedMetaKey === `meta_${itemKey}`;
+                        const isExpandedProd = expandedMetaKey === `prod_${itemKey}`;
+                        const metaDesc = m.meta_description || m.meta_long_description || '';
+                        const metaChars = m.meta_desc_chars || metaDesc.length;
+                        const prodDesc = m.product_description || '';
+                        const prodWords = m.product_desc_words || prodDesc.split(/\s+/).filter(Boolean).length;
                         const partDisplayName = m.part_name || m.description || m.fig_name;
+
                         return (
                           <React.Fragment key={itemKey}>
                             <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
@@ -963,40 +970,55 @@ export const AutoPipeline: React.FC = () => {
                               <td className="p-2.5 font-mono text-zinc-600 dark:text-zinc-400">
                                 <div className="flex items-center gap-1.5">
                                   <ImageIcon className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                                  <span className="truncate block max-w-[160px] text-[11px] font-semibold text-zinc-800 dark:text-zinc-200" title={m.image_filename}>
+                                  <span className="truncate block max-w-[150px] text-[11px] font-semibold text-zinc-800 dark:text-zinc-200" title={m.image_filename}>
                                     {m.image_filename}
                                   </span>
                                 </div>
                               </td>
                               <td className="p-2.5 max-w-xs">
                                 <div className="flex items-start justify-between gap-1.5">
-                                  <span className="font-medium text-zinc-900 dark:text-white line-clamp-2">
+                                  <span className="font-bold text-zinc-900 dark:text-white line-clamp-2 uppercase font-mono">
                                     {m.product_title}
                                   </span>
                                   <button
-                                    onClick={() => copyMetaText(m.product_title, `title_${itemKey}`)}
-                                    title="Copy Title"
+                                    onClick={() => copyMetaText(m.product_title, `prod_title_${itemKey}`)}
+                                    title="Copy Product Title"
                                     className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white shrink-0 cursor-pointer"
                                   >
-                                    {copiedMetaId === `title_${itemKey}` ? (
+                                    {copiedMetaId === `prod_title_${itemKey}` ? (
                                       <Check className="w-3.5 h-3.5 text-emerald-500" />
                                     ) : (
                                       <Copy className="w-3.5 h-3.5" />
                                     )}
                                   </button>
                                 </div>
-                                <div className="text-[10px] font-mono text-zinc-400 mt-0.5">
-                                  {m.product_title.length} chars
+                              </td>
+                              <td className="p-2.5 max-w-xs">
+                                <div className="flex items-start justify-between gap-1.5">
+                                  <span className="font-medium text-zinc-800 dark:text-zinc-200 line-clamp-2">
+                                    {m.meta_title || m.product_title}
+                                  </span>
+                                  <button
+                                    onClick={() => copyMetaText(m.meta_title || m.product_title, `meta_title_${itemKey}`)}
+                                    title="Copy Meta Title"
+                                    className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white shrink-0 cursor-pointer"
+                                  >
+                                    {copiedMetaId === `meta_title_${itemKey}` ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
                                 </div>
                               </td>
-                              <td className="p-2.5 max-w-sm">
+                              <td className="p-2.5 max-w-xs">
                                 <div className="flex items-start justify-between gap-1.5">
-                                  <span className="text-zinc-600 dark:text-zinc-400 line-clamp-2">
+                                  <span className="text-zinc-600 dark:text-zinc-400 line-clamp-2 font-medium">
                                     {m.meta_short_description}
                                   </span>
                                   <button
                                     onClick={() => copyMetaText(m.meta_short_description, `desc_${itemKey}`)}
-                                    title="Copy Description"
+                                    title="Copy Short Description"
                                     className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white shrink-0 cursor-pointer"
                                   >
                                     {copiedMetaId === `desc_${itemKey}` ? (
@@ -1006,21 +1028,37 @@ export const AutoPipeline: React.FC = () => {
                                     )}
                                   </button>
                                 </div>
-                                <div className="text-[10px] font-mono text-zinc-400 mt-0.5">
-                                  {m.meta_short_description.length} chars
-                                </div>
                               </td>
                               <td className="p-2.5 text-center">
                                 <div className="space-y-1">
                                   <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                                    {charCount} chars
+                                    {metaChars} chars
                                   </span>
                                   <div>
                                     <button
-                                      onClick={() => setExpandedMetaKey(isExpanded ? null : itemKey)}
+                                      onClick={() => setExpandedMetaKey(isExpandedMeta ? null : `meta_${itemKey}`)}
                                       className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
                                     >
-                                      {isExpanded ? (
+                                      {isExpandedMeta ? (
+                                        <>Hide <ChevronUp className="w-3 h-3" /></>
+                                      ) : (
+                                        <>View <ChevronDown className="w-3 h-3" /></>
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <div className="space-y-1">
+                                  <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                                    {prodWords} words
+                                  </span>
+                                  <div>
+                                    <button
+                                      onClick={() => setExpandedMetaKey(isExpandedProd ? null : `prod_${itemKey}`)}
+                                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+                                    >
+                                      {isExpandedProd ? (
                                         <>Hide <ChevronUp className="w-3 h-3" /></>
                                       ) : (
                                         <>View <ChevronDown className="w-3 h-3" /></>
@@ -1030,35 +1068,68 @@ export const AutoPipeline: React.FC = () => {
                                 </div>
                               </td>
                             </tr>
-                            {isExpanded && (
+                            {isExpandedMeta && (
                               <tr className="bg-zinc-50 dark:bg-zinc-900/60 border-y border-zinc-200 dark:border-zinc-800">
-                                <td colSpan={6} className="p-4 sm:p-5 space-y-2">
+                                <td colSpan={8} className="p-4 sm:p-5 space-y-2">
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                       <span className="text-xs font-bold font-mono text-zinc-900 dark:text-white uppercase tracking-wider">
-                                        Meta Long Description (120–140 chars)
+                                        Meta Description (151–158 Chars without Caps, No Commas)
                                       </span>
                                       <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
-                                        {charCount} Characters
+                                        Exact: {metaChars} Characters
                                       </span>
                                     </div>
                                     <button
-                                      onClick={() => copyMetaText(m.meta_long_description, `long_${itemKey}`)}
+                                      onClick={() => copyMetaText(metaDesc, `meta_desc_${itemKey}`)}
                                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-black text-white dark:bg-white dark:text-black text-xs font-bold transition-all active:scale-95 cursor-pointer"
                                     >
-                                      {copiedMetaId === `long_${itemKey}` ? (
+                                      {copiedMetaId === `meta_desc_${itemKey}` ? (
                                         <>
-                                          <Check className="w-3 h-3 text-emerald-400" /> Copied!
+                                          <Check className="w-3 h-3 text-emerald-400" /> Copied Meta Desc!
                                         </>
                                       ) : (
                                         <>
-                                          <Copy className="w-3 h-3" /> Copy Long Desc
+                                          <Copy className="w-3 h-3" /> Copy Meta Desc
                                         </>
                                       )}
                                     </button>
                                   </div>
-                                  <p className="text-xs text-zinc-800 dark:text-zinc-200 font-mono leading-relaxed bg-white dark:bg-zinc-950 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                                    {m.meta_long_description}
+                                  <p className="text-xs text-zinc-800 dark:text-zinc-200 font-sans leading-relaxed bg-white dark:bg-zinc-950 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                                    {metaDesc}
+                                  </p>
+                                </td>
+                              </tr>
+                            )}
+                            {isExpandedProd && (
+                              <tr className="bg-zinc-50 dark:bg-zinc-900/60 border-y border-zinc-200 dark:border-zinc-800">
+                                <td colSpan={8} className="p-4 sm:p-5 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-bold font-mono text-zinc-900 dark:text-white uppercase tracking-wider">
+                                        Product Description (120–140 Words, No Commas)
+                                      </span>
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
+                                        Exact: {prodWords} Words
+                                      </span>
+                                    </div>
+                                    <button
+                                      onClick={() => copyMetaText(prodDesc, `prod_desc_${itemKey}`)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-black text-white dark:bg-white dark:text-black text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                                    >
+                                      {copiedMetaId === `prod_desc_${itemKey}` ? (
+                                        <>
+                                          <Check className="w-3 h-3 text-emerald-400" /> Copied Product Desc!
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy className="w-3 h-3" /> Copy Product Desc
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                  <p className="text-xs text-zinc-800 dark:text-zinc-200 font-sans leading-relaxed bg-white dark:bg-zinc-950 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 whitespace-pre-wrap">
+                                    {prodDesc}
                                   </p>
                                 </td>
                               </tr>

@@ -47,68 +47,297 @@ def resolve_image_filename(fig_name: str, model_code: str = "") -> str:
     return f"YAM_{model}_{clean_fig}.jpeg"
 
 
-def build_long_description(
+def clean_no_commas(text: str) -> str:
+    """Remove all commas and normalize whitespace without commas between words."""
+    if not text:
+        return ""
+    cleaned = re.sub(r"[,]", "", text)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def build_product_title(
+    brand: str,
+    model_code: str,
+    part_name: str,
+    model: str = "",
+) -> str:
+    """Build product title in ALL CAPS without commas between words.
+    Sequence: BRAND MODEL_CODE (MODEL if present) PARTS_NAME
+    """
+    b = (brand or "YAMAHA").strip().upper()
+    mc = (model_code or "MODEL").strip().upper()
+    mn = (model or "").strip().upper()
+    p = (part_name or "PARTS").strip().upper()
+
+    if mn:
+        title = f"{b} {mc} {mn} {p}"
+    else:
+        title = f"{b} {mc} {p}"
+    return clean_no_commas(title).upper()
+
+
+def build_meta_title(
+    brand: str,
+    model_code: str,
+    part_name: str,
+    model: str = "",
+) -> str:
+    """Build meta title separate from product title (Title Case, no commas between words)."""
+    b = (brand or "Yamaha").strip().title()
+    mc = (model_code or "Model").strip().upper()
+    mn = (model or "").strip().title()
+    p = (part_name or "Parts").strip().title()
+
+    if mn:
+        title = f"{b} {mc} {mn} {p}"
+    else:
+        title = f"{b} {mc} {p}"
+    return clean_no_commas(title)
+
+
+def build_meta_short_description(
+    brand: str,
+    model_code: str,
+    part_name: str,
+    model: str = "",
+) -> str:
+    """Build meta short description ending with INDIA SPARE without commas between words."""
+    b = (brand or "YAMAHA").strip().upper()
+    mc = (model_code or "MODEL").strip().upper()
+    mn = (model or "").strip().upper()
+    p = (part_name or "PARTS").strip().upper()
+
+    if mn:
+        desc = f"{b} {mc} {mn} {p} INDIA SPARE"
+    else:
+        desc = f"{b} {mc} {p} INDIA SPARE"
+    return clean_no_commas(desc).upper()
+
+
+def enforce_meta_desc_length(text: str) -> str:
+    """Enforce strictly 151 to 158 characters without commas."""
+    text = clean_no_commas(text)
+    if 151 <= len(text) <= 158:
+        return text
+
+    pad_pool = [
+        "with verified vehicle fit.",
+        "with guaranteed vehicle fitment.",
+        "factory replacement parts.",
+        "from India Spare today.",
+        "genuine OEM spare.",
+        "genuine OEM factory diagram assembly.",
+    ]
+    while len(text) < 151:
+        for phrase in pad_pool:
+            cand = clean_no_commas(text.rstrip(".") + " " + phrase)
+            if 151 <= len(cand) <= 158:
+                return cand
+        text = clean_no_commas(text.rstrip(".") + " genuine factory replacement.")
+        if 151 <= len(text) <= 158:
+            return text
+
+    words = text.split()
+    built = ""
+    for w in words:
+        if len(built) + len(w) + 1 <= 158:
+            built = (built + " " + w).strip()
+        else:
+            break
+
+    if 151 <= len(built) <= 158:
+        if not built.endswith("."):
+            if len(built) + 1 <= 158:
+                built += "."
+        if 151 <= len(built) <= 158:
+            return built
+
+    closers = [
+        "fit.", "now.", "part.", "today.", "spare.", "parts.",
+        "with fit.", "exact fit.", "direct fit.",
+        "with verified fit.", "with guaranteed fit.",
+        "for your motorcycle.", "from India Spare.",
+    ]
+    for c in sorted(closers, key=len):
+        cand = clean_no_commas(built.rstrip(".") + " " + c)
+        if 151 <= len(cand) <= 158:
+            return cand
+
+    while len(built) < 151:
+        built = (built.rstrip(".") + " genuine").strip()
+    if 151 <= len(built) <= 158:
+        return built.rstrip(".") + "." if len(built) + 1 <= 158 else built
+    if len(built) > 158:
+        last_space = built[:157].rfind(" ")
+        if last_space >= 150:
+            return built[:last_space] + "."
+        return built[:157] + "."
+    return built
+
+
+def build_meta_description(
     brand: str,
     model_code: str,
     part_name: str,
     model: str = "",
     series: str = "series",
 ) -> str:
-    """Build a rich, natural long description strictly bounded between 120 and 140 characters."""
-    b = (brand or "YAMAHA").strip().upper()
-    mc = (model_code or "MODEL").strip().upper()
-    mn = (model or "").strip()
-    ser = (series or "series").strip()
-    p = (part_name or "PARTS").strip().upper()
-
+    """Build meta description strictly bounded between 151 and 158 characters without caps and without commas."""
+    b = (brand or "Yamaha").strip().title()
+    mc = (model_code or "Model").strip().upper()
+    mn = (model or "").strip().title()
+    ser = (series or "series").strip().lower()
+    p = clean_no_commas((part_name or "part").strip().lower())
     m_disp = f"{mc} {mn}".strip() if mn else mc
 
     # Ordered candidate sentences designed for various part name lengths
     candidates = [
-        f"Genuine {b} {m_disp} {ser} {p} assembly part. High quality OEM replacement diagram illustration by INDIA SPARE for your vehicle.",
-        f"Genuine {b} {m_disp} {ser} {p} part. High quality OEM replacement diagram illustration by INDIA SPARE for your vehicle.",
-        f"Buy genuine {b} {m_disp} {ser} {p} spare parts from INDIA SPARE. 100% authentic OEM replacement diagram with guaranteed fit.",
-        f"Authentic {b} {m_disp} {ser} {p} spare part from INDIA SPARE. Genuine OEM factory specification diagram with perfect fit.",
-        f"Original {b} {m_disp} {ser} {p} replacement component. Authentic OEM diagram by INDIA SPARE with guaranteed fitment.",
-        f"{b} {m_disp} {ser} {p} genuine spare part by INDIA SPARE. Premium OEM factory standard replacement diagram for your vehicle.",
-        f"{b} {m_disp} {ser} {p} spare from INDIA SPARE. Direct OEM factory replacement diagram with verified vehicle fitment.",
-        f"Genuine {b} {m_disp} {ser} {p} diagram spare by INDIA SPARE. High quality OEM replacement with guaranteed factory fitment.",
-        f"Authentic OEM {b} {m_disp} {ser} {p} diagram spare part from INDIA SPARE. Factory standard replacement with guaranteed fitment.",
-        f"Buy authentic {b} {m_disp} {ser} {p} diagram parts from INDIA SPARE. Direct factory replacement with guaranteed durability.",
-        f"Authentic {b} {m_disp} {ser} {p} diagram part from INDIA SPARE. Genuine factory replacement with guaranteed fit.",
-        f"Genuine {b} {m_disp} {ser} {p} diagram by INDIA SPARE. Authentic factory replacement with guaranteed OEM fit.",
-        f"Genuine {b} {m_disp} {ser} {p} replacement part by INDIA SPARE with authentic factory specifications.",
-        f"{b} {m_disp} {ser} {p} spare from INDIA SPARE with guaranteed OEM fitment.",
+        f"Buy authentic {b} {m_disp} {ser} {p} genuine OEM spare parts diagram from India Spare. High quality factory replacement parts with verified vehicle fit.",
+        f"Buy genuine {b} {m_disp} {ser} {p} original OEM spare parts diagram from India Spare. Factory direct replacement component with verified vehicle fit.",
+        f"Authentic {b} {m_disp} {ser} {p} OEM spare parts diagram illustration by India Spare. Factory standard direct replacement parts with verified vehicle fit.",
+        f"Buy authentic {b} {m_disp} {p} genuine OEM spare parts diagram from India Spare. High quality factory replacement parts with verified vehicle fit.",
+        f"Genuine {b} {m_disp} {p} authentic OEM spare parts diagram from India Spare. High quality factory replacement parts with verified vehicle fitment today.",
+        f"Buy genuine {b} {m_disp} {ser} {p} replacement parts from India Spare. Authentic OEM factory specification diagram assembly with guaranteed vehicle fit.",
+        f"Authentic {b} {m_disp} {p} spare part from India Spare. Genuine factory standard OEM diagram illustration with guaranteed durability and vehicle fitment.",
+        f"Original {b} {m_disp} {ser} {p} replacement component from India Spare. Premium OEM factory diagram spare with guaranteed vehicle fitment and durability.",
+        f"Buy official {b} {m_disp} {p} genuine spare parts from India Spare. Authentic OEM factory replacement diagram assembly with guaranteed fit and quality.",
+        f"Official {b} {m_disp} {p} spare parts from India Spare. Genuine OEM factory specification replacement diagram illustration with guaranteed vehicle fitment.",
+        f"Authentic {b} {m_disp} {p} diagram spare part from India Spare. High quality factory replacement component with guaranteed vehicle fit and durability.",
+        f"Genuine {b} {m_disp} {p} spare parts from India Spare. Authentic OEM factory specification diagram assembly with guaranteed durable vehicle fitment.",
+        f"Buy genuine {b} {m_disp} {p} spare parts from India Spare. Authentic OEM diagram assembly with guaranteed durable vehicle fitment and satisfaction.",
     ]
 
     for c in candidates:
-        if 120 <= len(c) <= 140:
+        c = clean_no_commas(c)
+        if 151 <= len(c) <= 158:
             return c
 
-    # Fallback algorithmic bounded synthesis
-    base = f"Genuine {b} {m_disp} {ser} {p} spare part by INDIA SPARE. Authentic factory replacement diagram with verified fitment and OEM durability."
-    if len(base) > 140:
-        cut = base[:139]
-        last_space = cut.rfind(" ")
-        if last_space >= 119:
-            return cut[:last_space].rstrip(" ,;:-") + "."
-        base = f"Genuine {b} {m_disp} {ser} {p} diagram by INDIA SPARE. Authentic factory replacement with guaranteed OEM fit."
-        if 120 <= len(base) <= 140:
-            return base
+    # Algorithmic prefix + suffix combinations
+    prefix = clean_no_commas(f"Buy authentic {b} {m_disp} {p} genuine OEM spare parts diagram from India Spare.")
 
-    while len(base) < 120:
-        base = base.rstrip(".") + " for your vehicle."
-        if len(base) > 140:
-            base = base[:139].rstrip(" ,;:-") + "."
+    suffix_bank = [
+        "High quality factory replacement parts with verified vehicle fit.",
+        "High quality factory replacement parts with guaranteed fitment.",
+        "Premium OEM factory standard replacement for your vehicle.",
+        "Guaranteed authentic OEM factory replacement with exact fit.",
+        "Factory direct replacement spare with guaranteed fitment.",
+        "Direct factory replacement component with verified fit.",
+        "Factory standard OEM replacement with guaranteed fit.",
+        "Genuine factory replacement with guaranteed durability.",
+        "Authentic OEM factory replacement with guaranteed fit.",
+        "Guaranteed authentic factory replacement spare parts.",
+        "Factory replacement diagram with verified fitment.",
+        "Verified factory replacement with guaranteed fit.",
+        "Genuine OEM factory replacement with verified vehicle fit.",
+        "Direct factory replacement parts with verified fit.",
+        "Premium factory replacement with guaranteed fitment.",
+    ]
+
+    for s in suffix_bank:
+        cand = clean_no_commas(f"{prefix} {s}")
+        if 151 <= len(cand) <= 158:
+            return cand
+
+    base = clean_no_commas(
+        f"Buy authentic {b} {m_disp} {p} genuine OEM spare parts diagram from India Spare. "
+        f"Factory replacement with verified fitment and durable performance guarantee."
+    )
+    words = base.split()
+    cand = ""
+    for w in words:
+        if len(cand) + len(w) + 1 <= 154:
+            cand = (cand + " " + w).strip()
+        else:
             break
 
-    # Absolute clamp assurance
-    if len(base) > 140:
-        base = base[:139].rstrip(" ,;:-") + "."
-    elif len(base) < 120:
-        base = base.ljust(120, " ")
+    closing_phrases = [
+        " with verified fit.",
+        " with guaranteed fit.",
+        " for your vehicle.",
+        " from India Spare.",
+        " today.",
+    ]
+    for cp in closing_phrases:
+        test = clean_no_commas(cand.rstrip(".") + cp)
+        if 151 <= len(test) <= 158:
+            return test
 
-    return base
+    return enforce_meta_desc_length(cand or base)
+
+
+# Backwards compatibility alias
+build_long_description = build_meta_description
+
+
+def build_product_description(
+    brand: str,
+    model_code: str,
+    part_name: str,
+    model: str = "",
+    series: str = "series",
+) -> str:
+    """Build rich product description strictly bounded between 120 and 140 words without commas."""
+    b = (brand or "YAMAHA").strip().upper()
+    mc = (model_code or "MODEL").strip().upper()
+    mn = (model or "").strip().upper()
+    p = clean_no_commas((part_name or "PARTS ASSEMBLY").strip().upper())
+    m_disp = f"{mc} {mn}".strip() if mn else mc
+
+    p1 = (
+        f"This authentic {b} {m_disp} {p} is an original OEM factory specification component "
+        f"designed specifically for your vehicle assembly. Manufactured under strict quality standards "
+        f"this genuine replacement part provides exact dimensional accuracy and long term mechanical reliability. "
+        f"It directly replaces worn or damaged factory components to restore optimum operating performance."
+    )
+    p2 = (
+        f"Every genuine {b} spare part is engineered using premium grade materials capable of withstanding severe "
+        f"operating conditions high heat and mechanical stress. The precision manufacturing ensures seamless compatibility "
+        f"with adjacent assembly parts preventing premature wear and maintaining factory efficiency across all riding conditions."
+    )
+    p3 = (
+        f"Order your authentic {b} {m_disp} {p} diagram spare from India Spare today. "
+        f"We provide verified authentic OEM components with guaranteed fitment secure protective packaging and dependable delivery. "
+        f"Upgrade your motorcycle with confidence using certified factory parts built for durability and road safety."
+    )
+
+    full_text = clean_no_commas(f"{p1} {p2} {p3}")
+    words = full_text.split()
+
+    if len(words) > 140:
+        words = words[:130]
+        full_text = " ".join(words)
+        last_dot = full_text.rfind(".")
+        if last_dot > 0:
+            full_text = full_text[:last_dot + 1]
+            words = full_text.split()
+
+    addon_sentences = [
+        "Each component is thoroughly inspected to verify genuine factory build quality.",
+        "Trust India Spare for 100% authentic OEM replacement parts backed by guaranteed vehicle fitment.",
+        "Proper installation following the official service manual guidelines is always recommended.",
+        "Keep your two wheeler operating at peak performance with authentic factory components.",
+    ]
+    for s in addon_sentences:
+        if len(words) < 120:
+            full_text = full_text.rstrip(".") + ". " + clean_no_commas(s)
+            words = full_text.split()
+        else:
+            break
+
+    if len(words) < 120:
+        needed = 120 - len(words)
+        padding_words = [
+            "All", "components", "meet", "stringent", "automotive", "quality", "standards",
+            "and", "provide", "uncompromised", "safety", "on", "every", "journey", "across",
+            "all", "road", "conditions", "without", "exception"
+        ]
+        full_text = full_text.rstrip(".") + ". " + " ".join(padding_words[:needed]) + "."
+        words = full_text.split()
+    elif len(words) > 140:
+        words = words[:135]
+        full_text = " ".join(words).rstrip(".") + "."
+
+    return full_text
 
 
 def generate_main_part_metadata(
@@ -119,7 +348,7 @@ def generate_main_part_metadata(
     series: str = "series",
     page: int = 1,
 ) -> dict[str, Any]:
-    """Generate SEO metadata for a single main part (Figure Assembly)."""
+    """Generate SEO and product metadata for a single main part (Figure Assembly)."""
     fig_no = str(figure.get("fig_no") or "").strip()
     part_name = str(figure.get("fig_name") or "").strip() or "PARTS ASSEMBLY"
     b = (brand or "YAMAHA").strip().upper()
@@ -128,28 +357,22 @@ def generate_main_part_metadata(
     ser = (series or "series").strip()
     p = page or int(figure.get("first_page") or figure.get("page") or 1)
 
-    # Model display in title and description:
-    # If model is blank, sequence is: BRAND, MODEL CODE, PARTS NAME
-    # If model is filled, sequence is: BRAND, MODEL CODE, MODEL, PARTS NAME
-    if mn:
-        model_str = f"{mc}, {mn.upper()}"
-    else:
-        model_str = mc
+    model_str = f"{mc} {mn.upper()}".strip() if mn else mc
 
-    # 1. Product / Meta Title: sequence ex- YAMAHA,MODEL CODE,MODEL PARTS NAME
-    title = f"{b}, {model_str}, {part_name}"
+    # 1. Product Title: strictly in CAPS, separate, no commas
+    prod_title = build_product_title(brand=b, model_code=mc, part_name=part_name, model=mn)
 
-    # 2. Meta Short Description: same sequence but after parts name INDIA SPARE
-    short_desc = f"{b}, {model_str}, {part_name}, INDIA SPARE"
+    # 2. Meta Title: separate from product title, Title Case, no commas
+    meta_title = build_meta_title(brand=b, model_code=mc, part_name=part_name, model=mn)
 
-    # 3. Meta Long Description: strictly 120-140 characters
-    long_desc = build_long_description(
-        brand=b,
-        model_code=mc,
-        part_name=part_name,
-        model=mn,
-        series=ser,
-    )
+    # 3. Meta Short Description: ends with INDIA SPARE, no commas
+    short_desc = build_meta_short_description(brand=b, model_code=mc, part_name=part_name, model=mn)
+
+    # 4. Meta Description: strictly 151-158 characters without caps (sentence case), no commas
+    meta_desc = build_meta_description(brand=b, model_code=mc, part_name=part_name, model=mn, series=ser)
+
+    # 5. Product Description: strictly 120-140 words, no commas
+    prod_desc = build_product_description(brand=b, model_code=mc, part_name=part_name, model=mn, series=ser)
 
     img_filename = resolve_image_filename(part_name, model_code=mc)
 
@@ -166,10 +389,15 @@ def generate_main_part_metadata(
         "series": ser,
         "compatible_models": model_str,
         "image_filename": img_filename,
-        "product_title": title,
+        "product_title": prod_title,
+        "meta_title": meta_title,
         "meta_short_description": short_desc,
-        "meta_long_description": long_desc,
-        "long_desc_length": len(long_desc),
+        "meta_description": meta_desc,
+        "meta_long_description": meta_desc,
+        "meta_desc_chars": len(meta_desc),
+        "long_desc_length": len(meta_desc),
+        "product_description": prod_desc,
+        "product_desc_words": len(prod_desc.split()),
         "page": p,
         "remarks": "",
     }
@@ -183,7 +411,7 @@ def generate_child_part_metadata(
     series: str = "series",
     model_code: str = "",
 ) -> dict[str, Any]:
-    """Generate SEO metadata for an individual child part row (fallback mode)."""
+    """Generate SEO and product metadata for an individual child part row (fallback mode)."""
     part_no = str(row.get("part_no") or "").strip()
     clean_no = clean_part_number(part_no)
     desc = str(row.get("description") or "").strip() or "PART"
@@ -197,12 +425,14 @@ def generate_child_part_metadata(
     mn = (model or "").strip()
     ser = (series or "series").strip()
 
-    model_str = f"{mc}, {mn.upper()}" if mn else mc
-    full_part_name = f"{desc} ({fig_name})"
+    model_str = f"{mc} {mn.upper()}".strip() if mn else mc
+    full_part_name = f"{desc} {fig_name}".strip()
 
-    title = f"{b}, {model_str}, {full_part_name}"
-    short_desc = f"{b}, {model_str}, {full_part_name}, INDIA SPARE"
-    long_desc = build_long_description(b, mc, desc, mn, ser)
+    prod_title = build_product_title(brand=b, model_code=mc, part_name=full_part_name, model=mn)
+    meta_title = build_meta_title(brand=b, model_code=mc, part_name=full_part_name, model=mn)
+    short_desc = build_meta_short_description(brand=b, model_code=mc, part_name=full_part_name, model=mn)
+    meta_desc = build_meta_description(brand=b, model_code=mc, part_name=desc, model=mn, series=ser)
+    prod_desc = build_product_description(brand=b, model_code=mc, part_name=desc, model=mn, series=ser)
     img_filename = resolve_image_filename(fig_name, model_code=mc)
 
     return {
@@ -218,10 +448,15 @@ def generate_child_part_metadata(
         "series": ser,
         "compatible_models": model_str,
         "image_filename": img_filename,
-        "product_title": title,
+        "product_title": prod_title,
+        "meta_title": meta_title,
         "meta_short_description": short_desc,
-        "meta_long_description": long_desc,
-        "long_desc_length": len(long_desc),
+        "meta_description": meta_desc,
+        "meta_long_description": meta_desc,
+        "meta_desc_chars": len(meta_desc),
+        "long_desc_length": len(meta_desc),
+        "product_description": prod_desc,
+        "product_desc_words": len(prod_desc.split()),
         "page": page,
         "remarks": str(row.get("remarks") or ""),
     }
@@ -250,7 +485,6 @@ def generate_catalog_metadata(
     results: list[dict[str, Any]] = []
 
     if main_parts_only:
-        # Determine main parts from figures list or derive unique figures from rows
         fig_list: list[dict[str, Any]] = []
         if figures and len(figures) > 0:
             fig_list = figures
@@ -277,7 +511,6 @@ def generate_catalog_metadata(
             )
             results.append(item)
     else:
-        # Generate metadata for every individual child part row
         for r in rows:
             item = generate_child_part_metadata(
                 row=r,
@@ -323,10 +556,13 @@ def export_metadata_excel(meta_rows: list[dict[str, Any]], brand: str = "YAMAHA"
         ("Model", "model", center_align, 14),
         ("Series", "series", center_align, 14),
         ("Associated Diagram Image", "image_filename", left_align, 32),
-        ("Product / Meta Title", "product_title", wrap_left_align, 40),
+        ("Product Title (IN CAPS)", "product_title", wrap_left_align, 36),
+        ("Meta Title", "meta_title", wrap_left_align, 36),
         ("Meta Short Description", "meta_short_description", wrap_left_align, 46),
-        ("Meta Long Description (120-140 chars)", "meta_long_description", wrap_left_align, 65),
-        ("Long Desc Chars", "long_desc_length", center_align, 14),
+        ("Meta Description (151-158 Chars)", "meta_description", wrap_left_align, 60),
+        ("Meta Desc Chars", "meta_desc_chars", center_align, 15),
+        ("Product Description (120-140 Words)", "product_description", wrap_left_align, 75),
+        ("Product Desc Words", "product_desc_words", center_align, 16),
         ("Page", "page", center_align, 8),
     ]
 
@@ -374,10 +610,13 @@ def export_metadata_csv(meta_rows: list[dict[str, Any]]) -> io.BytesIO:
         "Model",
         "Series",
         "Associated Diagram Image",
-        "Product / Meta Title",
+        "Product Title (IN CAPS)",
+        "Meta Title",
         "Meta Short Description",
-        "Meta Long Description",
-        "Long Desc Chars",
+        "Meta Description (151-158 Chars)",
+        "Meta Desc Chars",
+        "Product Description (120-140 Words)",
+        "Product Desc Words",
         "Page",
     ]
     writer.writerow(headers)
@@ -392,9 +631,12 @@ def export_metadata_csv(meta_rows: list[dict[str, Any]]) -> io.BytesIO:
             r.get("series", "series"),
             r.get("image_filename", ""),
             r.get("product_title", ""),
+            r.get("meta_title", ""),
             r.get("meta_short_description", ""),
-            r.get("meta_long_description", ""),
-            r.get("long_desc_length", len(r.get("meta_long_description", ""))),
+            r.get("meta_description", ""),
+            r.get("meta_desc_chars", len(r.get("meta_description", ""))),
+            r.get("product_description", ""),
+            r.get("product_desc_words", len(str(r.get("product_description", "")).split())),
             r.get("page", 1),
         ])
 

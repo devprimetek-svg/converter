@@ -253,7 +253,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
               )}
             </div>
             <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-              Extracts main parts (assemblies like cylinder) with customized titles, short descriptions, and 120-140 character descriptions.
+              Extracts main parts (assemblies like cylinder) with CAPS product titles, separate meta titles, 151–158 char meta descriptions, and 120–140 word product descriptions (zero commas).
             </p>
           </div>
 
@@ -402,25 +402,31 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
           </div>
         </div>
 
-        {/* Live Sequence Pattern Legend (per user prompt) */}
-        <div className="p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-[11px] font-mono grid grid-cols-1 md:grid-cols-3 gap-2">
+        {/* Live Rules Legend (per user prompt) */}
+        <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-[11px] font-mono grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           <div>
-            <span className="text-zinc-400 uppercase font-semibold">Title Sequence:</span>{' '}
+            <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Product Title (IN CAPS, no commas):</span>
             <span className="font-bold text-zinc-800 dark:text-zinc-200">
-              {brand || 'YAMAHA'}, {model ? `${model.toUpperCase()} ` : ''}{resolvedModelCode}, [PART NAME]
+              {brand || 'YAMAHA'} {activeModelCode} {model ? `${model.toUpperCase()} ` : ''}[PARTS NAME]
             </span>
           </div>
           <div>
-            <span className="text-zinc-400 uppercase font-semibold">Short Desc Sequence:</span>{' '}
+            <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Meta Title (Separate, no commas):</span>
             <span className="font-bold text-zinc-800 dark:text-zinc-200">
-              {brand || 'YAMAHA'}, {model ? `${model.toUpperCase()} ` : ''}{resolvedModelCode}, [PART NAME], INDIA SPARE
+              {brand ? brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase() : 'Yamaha'} {activeModelCode} {model ? `${model} ` : ''}[Parts Name]
             </span>
           </div>
           <div>
-            <span className="text-zinc-400 uppercase font-semibold">Long Desc Constraint:</span>{' '}
+            <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Meta Short Desc (No commas):</span>
+            <span className="font-bold text-zinc-800 dark:text-zinc-200">
+              ...[PARTS NAME] INDIA SPARE
+            </span>
+          </div>
+          <div>
+            <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Length Constraints:</span>
             <span className="inline-flex items-center gap-1 font-bold text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="w-3 h-3" />
-              120–140 Characters Strictly
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              Meta Desc 151–158 chars | Prod Desc 120–140 words
             </span>
           </div>
         </div>
@@ -498,17 +504,23 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                   <tr>
                     <th className="p-3 w-12 text-center">Fig</th>
                     <th className="p-3">Main Part Name</th>
-                    <th className="p-3">Associated Diagram Image</th>
-                    <th className="p-3">Product / Meta Title</th>
-                    <th className="p-3">Meta Short Description</th>
-                    <th className="p-3 w-32 text-center">Long Desc</th>
+                    <th className="p-3">Diagram Image</th>
+                    <th className="p-3">Product Title (IN CAPS)</th>
+                    <th className="p-3">Meta Title</th>
+                    <th className="p-3">Meta Short Desc</th>
+                    <th className="p-3 w-28 text-center">Meta Desc</th>
+                    <th className="p-3 w-28 text-center">Product Desc</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
                   {filteredItems.map((item, idx) => {
                     const itemKey = `${item.fig_no}_${item.part_name || item.description}_${idx}`;
-                    const isExpanded = expandedItemKey === itemKey;
-                    const charCount = item.long_desc_length || item.meta_long_description?.length || 0;
+                    const isExpandedMeta = expandedItemKey === `meta_${itemKey}`;
+                    const isExpandedProd = expandedItemKey === `prod_${itemKey}`;
+                    const metaDesc = item.meta_description || item.meta_long_description || '';
+                    const metaChars = item.meta_desc_chars || metaDesc.length;
+                    const prodDesc = item.product_description || '';
+                    const prodWords = item.product_desc_words || prodDesc.split(/\s+/).filter(Boolean).length;
 
                     return (
                       <React.Fragment key={itemKey}>
@@ -536,24 +548,24 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                           <td className="p-3">
                             <div className="flex items-center gap-1.5">
                               <ImageIcon className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                              <span className="font-mono text-[11px] font-semibold text-zinc-800 dark:text-zinc-200 truncate max-w-[180px]" title={item.image_filename}>
+                              <span className="font-mono text-[11px] font-semibold text-zinc-800 dark:text-zinc-200 truncate max-w-[160px]" title={item.image_filename}>
                                 {item.image_filename}
                               </span>
                             </div>
                           </td>
 
-                          {/* Product Title */}
+                          {/* Product Title (IN ALL CAPS, no commas) */}
                           <td className="p-3 max-w-xs">
                             <div className="flex items-start justify-between gap-1.5">
-                              <p className="text-xs font-semibold text-zinc-900 dark:text-white line-clamp-2">
+                              <p className="text-xs font-bold text-zinc-900 dark:text-white line-clamp-2 uppercase font-mono">
                                 {item.product_title}
                               </p>
                               <button
-                                onClick={() => copyToClipboard(item.product_title, `title_${itemKey}`)}
-                                title="Copy Title"
+                                onClick={() => copyToClipboard(item.product_title, `prod_title_${itemKey}`)}
+                                title="Copy Product Title"
                                 className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
                               >
-                                {copiedId === `title_${itemKey}` ? (
+                                {copiedId === `prod_title_${itemKey}` ? (
                                   <Check className="w-3.5 h-3.5 text-emerald-500" />
                                 ) : (
                                   <Copy className="w-3.5 h-3.5" />
@@ -562,8 +574,28 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                             </div>
                           </td>
 
-                          {/* Meta Short Description */}
-                          <td className="p-3 max-w-sm">
+                          {/* Meta Title (Separate, Title Case, no commas) */}
+                          <td className="p-3 max-w-xs">
+                            <div className="flex items-start justify-between gap-1.5">
+                              <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 line-clamp-2">
+                                {item.meta_title || item.product_title}
+                              </p>
+                              <button
+                                onClick={() => copyToClipboard(item.meta_title || item.product_title, `meta_title_${itemKey}`)}
+                                title="Copy Meta Title"
+                                className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
+                              >
+                                {copiedId === `meta_title_${itemKey}` ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+
+                          {/* Meta Short Description (No commas, ends with INDIA SPARE) */}
+                          <td className="p-3 max-w-xs">
                             <div className="flex items-start justify-between gap-1.5">
                               <p className="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 font-medium">
                                 {item.meta_short_description}
@@ -584,25 +616,42 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                             </div>
                           </td>
 
-                          {/* Long Desc Toggle & Length Badge */}
+                          {/* Meta Description (151-158 Chars without caps) */}
                           <td className="p-3 text-center">
                             <div className="space-y-1">
                               <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                                {charCount} chars
+                                {metaChars} chars
                               </span>
                               <div>
                                 <button
-                                  onClick={() => setExpandedItemKey(isExpanded ? null : itemKey)}
+                                  onClick={() => setExpandedItemKey(isExpandedMeta ? null : `meta_${itemKey}`)}
                                   className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
                                 >
-                                  {isExpanded ? (
-                                    <>
-                                      Hide <ChevronUp className="w-3 h-3" />
-                                    </>
+                                  {isExpandedMeta ? (
+                                    <>Hide <ChevronUp className="w-3 h-3" /></>
                                   ) : (
-                                    <>
-                                      View <ChevronDown className="w-3 h-3" />
-                                    </>
+                                    <>View <ChevronDown className="w-3 h-3" /></>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Product Description (120-140 Words) */}
+                          <td className="p-3 text-center">
+                            <div className="space-y-1">
+                              <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                                {prodWords} words
+                              </span>
+                              <div>
+                                <button
+                                  onClick={() => setExpandedItemKey(isExpandedProd ? null : `prod_${itemKey}`)}
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+                                >
+                                  {isExpandedProd ? (
+                                    <>Hide <ChevronUp className="w-3 h-3" /></>
+                                  ) : (
+                                    <>View <ChevronDown className="w-3 h-3" /></>
                                   )}
                                 </button>
                               </div>
@@ -610,41 +659,81 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                           </td>
                         </tr>
 
-                        {/* Expanded Long Description Row */}
-                        {isExpanded && (
+                        {/* Expanded Meta Description Row */}
+                        {isExpandedMeta && (
                           <tr className="bg-zinc-50 dark:bg-zinc-900/60 border-y border-zinc-200 dark:border-zinc-800">
-                            <td colSpan={6} className="p-4 sm:p-5 space-y-3">
+                            <td colSpan={8} className="p-4 sm:p-5 space-y-3">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs font-bold font-mono text-zinc-900 dark:text-white uppercase tracking-wider">
-                                    Meta Long Description (120–140 chars)
+                                    Meta Description (151–158 Chars without Caps, No Commas)
                                   </span>
                                   <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
-                                    Exact Length: {charCount} Characters
+                                    Exact: {metaChars} Characters
                                   </span>
                                 </div>
                                 <button
                                   onClick={() =>
-                                    copyToClipboard(item.meta_long_description, `long_${itemKey}`)
+                                    copyToClipboard(metaDesc, `meta_desc_${itemKey}`)
                                   }
                                   className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-black text-white dark:bg-white dark:text-black text-xs font-bold transition-all active:scale-95 cursor-pointer"
                                 >
-                                  {copiedId === `long_${itemKey}` ? (
+                                  {copiedId === `meta_desc_${itemKey}` ? (
                                     <>
                                       <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                      Copied Description!
+                                      Copied Meta Desc!
                                     </>
                                   ) : (
                                     <>
                                       <Copy className="w-3.5 h-3.5" />
-                                      Copy Description
+                                      Copy Meta Desc
                                     </>
                                   )}
                                 </button>
                               </div>
 
                               <div className="p-3.5 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 text-xs font-sans text-zinc-800 dark:text-zinc-200">
-                                {item.meta_long_description}
+                                {metaDesc}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* Expanded Product Description Row */}
+                        {isExpandedProd && (
+                          <tr className="bg-zinc-50 dark:bg-zinc-900/60 border-y border-zinc-200 dark:border-zinc-800">
+                            <td colSpan={8} className="p-4 sm:p-5 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold font-mono text-zinc-900 dark:text-white uppercase tracking-wider">
+                                    Product Description (120–140 Words, No Commas)
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
+                                    Exact: {prodWords} Words
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() =>
+                                    copyToClipboard(prodDesc, `prod_desc_${itemKey}`)
+                                  }
+                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-black text-white dark:bg-white dark:text-black text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                                >
+                                  {copiedId === `prod_desc_${itemKey}` ? (
+                                    <>
+                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                      Copied Product Desc!
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3.5 h-3.5" />
+                                      Copy Product Desc
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+
+                              <div className="p-3.5 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 text-xs font-sans leading-relaxed text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">
+                                {prodDesc}
                               </div>
                             </td>
                           </tr>
