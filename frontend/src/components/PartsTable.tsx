@@ -43,7 +43,13 @@ export const PartsTable: React.FC<PartsTableProps> = ({ rows, modelColumns, clea
         const numA = parseInt(String(valA).replace(/\D/g, ''), 10);
         const numB = parseInt(String(valB).replace(/\D/g, ''), 10);
         if (!isNaN(numA) && !isNaN(numB)) {
-          return sortDir === 'asc' ? numA - numB : numB - numA;
+          if (numA !== numB) {
+            return sortDir === 'asc' ? numA - numB : numB - numA;
+          }
+          // Tie-break identical numbers with alphabetical suffix (e.g. 1A vs 1B)
+          const strA = String(valA || '').toLowerCase();
+          const strB = String(valB || '').toLowerCase();
+          return sortDir === 'asc' ? strA.localeCompare(strB) : strB.localeCompare(strA);
         }
       }
 

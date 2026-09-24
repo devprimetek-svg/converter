@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import io
 import re
-from typing import Callable, Optional, TypedDict
+from collections import Counter, defaultdict
+from typing import Any, Callable, Optional, TypedDict
 
 
 class ExtractionError(Exception):
@@ -65,6 +66,54 @@ def normalize_part_number(part_no: str) -> str:
     if not part_no:
         return ""
     return re.sub(r"[\u2010\u2011\u2012\u2013\u2014\u2015]", "-", part_no)
+
+
+def get_letter_suffix(idx: int) -> str:
+    """Return 'A', 'B', ... 'Z', 'AA', 'AB' etc. for a 0-based index."""
+    res = ""
+    while True:
+        res = chr(ord("A") + (idx % 26)) + res
+        idx = idx // 26 - 1
+        if idx < 0:
+            break
+    return res
+
+
+def disambiguate_repeated_ref_numbers(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """If a ref_no is repeated within the same figure, append A, B, C, D...
+
+    Examples:
+    - If Ref 1 appears 3 times in Fig 14: becomes '1A', '1B', '1C'.
+    - If Ref 2 appears 2 times: becomes '2A', '2B'.
+    - If Ref 3 appears once: remains '3'.
+
+    Scoped by figure (fig_no, or page if fig_no is not available).
+    Idempotent: if a row already has a suffix like '1A' and is unique, it is preserved.
+    """
+    fig_groups: dict[str, list[int]] = defaultdict(list)
+    for i, r in enumerate(rows):
+        fig_key = str(r.get("fig_no", "")).strip()
+        if not fig_key:
+            fig_key = f"page_{r.get('page', 0)}"
+        fig_groups[fig_key].append(i)
+
+    for indices in fig_groups.values():
+        ref_counts: Counter[str] = Counter()
+        for idx in indices:
+            ref = str(rows[idx].get("ref_no", "")).strip()
+            if ref:
+                ref_counts[ref] += 1
+
+        seen_counts: dict[str, int] = defaultdict(int)
+        for idx in indices:
+            ref = str(rows[idx].get("ref_no", "")).strip()
+            if ref and ref_counts[ref] > 1:
+                occ_idx = seen_counts[ref]
+                seen_counts[ref] += 1
+                rows[idx]["ref_no"] = f"{ref}{get_letter_suffix(occ_idx)}"
+
+    return rows
+
 
 
 def cluster_words_into_lines(words: list[dict], tolerance: float = 2.0) -> list[list[dict]]:
@@ -547,6 +596,9 @@ def extract_parts_from_pdf(
         for model in document_model_columns:
             if model not in row:
                 row[model] = ""
+
+    # Disambiguate repeated ref_no within each figure (e.g. 1A, 1B, 2A, 2B etc.)
+    all_rows = disambiguate_repeated_ref_numbers(all_rows)
 
     return {
         "rows": all_rows,

@@ -269,14 +269,14 @@ def test_end_to_end_extraction():
     assert rows[0]["description"] == "CYLINDER HEAD ASSY"
     assert rows[0]["BGPK"] == "1"
 
-    # Row 2
-    assert rows[1]["ref_no"] == "2"
+    # Row 2 (First occurrence of repeated ref_no 2 -> 2A)
+    assert rows[1]["ref_no"] == "2A"
     assert rows[1]["part_no"] == "95022-06010"
     assert rows[1]["description"] == "BOLT, FLANGE"
     assert rows[1]["BGPK"] == "1"
 
-    # Row 3 (Continuation row reusing ref_no 2)
-    assert rows[2]["ref_no"] == "2"
+    # Row 3 (Second occurrence of repeated ref_no 2 -> 2B)
+    assert rows[2]["ref_no"] == "2B"
     assert rows[2]["part_no"] == "95022-06020"
     assert rows[2]["description"] == "BOLT, FLANGE ALT"
     assert rows[2]["BGPK"] == "2"
@@ -325,3 +325,35 @@ def test_scanned_pdf_error():
 
     with pytest.raises(NoTextLayerError):
         extract_parts_from_pdf(buf)
+
+
+def test_disambiguate_repeated_ref_numbers():
+    """Verify that repeated ref_no within a figure gets A, B, C, D... while non-repeated ref_no is preserved."""
+    from app.parts_extractor import disambiguate_repeated_ref_numbers
+
+    rows = [
+        {"fig_no": "14", "ref_no": "1", "part_no": "P1"},
+        {"fig_no": "14", "ref_no": "1", "part_no": "P2"},
+        {"fig_no": "14", "ref_no": "1", "part_no": "P3"},
+        {"fig_no": "14", "ref_no": "2", "part_no": "P4"},
+        {"fig_no": "14", "ref_no": "3", "part_no": "P5"},
+        {"fig_no": "14", "ref_no": "3", "part_no": "P6"},
+        {"fig_no": "15", "ref_no": "1", "part_no": "P7"},  # Different figure: ref 1 is unique
+        {"fig_no": "15", "ref_no": "2", "part_no": "P8"},
+    ]
+
+    out = disambiguate_repeated_ref_numbers(rows)
+
+    assert out[0]["ref_no"] == "1A"
+    assert out[1]["ref_no"] == "1B"
+    assert out[2]["ref_no"] == "1C"
+    assert out[3]["ref_no"] == "2"    # single -> unchanged
+    assert out[4]["ref_no"] == "3A"
+    assert out[5]["ref_no"] == "3B"
+    assert out[6]["ref_no"] == "1"    # fig 15 ref 1 is single -> unchanged
+    assert out[7]["ref_no"] == "2"
+
+    # Idempotency check: running again must not change anything
+    out2 = disambiguate_repeated_ref_numbers(out)
+    assert [r["ref_no"] for r in out2] == ["1A", "1B", "1C", "2", "3A", "3B", "1", "2"]
+

@@ -13,7 +13,7 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from app.parts_extractor import clean_part_number
+from app.parts_extractor import clean_part_number, disambiguate_repeated_ref_numbers
 
 
 def is_valid_quantity(val: Any) -> bool:
@@ -49,6 +49,9 @@ def generate_excel_workbook(
             sheet_title = f"Parts_{target_model}"[:31]
     elif len(model_columns) >= 2:
         rows = [r for r in rows if any(is_valid_quantity(r.get(m)) for m in model_columns)]
+
+    # Disambiguate repeated ref_no within each figure (e.g. 1A, 1B, 2A, 2B etc.)
+    rows = disambiguate_repeated_ref_numbers(rows)
 
     wb = openpyxl.Workbook()
     ws = wb.active
