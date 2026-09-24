@@ -919,7 +919,6 @@ export const AutoPipeline: React.FC = () => {
                       <th className="p-2.5">Diagram Image</th>
                       <th className="p-2.5">Product Title (IN CAPS)</th>
                       <th className="p-2.5">Meta Title</th>
-                      <th className="p-2.5">Meta Short Desc</th>
                       <th className="p-2.5 text-center">Meta Desc</th>
                       <th className="p-2.5 text-center">Product Desc</th>
                     </tr>
@@ -996,24 +995,6 @@ export const AutoPipeline: React.FC = () => {
                                     className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white shrink-0 cursor-pointer"
                                   >
                                     {copiedMetaId === `meta_title_${itemKey}` ? (
-                                      <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                    ) : (
-                                      <Copy className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                </div>
-                              </td>
-                              <td className="p-2.5 max-w-xs">
-                                <div className="flex items-start justify-between gap-1.5">
-                                  <span className="text-zinc-600 dark:text-zinc-400 line-clamp-2 font-medium">
-                                    {m.meta_short_description}
-                                  </span>
-                                  <button
-                                    onClick={() => copyMetaText(m.meta_short_description, `desc_${itemKey}`)}
-                                    title="Copy Short Description"
-                                    className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white shrink-0 cursor-pointer"
-                                  >
-                                    {copiedMetaId === `desc_${itemKey}` ? (
                                       <Check className="w-3.5 h-3.5 text-emerald-500" />
                                     ) : (
                                       <Copy className="w-3.5 h-3.5" />

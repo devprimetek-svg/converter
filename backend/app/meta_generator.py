@@ -1,11 +1,9 @@
 """Product & Parts SEO Metadata Generator Module
 
 Generates e-commerce & SEO-optimized:
-1. Product / Meta Title: arranged as [BRAND], [MODEL CODE], [MODEL PARTS NAME]
-   (e.g., YAMAHA, BGPK, CYLINDER HEAD)
-2. Meta Short Description: arranged in the same sequence with INDIA SPARE at the end
-   (e.g., YAMAHA, BGPK, CYLINDER HEAD, INDIA SPARE)
-3. Meta Long Description: strictly 120-140 characters describing the genuine OEM part,
+1. Product Title: arranged as [BRAND] [MODEL CODE] [MODEL] [PARTS NAME] (IN CAPS)
+   Meta Title: arranged as [Brand] [Model] [MODEL CODE] [Parts Name] (Title Case, model typed before model code)
+2. Meta Long Description: strictly 151-158 characters describing the genuine OEM part,
    diagram assembly, and INDIA SPARE replacement guarantee.
 
 Features:
@@ -82,14 +80,16 @@ def build_meta_title(
     part_name: str,
     model: str = "",
 ) -> str:
-    """Build meta title separate from product title (Title Case, no commas between words)."""
+    """Build meta title separate from product title (Title Case, no commas between words).
+    Model is typed before model code: BRAND MODEL MODEL_CODE PARTS_NAME.
+    """
     b = (brand or "Yamaha").strip().title()
     mc = (model_code or "Model").strip().upper()
     mn = (model or "").strip().title()
     p = (part_name or "Parts").strip().title()
 
     if mn:
-        title = f"{b} {mc} {mn} {p}"
+        title = f"{b} {mn} {mc} {p}"
     else:
         title = f"{b} {mc} {p}"
     return clean_no_commas(title)
@@ -559,7 +559,6 @@ def export_metadata_excel(meta_rows: list[dict[str, Any]], brand: str = "YAMAHA"
         ("Associated Diagram Image", "image_filename", left_align, 32),
         ("Product Title (IN CAPS)", "product_title", wrap_left_align, 36),
         ("Meta Title", "meta_title", wrap_left_align, 36),
-        ("Meta Short Description", "meta_short_description", wrap_left_align, 46),
         ("Meta Description (151-158 Chars)", "meta_description", wrap_left_align, 60),
         ("Meta Desc Chars", "meta_desc_chars", center_align, 15),
         ("Product Description (120-140 Words)", "product_description", wrap_left_align, 75),
@@ -613,7 +612,6 @@ def export_metadata_csv(meta_rows: list[dict[str, Any]]) -> io.BytesIO:
         "Associated Diagram Image",
         "Product Title (IN CAPS)",
         "Meta Title",
-        "Meta Short Description",
         "Meta Description (151-158 Chars)",
         "Meta Desc Chars",
         "Product Description (120-140 Words)",
@@ -633,7 +631,6 @@ def export_metadata_csv(meta_rows: list[dict[str, Any]]) -> io.BytesIO:
             r.get("image_filename", ""),
             r.get("product_title", ""),
             r.get("meta_title", ""),
-            r.get("meta_short_description", ""),
             r.get("meta_description", ""),
             r.get("meta_desc_chars", len(r.get("meta_description", ""))),
             r.get("product_description", ""),

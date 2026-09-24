@@ -263,7 +263,7 @@ def test_metadata_generate_and_export_endpoints():
     assert 120 <= len(item["product_description"].split()) <= 140
     assert "," not in item["product_description"]
 
-    # Test /api/meta/generate with custom model typed after model code
+    # Test /api/meta/generate with custom model (typed before model code in meta title only)
     gen_custom = client.post(
         "/api/meta/generate",
         json={
@@ -278,7 +278,7 @@ def test_metadata_generate_and_export_endpoints():
     assert gen_custom.status_code == 200
     custom_item = gen_custom.json()["items"][0]
     assert custom_item["product_title"] == "YAMAHA BGPK R15 CYLINDER HEAD"
-    assert custom_item["meta_title"] == "Yamaha BGPK R15 Cylinder Head"
+    assert custom_item["meta_title"] == "Yamaha R15 BGPK Cylinder Head"
     assert custom_item["meta_short_description"] == "YAMAHA BGPK R15 CYLINDER HEAD INDIA SPARE"
     assert 151 <= len(custom_item["meta_description"]) <= 158
     assert "," not in custom_item["meta_description"]
@@ -313,6 +313,7 @@ def test_metadata_generate_and_export_endpoints():
     csv_txt = export_csv.content.decode("utf-8-sig")
     assert "Product Title (IN CAPS)" in csv_txt
     assert "Meta Title" in csv_txt
+    assert "Meta Short Description" not in csv_txt
     assert "Meta Description (151-158 Chars)" in csv_txt
     assert "Product Description (120-140 Words)" in csv_txt
     assert "1,CYLINDER HEAD,YAMAHA,BGPK,,series,YAM_BGPK_CYLINDER HEAD.jpeg" in csv_txt

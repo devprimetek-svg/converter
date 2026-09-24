@@ -226,7 +226,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
       return (
         pName.toLowerCase().includes(q) ||
         item.product_title.toLowerCase().includes(q) ||
-        item.meta_short_description.toLowerCase().includes(q) ||
+        (item.meta_title && item.meta_title.toLowerCase().includes(q)) ||
         item.image_filename.toLowerCase().includes(q) ||
         String(item.fig_no).toLowerCase().includes(q)
       );
@@ -403,7 +403,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
         </div>
 
         {/* Live Rules Legend (per user prompt) */}
-        <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-[11px] font-mono grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-[11px] font-mono grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           <div>
             <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Product Title (IN CAPS, no commas):</span>
             <span className="font-bold text-zinc-800 dark:text-zinc-200">
@@ -413,13 +413,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
           <div>
             <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Meta Title (Separate, no commas):</span>
             <span className="font-bold text-zinc-800 dark:text-zinc-200">
-              {brand ? brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase() : 'Yamaha'} {activeModelCode} {model ? `${model} ` : ''}[Parts Name]
-            </span>
-          </div>
-          <div>
-            <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Meta Short Desc (No commas):</span>
-            <span className="font-bold text-zinc-800 dark:text-zinc-200">
-              ...[PARTS NAME] INDIA SPARE
+              {brand ? brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase() : 'Yamaha'} {model ? `${model} ` : ''}{activeModelCode} [Parts Name]
             </span>
           </div>
           <div>
@@ -507,7 +501,6 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                     <th className="p-3">Diagram Image</th>
                     <th className="p-3">Product Title (IN CAPS)</th>
                     <th className="p-3">Meta Title</th>
-                    <th className="p-3">Meta Short Desc</th>
                     <th className="p-3 w-28 text-center">Meta Desc</th>
                     <th className="p-3 w-28 text-center">Product Desc</th>
                   </tr>
@@ -594,27 +587,6 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                             </div>
                           </td>
 
-                          {/* Meta Short Description (No commas, ends with INDIA SPARE) */}
-                          <td className="p-3 max-w-xs">
-                            <div className="flex items-start justify-between gap-1.5">
-                              <p className="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 font-medium">
-                                {item.meta_short_description}
-                              </p>
-                              <button
-                                onClick={() =>
-                                  copyToClipboard(item.meta_short_description, `short_${itemKey}`)
-                                }
-                                title="Copy Short Description"
-                                className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
-                              >
-                                {copiedId === `short_${itemKey}` ? (
-                                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                ) : (
-                                  <Copy className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                            </div>
-                          </td>
 
                           {/* Meta Description (151-158 Chars without caps) */}
                           <td className="p-3 text-center">

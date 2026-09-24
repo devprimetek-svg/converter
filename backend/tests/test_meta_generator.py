@@ -39,7 +39,7 @@ def test_product_title_in_caps_separate_from_meta_title_and_no_commas():
     assert pt.isupper()
 
     mt = build_meta_title("YAMAHA", "BGPK", "cylinder head", model="ray zr")
-    assert mt == "Yamaha BGPK Ray Zr Cylinder Head"
+    assert mt == "Yamaha Ray Zr BGPK Cylinder Head"
     assert "," not in mt
     assert mt != pt  # Separate from product title
 
@@ -170,8 +170,8 @@ def test_generate_main_part_with_custom_model_and_series():
     assert meta["product_title"] == "YAMAHA BGPK RAY ZR CRANKSHAFT & PISTON"
     assert "," not in meta["product_title"]
 
-    # Separate Meta Title
-    assert meta["meta_title"] == "Yamaha BGPK Ray Zr Crankshaft & Piston"
+    # Separate Meta Title (model typed before model code)
+    assert meta["meta_title"] == "Yamaha Ray Zr BGPK Crankshaft & Piston"
     assert "," not in meta["meta_title"]
 
     # Short desc with model after model code and INDIA SPARE, no commas
@@ -250,9 +250,8 @@ def test_export_metadata_excel_and_csv():
     assert ws.cell(row=2, column=7).value == "YAM_BGPK_CYLINDER HEAD.jpeg"
     assert ws.cell(row=2, column=8).value == "YAMAHA BGPK CYLINDER HEAD"
     assert ws.cell(row=2, column=9).value == "Yamaha BGPK Cylinder Head"
-    assert ws.cell(row=2, column=10).value == "YAMAHA BGPK CYLINDER HEAD INDIA SPARE"
-    assert 151 <= len(ws.cell(row=2, column=11).value) <= 158
-    assert 120 <= len(ws.cell(row=2, column=13).value.split()) <= 140
+    assert 151 <= len(ws.cell(row=2, column=10).value) <= 158
+    assert 120 <= len(ws.cell(row=2, column=12).value.split()) <= 140
 
     # Test CSV generation
     csv_buf = export_metadata_csv(meta_items)
@@ -260,8 +259,9 @@ def test_export_metadata_excel_and_csv():
     csv_content = csv_buf.getvalue().decode("utf-8-sig")
     assert "Product Title (IN CAPS)" in csv_content
     assert "Meta Title" in csv_content
+    assert "Meta Short Description" not in csv_content
     assert "Meta Description (151-158 Chars)" in csv_content
     assert "Product Description (120-140 Words)" in csv_content
     assert "YAMAHA BGPK CYLINDER HEAD" in csv_content
     assert "Yamaha BGPK Cylinder Head" in csv_content
-    assert "YAMAHA BGPK CYLINDER HEAD INDIA SPARE" in csv_content
+    assert "INDIA SPARE" not in csv_content

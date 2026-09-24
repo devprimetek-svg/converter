@@ -334,7 +334,7 @@ def run_pipeline_worker(
                 f"   - Excel File: {meta_filename}.xlsx\n"
                 f"   - CSV File: {meta_filename}.csv\n"
                 f"   - Total Metadata Records: {len(meta_items)}\n"
-                f"   - Features: Product Title, Meta Short Description, Structured HTML Long Description, Diagram Image Reference\n\n"
+                f"   - Features: Product Title, Meta Title, Structured HTML Long Description, Diagram Image Reference\n\n"
                 f"3. Processed Images:\n"
                 f"   - Total Images Processed: {len(processed_items)}\n"
                 f"   - Resolution: {resize_config.get('width', 1000)}x{resize_config.get('height', 1200)} px\n"
