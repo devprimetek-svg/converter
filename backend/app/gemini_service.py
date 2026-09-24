@@ -182,9 +182,47 @@ def _build_gemini_payload(
 # Global cache of discovered working models per API key: api_key -> list of (api_version, model_path)
 _DISCOVERED_MODELS_CACHE: dict[str, list[tuple[str, str]]] = {}
 
+# Substrings identifying models unsuitable for text copywriting (e.g. image generation, embeddings, audio)
+NON_TEXT_SUBSTRINGS = (
+    "-image",
+    "preview-image",
+    "imagen",
+    "embedding",
+    "embed",
+    "audio",
+    "tts",
+    "voice",
+    "realtime",
+    "learnlm",
+    "aqa",
+    "computer-use",
+    "robotics",
+)
+
+
+def _parse_retry_delay(resp_text: str) -> Optional[float]:
+    """Extract retry delay seconds from Google AI Studio 429 response if present."""
+    try:
+        data = json.loads(resp_text)
+        details = data.get("error", {}).get("details", [])
+        for d in details:
+            if d.get("@type", "").endswith("RetryInfo"):
+                delay_str = d.get("retryDelay", "")
+                if delay_str.endswith("s"):
+                    return float(delay_str[:-1])
+    except Exception:
+        pass
+    m = re.search(r"retry in ([\d\.]+)s", resp_text, re.IGNORECASE)
+    if m:
+        try:
+            return float(m.group(1))
+        except ValueError:
+            pass
+    return None
+
 
 def discover_supported_models(api_key: str, client: httpx.Client) -> list[tuple[str, str]]:
-    """Query Google AI Studio ModelService.ListModels to get the exact models available for this API key."""
+    """Query Google AI Studio ModelService.ListModels to get the exact text models available for this API key."""
     if api_key in _DISCOVERED_MODELS_CACHE and _DISCOVERED_MODELS_CACHE[api_key]:
         return _DISCOVERED_MODELS_CACHE[api_key]
 
@@ -201,30 +239,44 @@ def discover_supported_models(api_key: str, client: httpx.Client) -> list[tuple[
                     if "generateContent" in methods:
                         m_name = m.get("name", "")
                         if m_name:
+                            n_lower = m_name.lower()
+                            # Exclude image/audio/embedding models that fail with 0 quota on free tier
+                            if any(sub in n_lower for sub in NON_TEXT_SUBSTRINGS):
+                                continue
                             discovered.append((api_version, m_name))
         except Exception as e:
             logger.info("ListModels on %s returned: %s", api_version, e)
 
     if discovered:
-        # Score and rank available models
+        # Score and rank available text models
         def score_model(item: tuple[str, str]) -> int:
             ver, name = item
             n = name.lower()
             s = 0
-            if "2.5-flash" in n:
-                s += 100
-            elif "2.0-flash" in n:
+            # Gemini 2.0 Flash is Google AI Studio's primary production text model with generous free-tier limits
+            if "2.0-flash" in n and "lite" not in n:
+                s += 120
+            elif "2.0-flash-lite" in n:
+                s += 115
+            elif "2.5-flash" in n:
+                s += 110
+            elif "1.5-flash" in n and ("latest" in n or "002" in n or "001" in n):
+                s += 95
+            elif "1.5-flash" in n:
                 s += 90
-            elif "flash" in n and ("latest" in n or "002" in n or "001" in n):
-                s += 80
-            elif "flash" in n:
-                s += 70
-            elif "pro" in n:
+            elif "1.5-flash-8b" in n:
+                s += 85
+            elif "2.0-pro" in n or "2.5-pro" in n:
+                s += 60
+            elif "1.5-pro" in n:
                 s += 50
-            elif "gemini" in n:
+            elif "pro" in n:
                 s += 40
+            elif "gemini" in n:
+                s += 30
+
             if ver == "v1beta":
-                s += 5
+                s += 2
             return s
 
         sorted_models = sorted(discovered, key=score_model, reverse=True)
@@ -234,13 +286,14 @@ def discover_supported_models(api_key: str, client: httpx.Client) -> list[tuple[
 
     # Fallback static candidates if ListModels was not reachable
     fallbacks = [
-        ("v1beta", "models/gemini-2.5-flash"),
         ("v1beta", "models/gemini-2.0-flash"),
-        ("v1beta", "models/gemini-2.0-flash-exp"),
+        ("v1beta", "models/gemini-2.0-flash-lite"),
+        ("v1beta", "models/gemini-2.5-flash"),
         ("v1beta", "models/gemini-1.5-flash-latest"),
         ("v1beta", "models/gemini-1.5-flash-002"),
         ("v1beta", "models/gemini-1.5-flash-001"),
         ("v1beta", "models/gemini-1.5-flash"),
+        ("v1", "models/gemini-2.0-flash"),
         ("v1", "models/gemini-1.5-flash"),
         ("v1beta", "models/gemini-1.5-pro"),
         ("v1", "models/gemini-pro"),
@@ -308,14 +361,32 @@ def call_gemini_batch(
                     last_error = f"{clean_path} ({api_version}) HTTP {resp.status_code}: {resp.text}"
                     logger.info("Model %s returned %s, trying next...", clean_path, resp.status_code)
                     continue
+                elif resp.status_code == 429:
+                    last_error = f"{clean_path} ({api_version}) HTTP 429: {resp.text}"
+                    logger.warning(
+                        "Model %s returned HTTP 429 (quota or rate-limit). Purging from cache and trying next candidate model...",
+                        clean_path,
+                    )
+                    # Quotas in Google AI Studio Free Tier are tracked per model. If this model has 0 quota or is exhausted,
+                    # purge it from the key's discovered cache so subsequent calls don't waste time on it.
+                    if api_key in _DISCOVERED_MODELS_CACHE:
+                        _DISCOVERED_MODELS_CACHE[api_key] = [
+                            m for m in _DISCOVERED_MODELS_CACHE[api_key] if m != (api_version, model_identifier)
+                        ]
+                    continue
                 else:
-                    last_error = f"HTTP {resp.status_code}: {resp.text}"
+                    last_error = f"{clean_path} ({api_version}) HTTP {resp.status_code}: {resp.text}"
                     logger.warning("Gemini API call failed (%s): %s", resp.status_code, resp.text)
-                    break
+                    continue
             except Exception as e:
                 last_error = str(e)
                 logger.warning("Gemini request exception with %s: %s", clean_path, e)
                 continue
+
+    if last_error and "429" in last_error:
+        delay = _parse_retry_delay(last_error)
+        retry_msg = f"Please retry in {int(delay)} seconds." if delay else "Please retry shortly or verify your Google AI Studio quota."
+        raise RuntimeError(f"Google AI Studio rate limit or quota exceeded across models. {retry_msg} ({last_error})")
 
     raise RuntimeError(f"Google AI Studio API error: {last_error or 'No supported model response generated'}")
 
@@ -348,7 +419,10 @@ def enhance_metadata_with_gemini(
     enhanced_items = [dict(it) for it in metadata_items]
     batches = [enhanced_items[i : i + batch_size] for i in range(0, len(enhanced_items), batch_size)]
 
-    for batch in batches:
+    for idx, batch in enumerate(batches):
+        if idx > 0:
+            # Respect Free Tier 15 RPM rate limits by pacing between multi-batch requests
+            time.sleep(1.5)
         try:
             ai_results = call_gemini_batch(
                 items=batch,

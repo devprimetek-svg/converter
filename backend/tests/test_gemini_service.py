@@ -95,7 +95,7 @@ def test_enhance_metadata_with_gemini_mocked(mock_call):
 
 
 def test_discover_supported_models():
-    """Verify discover_supported_models parses ListModels response and ranks them accurately."""
+    """Verify discover_supported_models excludes preview-image models and ranks gemini-2.0-flash accurately."""
     from app.gemini_service import discover_supported_models
 
     mock_resp = MagicMock()
@@ -105,6 +105,7 @@ def test_discover_supported_models():
             {"name": "models/gemini-1.0-pro", "supportedGenerationMethods": ["generateContent"]},
             {"name": "models/gemini-2.0-flash", "supportedGenerationMethods": ["generateContent"]},
             {"name": "models/gemini-2.5-flash", "supportedGenerationMethods": ["generateContent"]},
+            {"name": "models/gemini-2.5-flash-preview-image", "supportedGenerationMethods": ["generateContent"]},
             {"name": "models/embedding-001", "supportedGenerationMethods": ["embedContent"]},
         ]
     }
@@ -114,8 +115,72 @@ def test_discover_supported_models():
 
     models = discover_supported_models("test-dynamic-key-456", mock_client)
     assert len(models) >= 3
-    # Top ranked model should be 2.5-flash
-    assert "2.5-flash" in models[0][1]
-    # embedding model must NOT be included (doesn't support generateContent)
+    # Top ranked model should be 2.0-flash
+    assert "2.0-flash" in models[0][1]
+    # gemini-2.5-flash-preview-image must be excluded
+    assert not any("preview-image" in m[1] for m in models)
+    # embedding model must NOT be included
     assert not any("embedding" in m[1] for m in models)
+
+
+def test_call_gemini_batch_429_fallback():
+    """Verify call_gemini_batch falls back to next model when encountering HTTP 429 quota exhaustion."""
+    import json
+    from app.gemini_service import call_gemini_batch
+
+    with patch("app.gemini_service.discover_supported_models") as mock_discover, \
+         patch("httpx.Client") as mock_client_cls:
+
+        mock_discover.return_value = [
+            ("v1beta", "models/exhausted-model"),
+            ("v1beta", "models/gemini-2.0-flash"),
+        ]
+
+        resp_429 = MagicMock()
+        resp_429.status_code = 429
+        resp_429.text = json.dumps({"error": {"code": 429, "message": "limit: 0"}})
+
+        resp_200 = MagicMock()
+        resp_200.status_code = 200
+        resp_200.json.return_value = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {
+                                "text": json.dumps({
+                                    "items": [
+                                        {
+                                            "fig_no": "1",
+                                            "part_name": "VALVE",
+                                            "meta_description": "test meta",
+                                            "product_description": "test prod",
+                                        }
+                                    ]
+                                })
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+
+        mock_client = MagicMock()
+        mock_client.__enter__.return_value = mock_client
+        mock_client.post.side_effect = [resp_429, resp_200]
+        mock_client_cls.return_value = mock_client
+
+        results = call_gemini_batch(
+            items=[{"fig_no": "1", "part_name": "VALVE"}],
+            user_prompt="test",
+            brand="YAMAHA",
+            model_code="M1",
+            model="R1",
+            series="S1",
+            api_key="test-key-429",
+        )
+
+        assert "1" in results
+        assert results["1"]["meta_description"] == "test meta"
+        assert mock_client.post.call_count == 2
 
