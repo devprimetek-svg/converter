@@ -37,6 +37,10 @@ const PROMPT_PRESETS = [
     label: '🛒 eCommerce Conversion',
     prompt: 'Write in an energetic, persuasive, high-converting eCommerce style encouraging two-wheeler riders to upgrade with genuine parts from IndiaSpare.',
   },
+  {
+    label: '🧩 Include Child Cells',
+    prompt: 'Generate authentic descriptions for all parts including child cells and components with guaranteed IndiaSpare OEM fitment.',
+  },
 ];
 
 interface MetaGeneratorProps {
@@ -134,8 +138,8 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
   const [model, setModel] = useState<string>('');
   const [series, setSeries] = useState<string>('series');
 
-  // Main parts only vs all child parts
-  const [mainPartsOnly, setMainPartsOnly] = useState<boolean>(true);
+  // Parts Filter Scope: 'all' (current extracted Excel - default) | 'parent' (main assemblies) | 'child' (components)
+  const [partsScope, setPartsScope] = useState<'all' | 'parent' | 'child'>('all');
 
   // Google AI Studio (Gemini) State (prompt box open and ready by default)
   const [aiMode, setAiMode] = useState<boolean>(true);
@@ -165,6 +169,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
       'Ref No.',
       'Part No.',
       'Clean Part No.',
+      'Description',
     ];
     if (models && models.length > 0) {
       models.forEach((m) => {
@@ -248,7 +253,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
     if ((rows && rows.length > 0) || (figures && figures.length > 0) || jobId) {
       generateMetadata(false);
     }
-  }, [rows, figures, brand, modelCode, model, series, mainPartsOnly, resolvedModelCode, jobId]);
+  }, [rows, figures, brand, modelCode, model, series, partsScope, resolvedModelCode, jobId]);
 
   const generateMetadata = async (overrideAiMode?: boolean) => {
     if ((!rows || rows.length === 0) && (!figures || figures.length === 0) && !jobId) return;
@@ -271,7 +276,8 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
         model: model.trim().toUpperCase(),
         series: series.trim() || 'series',
         model_code: activeModelCode,
-        main_parts_only: mainPartsOnly,
+        parts_scope: 'all',
+        main_parts_only: false,
         ai_mode: isAi,
         ai_prompt: isAi ? aiPrompt.trim() : undefined,
         gemini_api_key: isAi && geminiApiKey.trim() ? geminiApiKey.trim() : undefined,
@@ -411,24 +417,43 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
   // Filtered metadata items for Combined and SEO views
   const filteredItems = useMemo(() => {
     return metadataItems.filter((item) => {
-      const pName = item.part_name || item.description || '';
-      if (selectedFigure !== 'ALL' && pName !== selectedFigure && item.fig_name !== selectedFigure) {
+      // 1. Filter by Parts Scope (according to currently extracted Excel)
+      if (partsScope === 'parent' && item.is_parent === false) {
         return false;
       }
+      if (partsScope === 'child' && item.is_parent !== false) {
+        return false;
+      }
+
+      // 2. Filter by figure assembly selection
+      const pName = item.part_name || item.parent_fig_name || item.fig_name || item.description || '';
+      if (
+        selectedFigure !== 'ALL' &&
+        pName !== selectedFigure &&
+        item.parent_fig_name !== selectedFigure &&
+        item.fig_name !== selectedFigure
+      ) {
+        return false;
+      }
+
+      // 3. Search filter
       if (!searchTerm) return true;
       const q = searchTerm.toLowerCase();
       return (
         pName.toLowerCase().includes(q) ||
-        item.product_title.toLowerCase().includes(q) ||
+        (item.description && item.description.toLowerCase().includes(q)) ||
+        (item.product_title && item.product_title.toLowerCase().includes(q)) ||
         (item.meta_title && item.meta_title.toLowerCase().includes(q)) ||
-        item.image_filename.toLowerCase().includes(q) ||
-        String(item.fig_no).toLowerCase().includes(q) ||
+        (item.image_filename && item.image_filename.toLowerCase().includes(q)) ||
+        String(item.fig_no || item.parent_fig_no || '').toLowerCase().includes(q) ||
+        (item.ref_no && String(item.ref_no).toLowerCase().includes(q)) ||
         (item.part_no && item.part_no.toLowerCase().includes(q)) ||
         (item.clean_part_no && item.clean_part_no.toLowerCase().includes(q)) ||
+        (item.catalogue_code && item.catalogue_code.toLowerCase().includes(q)) ||
         (item.remarks && item.remarks.toLowerCase().includes(q))
       );
     });
-  }, [metadataItems, selectedFigure, searchTerm]);
+  }, [metadataItems, partsScope, selectedFigure, searchTerm]);
 
   // Filtered raw extracted catalogue rows for Extracted view
   const filteredRows = useMemo(() => {
@@ -731,35 +756,48 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
             />
           </div>
 
-          {/* Scope Toggle: Main Parts Only vs All Parts */}
-          <div>
-            <label className="block text-xs font-mono uppercase text-zinc-500 font-semibold mb-1.5">
-              Parts Filter Scope
+          {/* Scope Toggle: Redesigned according to currently extracted Excel */}
+          <div className="sm:col-span-2 lg:col-span-1">
+            <label className="block text-xs font-mono uppercase text-zinc-500 font-semibold mb-1.5 flex items-center justify-between">
+              <span>Parts Filter Scope</span>
+              <span className="text-[10px] text-zinc-400 font-normal">Excel Filter</span>
             </label>
             <div className="flex items-center gap-1 p-1 bg-zinc-100 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800">
               <button
                 type="button"
-                onClick={() => setMainPartsOnly(true)}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer truncate ${
-                  mainPartsOnly
+                onClick={() => setPartsScope('all')}
+                className={`flex-1 py-1.5 px-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer truncate ${
+                  partsScope === 'all'
                     ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs'
                     : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white'
                 }`}
-                title="Only major assemblies like Cylinder, Crankshaft (Excludes child bolts/nuts)"
+                title="All extracted parts (Parent + Child cells aligned exactly as in Excel)"
               >
-                Main Parts Only
+                All Parts
               </button>
               <button
                 type="button"
-                onClick={() => setMainPartsOnly(false)}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer truncate ${
-                  !mainPartsOnly
+                onClick={() => setPartsScope('parent')}
+                className={`flex-1 py-1.5 px-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer truncate ${
+                  partsScope === 'parent'
                     ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs'
                     : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white'
                 }`}
-                title="All individual part rows"
+                title="Only major assemblies (Parent cells with Fig No & Catalogue Code)"
               >
-                All Parts
+                Parents
+              </button>
+              <button
+                type="button"
+                onClick={() => setPartsScope('child')}
+                className={`flex-1 py-1.5 px-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer truncate ${
+                  partsScope === 'child'
+                    ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs'
+                    : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white'
+                }`}
+                title="Only component child parts (bolts, nuts, gaskets under assemblies)"
+              >
+                Children
               </button>
             </div>
           </div>
@@ -894,8 +932,9 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
             {/* Generate with AI Button & Run Status */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <div className="text-[11px] text-zinc-500 font-mono">
-                  Two-Step AI Protocol: Analyzes Extracted Catalogue &amp; SEO Excel records first • Enforces 151–158 chars (Meta Desc) • 120–140 words (Prod Desc) • zero commas • IndiaSpare.
+                <div className="text-[11px] text-zinc-500 font-mono space-y-0.5">
+                  <div>Two-Step AI Protocol: Analyzes Extracted Catalogue &amp; SEO Excel records first • Enforces 151–158 chars (Meta Desc) • 120–140 words (Prod Desc) • zero commas • IndiaSpare.</div>
+                  <div className="text-purple-700 dark:text-purple-300 font-medium">💡 Child Cells Rule: Child cell descriptions remain blank unless your prompt references child cells (use &quot;🧩 Include Child Cells&quot; preset).</div>
                 </div>
                 {generationCount > 0 && (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/80 border border-purple-300 dark:border-purple-800 text-[11px] font-mono text-purple-700 dark:text-purple-300 font-bold shrink-0">
@@ -1114,7 +1153,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                   <>
                     Showing <strong className="text-zinc-900 dark:text-white">{filteredItems.length}</strong> of{' '}
                     <strong className="text-zinc-900 dark:text-white">{metadataItems.length}</strong>{' '}
-                    {mainPartsOnly ? 'main assemblies' : 'parts'}
+                    {partsScope === 'parent' ? 'parent assemblies' : partsScope === 'child' ? 'child parts' : 'parts'}
                   </>
                 )}
               </div>
@@ -1192,10 +1231,16 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                           <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors">
                             {/* Fig */}
                             <td className="p-2.5 text-center">
-                              <span className="inline-block px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-900 font-mono font-bold text-[11px] text-zinc-700 dark:text-zinc-300">
-                                #{item.fig_no || '-'}
-                              </span>
-                              <div className="text-[10px] text-zinc-400 mt-0.5">p.{item.page}</div>
+                              {item.is_parent !== false ? (
+                                <>
+                                  <span className="inline-block px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-900 font-mono font-bold text-[11px] text-zinc-700 dark:text-zinc-300">
+                                    #{item.fig_no || item.parent_fig_no || '-'}
+                                  </span>
+                                  <div className="text-[10px] text-zinc-400 mt-0.5">p.{item.page}</div>
+                                </>
+                              ) : (
+                                <span className="text-zinc-300 dark:text-zinc-700 font-mono text-[11px]" title={`Child component of Fig #${item.parent_fig_no || ''}`}>&bull;</span>
+                              )}
                             </td>
 
                             {/* Ref */}
@@ -1218,7 +1263,16 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                             {/* Description / Part Name */}
                             <td className="p-2.5 font-semibold text-zinc-800 dark:text-zinc-200">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span>{item.part_name || item.description}</span>
+                                <span>{item.is_parent !== false ? (item.part_name || item.catalog_name || item.description) : item.description}</span>
+                                {item.is_parent !== false ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                                    Parent
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-mono font-normal bg-zinc-100 dark:bg-zinc-900 text-zinc-400">
+                                    Child
+                                  </span>
+                                )}
                                 {item.ai_generated && (
                                   <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                                     <Sparkles className="w-2.5 h-2.5" /> {generationCount > 0 ? `AI Run #${generationCount}` : 'AI'}
@@ -1241,9 +1295,13 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
                             {/* Catalogue Code */}
                             <td className="p-2.5">
-                              <span className="font-mono text-[10px] font-bold text-zinc-700 dark:text-zinc-300">
-                                {item.catalogue_code || `YAM_${activeModelCode}_${(item.part_name || item.description || 'PARTS').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase()}`}
-                              </span>
+                              {item.is_parent !== false ? (
+                                <span className="font-mono text-[10px] font-bold text-zinc-700 dark:text-zinc-300">
+                                  {item.catalogue_code || `YAM_${activeModelCode}_${(item.part_name || item.catalog_name || item.description || 'PARTS').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase()}`}
+                                </span>
+                              ) : (
+                                <span className="text-zinc-300 dark:text-zinc-700 font-mono text-[10px]">-</span>
+                              )}
                             </td>
 
                             {/* Model Quantities */}
@@ -1325,7 +1383,9 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                   </div>
                                 </div>
                               ) : (
-                                <span className="text-[10px] text-zinc-400 font-mono italic">Blank</span>
+                                <span className="text-[10px] text-zinc-400 font-mono italic" title={item.is_parent === false ? "Child cell descriptions left blank unless prompt references child cells" : undefined}>
+                                  {item.is_parent === false ? 'Blank (Child)' : 'Blank'}
+                                </span>
                               )}
                             </td>
 
@@ -1346,7 +1406,9 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                   </div>
                                 </div>
                               ) : (
-                                <span className="text-[10px] text-zinc-400 font-mono italic">Blank</span>
+                                <span className="text-[10px] text-zinc-400 font-mono italic" title={item.is_parent === false ? "Child cell descriptions left blank unless prompt references child cells" : undefined}>
+                                  {item.is_parent === false ? 'Blank (Child)' : 'Blank'}
+                                </span>
                               )}
                             </td>
                           </tr>
@@ -1558,18 +1620,33 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                           <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors">
                             {/* Fig No */}
                             <td className="p-3 text-center">
-                              <span className="inline-block px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-900 font-mono font-bold text-[11px] text-zinc-700 dark:text-zinc-300">
-                                #{item.fig_no || '-'}
-                              </span>
-                              <div className="text-[10px] text-zinc-400 mt-0.5">p.{item.page}</div>
+                              {item.is_parent !== false ? (
+                                <>
+                                  <span className="inline-block px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-900 font-mono font-bold text-[11px] text-zinc-700 dark:text-zinc-300">
+                                    #{item.fig_no || item.parent_fig_no || '-'}
+                                  </span>
+                                  <div className="text-[10px] text-zinc-400 mt-0.5">p.{item.page}</div>
+                                </>
+                              ) : (
+                                <span className="text-zinc-300 dark:text-zinc-700 font-mono text-[11px]" title={`Child component of Fig #${item.parent_fig_no || ''}`}>&bull;</span>
+                              )}
                             </td>
 
                             {/* Main Part Name */}
                             <td className="p-3">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="font-bold text-zinc-900 dark:text-white font-mono text-xs uppercase">
-                                  {item.part_name || item.description}
+                                  {item.is_parent !== false ? (item.part_name || item.catalog_name || item.description) : item.description}
                                 </span>
+                                {item.is_parent !== false ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                                    Parent
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-normal bg-zinc-100 dark:bg-zinc-900 text-zinc-400">
+                                    Child
+                                  </span>
+                                )}
                                 {item.ai_generated && (
                                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                                     <Sparkles className="w-2.5 h-2.5" /> {generationCount > 0 ? `AI Run #${generationCount}` : 'AI'}
@@ -1588,11 +1665,18 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                   </button>
                                 )}
                               </div>
-                              <div className="text-[10px] text-zinc-500 font-mono mt-0.5">
-                                Model: <span className="font-semibold text-zinc-700 dark:text-zinc-300">{item.model_code}</span>
-                                {item.model ? ` • ${item.model}` : ''}
-                                {item.series ? ` • ${item.series}` : ''}
-                              </div>
+                              {item.is_parent !== false ? (
+                                <div className="text-[10px] text-zinc-500 font-mono mt-0.5">
+                                  Model: <span className="font-semibold text-zinc-700 dark:text-zinc-300">{item.model_code}</span>
+                                  {item.model ? ` • ${item.model}` : ''}
+                                  {item.series ? ` • ${item.series}` : ''}
+                                </div>
+                              ) : (
+                                <div className="text-[10px] text-zinc-400 font-mono mt-0.5">
+                                  Ref #{item.ref_no || '-'} • Part #{item.part_no || '-'}
+                                  {item.parent_fig_name ? ` • Assembly: ${item.parent_fig_name}` : ''}
+                                </div>
+                              )}
                             </td>
 
                             {/* Diagram Image */}
@@ -1662,7 +1746,9 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                   </div>
                                 </div>
                               ) : (
-                                <span className="text-[11px] text-zinc-400 font-mono italic">Blank</span>
+                                <span className="text-[11px] text-zinc-400 font-mono italic" title={item.is_parent === false ? "Child cell descriptions left blank unless prompt references child cells" : undefined}>
+                                  {item.is_parent === false ? 'Blank (Child)' : 'Blank'}
+                                </span>
                               )}
                             </td>
 
@@ -1683,7 +1769,9 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                   </div>
                                 </div>
                               ) : (
-                                <span className="text-[11px] text-zinc-400 font-mono italic">Blank</span>
+                                <span className="text-[11px] text-zinc-400 font-mono italic" title={item.is_parent === false ? "Child cell descriptions left blank unless prompt references child cells" : undefined}>
+                                  {item.is_parent === false ? 'Blank (Child)' : 'Blank'}
+                                </span>
                               )}
                             </td>
                           </tr>

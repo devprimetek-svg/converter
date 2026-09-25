@@ -822,7 +822,8 @@ class MetaGenerateRequest(BaseModel):
     model: str = ""
     series: str = "series"
     model_code: Optional[str] = None
-    main_parts_only: bool = True
+    main_parts_only: Optional[bool] = None
+    parts_scope: Optional[str] = "all"
     style: str = "ecommerce"
     custom_templates: Optional[dict[str, str]] = None
     ai_mode: bool = False
@@ -924,6 +925,8 @@ def generate_metadata_endpoint(req: MetaGenerateRequest):
         style=req.style,
         custom_templates=req.custom_templates,
         blank_descriptions=should_blank,
+        parts_scope=req.parts_scope,
+        user_prompt=req.ai_prompt,
     )
 
     if req.ai_mode:

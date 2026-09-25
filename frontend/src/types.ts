@@ -41,6 +41,9 @@ export interface PartMetadataItem {
   remarks?: string;
   ai_generated?: boolean;
   ai_analysis?: string;
+  is_parent?: boolean;
+  catalogue_code?: string;
+  cell_type?: string;
   [key: string]: any;
 }
 

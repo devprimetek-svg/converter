@@ -62,6 +62,15 @@ def format_india_spare(text: str) -> str:
     return re.sub(r"(?i)\bindia\s*spare\b|\bindiaspare\b", "IndiaSpare", text)
 
 
+def prompt_references_child_cells(prompt: Optional[str]) -> bool:
+    """Return True if prompt explicitly references child cells, child parts, child rows, or all parts."""
+    if not prompt:
+        return False
+    pattern = r"(?i)\bchild\b|\bchildren\b|\bchild\s*(?:cells?|parts?|rows?|items?|components?)\b|\ball\s*(?:parts?|cells?|rows?)\b"
+    return bool(re.search(pattern, str(prompt)))
+
+
+
 def build_product_title(
     brand: str,
     model_code: str,
@@ -567,14 +576,23 @@ def generate_catalog_metadata(
     model: str = "",
     series: str = "series",
     model_code: str = "",
-    main_parts_only: bool = True,
+    main_parts_only: Optional[bool] = None,
     figures: Optional[list[dict[str, Any]]] = None,
     style: str = "ecommerce",
     custom_templates: Optional[dict[str, str]] = None,
     blank_descriptions: bool = True,
+    parts_scope: Optional[str] = None,
+    user_prompt: Optional[str] = None,
 ) -> list[dict[str, Any]]:
-    """Generate SEO metadata for catalog. Defaults to main parts only (figure assemblies).
-    By default during PDF scan, meta_description and product_description are kept blank.
+    """Generate SEO metadata for catalog according to the currently extracted Excel.
+    
+    Structure:
+    - Parent cell (first row of each figure): populated Fig No., Catalog Name, Catalogue Code,
+      Product Title and Meta Title. Descriptions remain blank during scan.
+    - Child cells under that figure: Fig No., Catalog Name, and Catalogue Code remain blank.
+      Descriptions for child cells are NEVER generated on their own until the user explicitly
+      references child cells in the prompt.
+    - parts_scope: 'all' (default if main_parts_only not True), 'parent', or 'child'.
     """
     model_upper = (model or "").strip().upper()
     mc = model_code
@@ -584,63 +602,137 @@ def generate_catalog_metadata(
         else:
             mc = "MODEL"
 
+    b = (brand or "YAMAHA").strip().upper()
+    mn = model_upper
+    ser = (series or "series").strip()
+
+    parts_model_str = [mc]
+    if mn:
+        parts_model_str.append(mn)
+        if ser:
+            parts_model_str.append(ser.upper())
+    elif ser and ser.lower() != "series":
+        parts_model_str.append(ser.upper())
+    model_str = " ".join(parts_model_str)
+
+    allow_child_desc = prompt_references_child_cells(user_prompt)
+
     results: list[dict[str, Any]] = []
 
-    if main_parts_only:
-        fig_list: list[dict[str, Any]] = []
-        if figures and len(figures) > 0:
-            fig_list = figures
-        else:
-            seen_figs: set[tuple[str, str]] = set()
-            for r in rows:
-                fn = str(r.get("fig_name") or "").strip()
-                fno = str(r.get("fig_no") or "").strip()
-                if fn and (fno, fn) not in seen_figs:
-                    seen_figs.add((fno, fn))
-                    fig_list.append({
-                        "fig_no": fno,
-                        "fig_name": fn,
-                        "first_page": r.get("page", 1),
-                    })
+    if rows and len(rows) > 0:
+        last_fig_key = None
+        for r_idx, r in enumerate(rows):
+            raw_fno = str(r.get("parent_fig_no") or r.get("fig_no") or "").strip()
+            raw_fname = str(r.get("parent_fig_name") or r.get("fig_name") or "").strip()
+            fig_key = (raw_fno, raw_fname) if (raw_fno or raw_fname) else ("row", str(r_idx))
 
-        for fig in fig_list:
-            fno = str(fig.get("fig_no") or "").strip()
-            fig_rows = [r for r in rows if str(r.get("fig_no") or "").strip() == fno]
-            prim_row = fig_rows[0] if fig_rows else {}
+            if r.get("is_parent") is not None:
+                is_parent = bool(r.get("is_parent"))
+            else:
+                is_parent = (fig_key != last_fig_key)
 
+            if is_parent:
+                last_fig_key = fig_key
+                curr_fno = raw_fno
+                curr_fname = raw_fname
+                curr_cat_code = r.get("catalogue_code") or build_catalogue_code(mc, raw_fname, raw_fno)
+            else:
+                curr_fno = ""
+                curr_fname = ""
+                curr_cat_code = ""
+
+            part_no = str(r.get("part_no") or "").strip()
+            clean_no = str(r.get("clean_part_no") or (clean_part_number(part_no) if part_no else ""))
+            desc = str(r.get("description") or "").strip()
+            ref_no = str(r.get("ref_no") or "").strip()
+            page = int(r.get("page") or 1)
+            remarks = str(r.get("remarks") or "")
+
+            img_filename = resolve_image_filename(raw_fname or desc, model_code=mc)
+
+            if is_parent:
+                display_name = raw_fname or desc or "PARTS ASSEMBLY"
+                prod_title = build_product_title(brand=b, model_code=mc, part_name=display_name, model=mn, series=ser)
+                meta_title = build_meta_title(brand=b, model_code=mc, part_name=display_name, model=mn, series=ser)
+                if blank_descriptions:
+                    meta_desc = ""
+                    prod_desc = ""
+                else:
+                    meta_desc = build_meta_description(brand=b, model_code=mc, part_name=display_name, model=mn, series=ser)
+                    prod_desc = build_product_description(brand=b, model_code=mc, part_name=display_name, model=mn, series=ser)
+            else:
+                child_name = desc or "PART"
+                prod_title = build_product_title(brand=b, model_code=mc, part_name=child_name, model=mn, series=ser)
+                meta_title = build_meta_title(brand=b, model_code=mc, part_name=child_name, model=mn, series=ser)
+                if allow_child_desc and not blank_descriptions:
+                    meta_desc = build_meta_description(brand=b, model_code=mc, part_name=child_name, model=mn, series=ser)
+                    prod_desc = build_product_description(brand=b, model_code=mc, part_name=child_name, model=mn, series=ser)
+                else:
+                    meta_desc = ""
+                    prod_desc = ""
+
+            item: dict[str, Any] = {
+                "fig_no": curr_fno,
+                "part_name": curr_fname,
+                "catalog_name": curr_fname,
+                "catalogue_code": curr_cat_code,
+                "parent_fig_no": raw_fno,
+                "parent_fig_name": raw_fname,
+                "is_parent": is_parent,
+                "cell_type": "Parent" if is_parent else "Child",
+                "ref_no": ref_no,
+                "part_no": part_no,
+                "clean_part_no": clean_no,
+                "description": desc,
+                "brand": b,
+                "model_code": mc,
+                "model": mn,
+                "series": ser,
+                "compatible_models": model_str,
+                "image_filename": img_filename,
+                "product_title": prod_title,
+                "meta_title": meta_title,
+                "meta_description": meta_desc,
+                "meta_long_description": meta_desc,
+                "meta_desc_chars": len(meta_desc) if meta_desc else 0,
+                "long_desc_length": len(meta_desc) if meta_desc else 0,
+                "product_description": prod_desc,
+                "product_desc_words": len(prod_desc.split()) if prod_desc else 0,
+                "page": page,
+                "remarks": remarks,
+            }
+
+            for m in model_columns:
+                if m in r:
+                    item[m] = r[m]
+
+            for k, v in item.items():
+                if isinstance(v, str) and ("india spare" in v.lower() or "indiaspare" in v.lower()):
+                    item[k] = format_india_spare(v)
+
+            results.append(item)
+
+    elif figures and len(figures) > 0:
+        for fig in figures:
             item = generate_main_part_metadata(
                 figure=fig,
                 model_code=mc,
-                brand=brand,
-                model=model_upper,
-                series=series,
+                brand=b,
+                model=mn,
+                series=ser,
                 blank_descriptions=blank_descriptions,
             )
-            # Retain extracted catalogue row details (ref_no, part_no, remarks, model quantities)
-            if prim_row:
-                if prim_row.get("part_no"):
-                    item["part_no"] = str(prim_row["part_no"])
-                    item["clean_part_no"] = clean_part_number(item["part_no"])
-                if prim_row.get("ref_no"):
-                    item["ref_no"] = str(prim_row["ref_no"])
-                if prim_row.get("remarks"):
-                    item["remarks"] = str(prim_row["remarks"])
-                for m in model_columns:
-                    if m in prim_row:
-                        item[m] = prim_row[m]
+            item["is_parent"] = True
+            item["cell_type"] = "Parent"
+            item["parent_fig_no"] = str(fig.get("fig_no") or "")
+            item["parent_fig_name"] = str(fig.get("fig_name") or "")
             results.append(item)
-    else:
-        for r in rows:
-            item = generate_child_part_metadata(
-                row=r,
-                model_columns=model_columns,
-                brand=brand,
-                model=model_upper,
-                series=series,
-                model_code=mc,
-                blank_descriptions=blank_descriptions,
-            )
-            results.append(item)
+
+    # Scope resolution
+    if parts_scope == "parent" or (parts_scope is None and main_parts_only is True):
+        return [it for it in results if it.get("is_parent", False)]
+    elif parts_scope == "child":
+        return [it for it in results if not it.get("is_parent", False)]
 
     return results
 
@@ -652,8 +744,9 @@ def export_metadata_excel(
     raw_rows: Optional[list[dict[str, Any]]] = None,
     selected_columns: Optional[list[str]] = None,
 ) -> io.BytesIO:
-    """Generate an Excel workbook (.xlsx) containing both extracted catalogue columns and generated SEO metadata.
-    Supports filtering columns via selected_columns.
+    """Generate a single-sheet Excel workbook (.xlsx) containing both extracted catalogue columns
+    and generated SEO metadata. Does NOT create a separate sheet for child cells.
+    If the user wants to see child cells, they can view them by applying Excel's filter.
     """
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -676,18 +769,6 @@ def export_metadata_excel(
         bottom=thin_border_side,
     )
 
-    # Headers: Extracted Parts Catalogue Columns arranged on the LEFT, then SEO & Metadata Columns on the RIGHT
-    headers: list[tuple[str, str, Any, int]] = [
-        # --- Extracted Parts Catalogue Columns (Left) ---
-        ("Page", "page", center_align, 8),
-        ("Fig No.", "fig_no", center_align, 10),
-        ("Catalog Name", "part_name", left_align, 28),
-        ("Catalogue Code", "catalogue_code", left_align, 26),
-        ("Ref No.", "ref_no", center_align, 10),
-        ("Part No.", "part_no", left_align, 20),
-        ("Clean Part No.", "clean_part_no", left_align, 20),
-    ]
-
     # Resolve dynamic model quantity columns
     resolved_model_cols: list[str] = []
     if model_columns:
@@ -697,16 +778,30 @@ def export_metadata_excel(
         for r in (meta_rows + (raw_rows or [])):
             for k in r.keys():
                 if k not in {
-                    "fig_no", "fig_name", "part_name", "catalogue_code", "description", "part_no",
-                    "clean_part_no", "ref_no", "brand", "model_code", "model",
-                    "series", "compatible_models", "image_filename", "product_title",
-                    "meta_title", "meta_description", "meta_long_description",
+                    "fig_no", "fig_name", "part_name", "catalog_name", "catalogue_code",
+                    "description", "part_no", "clean_part_no", "ref_no", "brand",
+                    "model_code", "model", "series", "compatible_models", "image_filename",
+                    "product_title", "meta_title", "meta_description", "meta_long_description",
                     "meta_desc_chars", "long_desc_length", "product_description",
-                    "product_desc_words", "page", "remarks", "first_page", "id"
+                    "product_desc_words", "page", "remarks", "first_page", "id", "is_parent",
+                    "cell_type", "parent_fig_no", "parent_fig_name", "ai_analysis", "ai_generated"
                 }:
                     if re.match(r"^[A-Z0-9]{3,6}$", str(k).upper()):
                         seen_cols.add(str(k))
         resolved_model_cols = sorted(list(seen_cols))
+
+    # Single Sheet Headers: Extracted Parts Catalogue Columns arranged on the LEFT, then SEO & Metadata Columns on the RIGHT
+    headers: list[tuple[str, str, Any, int]] = [
+        # --- Extracted Parts Catalogue Columns (Left) ---
+        ("Page", "page", center_align, 8),
+        ("Fig No.", "fig_no", center_align, 10),
+        ("Catalog Name", "part_name", left_align, 28),
+        ("Catalogue Code", "catalogue_code", left_align, 26),
+        ("Ref No.", "ref_no", center_align, 10),
+        ("Part No.", "part_no", left_align, 20),
+        ("Clean Part No.", "clean_part_no", left_align, 20),
+        ("Description", "description", left_align, 30),
+    ]
 
     for m in resolved_model_cols:
         headers.append((f"Qty ({m})", m, center_align, 12))
@@ -745,6 +840,61 @@ def export_metadata_excel(
         if filtered_headers:
             headers = filtered_headers
 
+    # Prepare export rows: if raw_rows is provided and has more rows than meta_rows, merge to ensure all extracted parts appear
+    export_rows = list(meta_rows)
+    if raw_rows and len(raw_rows) > len(meta_rows):
+        meta_by_fig = {}
+        for it in meta_rows:
+            f_k = str(it.get("parent_fig_no") or it.get("fig_no") or "").strip()
+            if f_k and f_k not in meta_by_fig:
+                meta_by_fig[f_k] = it
+
+        merged_rows = []
+        last_fk = None
+        for idx, r in enumerate(raw_rows):
+            fno = str(r.get("parent_fig_no") or r.get("fig_no") or "").strip()
+            fname = str(r.get("parent_fig_name") or r.get("fig_name") or "").strip()
+            fk = (fno, fname) if (fno or fname) else ("row", str(idx))
+            is_parent = bool(r.get("is_parent")) if r.get("is_parent") is not None else (fk != last_fk)
+            if is_parent:
+                last_fk = fk
+
+            parent_meta = meta_by_fig.get(fno, {})
+            b_val = parent_meta.get("brand") or brand or "YAMAHA"
+            mc_val = parent_meta.get("model_code") or (resolved_model_cols[0] if resolved_model_cols else "MODEL")
+            m_val = parent_meta.get("model") or ""
+            ser_val = parent_meta.get("series") or "series"
+            pno = str(r.get("part_no") or "").strip()
+            clean_no = str(r.get("clean_part_no") or (clean_part_number(pno) if pno else ""))
+            desc = str(r.get("description") or "").strip()
+
+            merged_item = dict(r)
+            merged_item["page"] = r.get("page", 1)
+            merged_item["is_parent"] = is_parent
+            merged_item["parent_fig_no"] = fno
+            merged_item["parent_fig_name"] = fname
+            merged_item["part_name"] = fname if is_parent else ""
+            merged_item["catalog_name"] = fname if is_parent else ""
+            merged_item["catalogue_code"] = build_catalogue_code(mc_val, fname, fno) if is_parent else ""
+            merged_item["clean_part_no"] = clean_no
+            merged_item["description"] = desc
+            merged_item["brand"] = b_val
+            merged_item["model_code"] = mc_val
+            merged_item["model"] = m_val
+            merged_item["series"] = ser_val
+            merged_item["image_filename"] = parent_meta.get("image_filename") or resolve_image_filename(fname, model_code=mc_val)
+            merged_item["product_title"] = parent_meta.get("product_title") if is_parent else build_product_title(b_val, mc_val, desc or "PART", m_val, ser_val)
+            merged_item["meta_title"] = parent_meta.get("meta_title") if is_parent else build_meta_title(b_val, mc_val, desc or "PART", m_val, ser_val)
+            merged_item["meta_description"] = parent_meta.get("meta_description") if is_parent else ""
+            merged_item["meta_desc_chars"] = len(merged_item["meta_description"]) if merged_item["meta_description"] else 0
+            merged_item["product_description"] = parent_meta.get("product_description") if is_parent else ""
+            merged_item["product_desc_words"] = len(merged_item["product_description"].split()) if merged_item["product_description"] else 0
+            if is_parent and parent_meta.get("ai_analysis"):
+                merged_item["ai_analysis"] = parent_meta["ai_analysis"]
+
+            merged_rows.append(merged_item)
+        export_rows = merged_rows
+
     ws.row_dimensions[1].height = 28.0
     for col_idx, (label, _, _, col_width) in enumerate(headers, start=1):
         cell = ws.cell(row=1, column=col_idx, value=label)
@@ -756,15 +906,21 @@ def export_metadata_excel(
         ws.column_dimensions[col_letter].width = col_width
 
     last_fig_key = None
-    for row_idx, r in enumerate(meta_rows, start=2):
+    for row_idx, r in enumerate(export_rows, start=2):
         ws.row_dimensions[row_idx].height = 24.0
 
         raw_fno = str(r.get("parent_fig_no") or r.get("fig_no") or "").strip()
-        raw_pname = str(r.get("part_name", "") or r.get("fig_name", "") or r.get("description", "")).strip()
-        fig_key = (raw_fno, raw_pname) if (raw_fno or raw_pname) else ("row", str(row_idx))
-        is_parent = (fig_key != last_fig_key)
+        raw_pname = str(r.get("parent_fig_name") or r.get("part_name", "") or r.get("fig_name", "") or "").strip()
+
+        if r.get("is_parent") is not None:
+            is_parent = bool(r.get("is_parent"))
+        else:
+            fig_key = (raw_fno, raw_pname) if (raw_fno or raw_pname) else ("row", str(row_idx))
+            is_parent = (fig_key != last_fig_key)
+            if is_parent:
+                last_fig_key = fig_key
+
         if is_parent:
-            last_fig_key = fig_key
             curr_fno = raw_fno
             curr_pname = raw_pname
             curr_cat_code = r.get("catalogue_code") or build_catalogue_code(r.get("model_code", ""), raw_pname, raw_fno)
@@ -782,12 +938,19 @@ def export_metadata_excel(
                 val = curr_cat_code
             elif field_key == "clean_part_no":
                 val = r.get("clean_part_no", "") or clean_part_number(str(r.get("part_no", "") or ""))
+            elif field_key == "meta_description":
+                val = r.get("meta_description", "") if (is_parent or r.get("meta_description")) else ""
             elif field_key == "meta_desc_chars":
-                val = r.get("meta_desc_chars", len(str(r.get("meta_description") or "")))
+                m_desc = r.get("meta_description", "") if (is_parent or r.get("meta_description")) else ""
+                val = len(m_desc) if m_desc else 0
+            elif field_key == "product_description":
+                val = r.get("product_description", "") if (is_parent or r.get("product_description")) else ""
             elif field_key == "product_desc_words":
-                val = r.get("product_desc_words", len(str(r.get("product_description") or "").split()))
+                p_desc = r.get("product_description", "") if (is_parent or r.get("product_description")) else ""
+                val = len(p_desc.split()) if p_desc else 0
             else:
                 val = r.get(field_key, "")
+
             val_str = str(val) if val is not None else ""
             if "india spare" in val_str.lower() or "indiaspare" in val_str.lower():
                 val_str = format_india_spare(val_str)
@@ -798,78 +961,11 @@ def export_metadata_excel(
             cell.number_format = "@"
 
     ws.freeze_panes = "A2"
-    if meta_rows:
+    if export_rows:
         max_col_letter = get_column_letter(len(headers))
-        ws.auto_filter.ref = f"A1:{max_col_letter}{len(meta_rows) + 1}"
+        ws.auto_filter.ref = f"A1:{max_col_letter}{len(export_rows) + 1}"
 
-    # Sheet 2: Extracted Parts Catalogue (raw table if raw_rows provided)
-    if raw_rows and len(raw_rows) > 0:
-        ws2 = wb.create_sheet(title="Extracted Parts Catalogue")
-        ws2_header_fill = PatternFill(start_color="333333", end_color="333333", fill_type="solid")
-        raw_headers = [
-            ("Page", "page", center_align, 8),
-            ("Fig No.", "fig_no", center_align, 10),
-            ("Fig Name", "fig_name", left_align, 28),
-            ("Catalogue Code", "catalogue_code", left_align, 26),
-            ("Ref No.", "ref_no", center_align, 10),
-            ("Part No.", "part_no", left_align, 20),
-            ("Description", "description", left_align, 32),
-        ]
-        for m in resolved_model_cols:
-            raw_headers.append((m, m, center_align, 12))
-        raw_headers.append(("Remarks", "remarks", left_align, 24))
-
-        ws2.row_dimensions[1].height = 26.0
-        for col_idx, (label, _, _, col_width) in enumerate(raw_headers, start=1):
-            cell = ws2.cell(row=1, column=col_idx, value=label)
-            cell.fill = ws2_header_fill
-            cell.font = header_font
-            cell.alignment = header_alignment
-            cell.border = thin_border
-            col_letter = get_column_letter(col_idx)
-            ws2.column_dimensions[col_letter].width = col_width
-
-        last_raw_fig_key = None
-        for row_idx, r in enumerate(raw_rows, start=2):
-            ws2.row_dimensions[row_idx].height = 20.0
-
-            raw_fno = str(r.get("parent_fig_no") or r.get("fig_no") or "").strip()
-            raw_fname = str(r.get("parent_fig_name") or r.get("fig_name") or "").strip()
-            raw_fig_key = (raw_fno, raw_fname) if (raw_fno or raw_fname) else ("page", str(r.get("page", "")))
-            is_parent = (raw_fig_key != last_raw_fig_key)
-            if is_parent:
-                last_raw_fig_key = raw_fig_key
-                curr_fno = raw_fno
-                curr_fname = raw_fname
-                curr_cat_code = r.get("catalogue_code") or build_catalogue_code(
-                    (resolved_model_cols[0] if resolved_model_cols else "MODEL"),
-                    raw_fname,
-                    raw_fno,
-                )
-            else:
-                curr_fno = ""
-                curr_fname = ""
-                curr_cat_code = ""
-
-            for col_idx, (_, field_key, align, _) in enumerate(raw_headers, start=1):
-                if field_key == "fig_no":
-                    val = curr_fno
-                elif field_key == "fig_name":
-                    val = curr_fname
-                elif field_key == "catalogue_code":
-                    val = curr_cat_code
-                else:
-                    val = r.get(field_key, "")
-                cell = ws2.cell(row=row_idx, column=col_idx, value=str(val) if val is not None else "")
-                cell.font = data_font
-                cell.alignment = align
-                cell.border = thin_border
-                cell.number_format = "@"
-
-        ws2.freeze_panes = "A2"
-        max_col_letter2 = get_column_letter(len(raw_headers))
-        ws2.auto_filter.ref = f"A1:{max_col_letter2}{len(raw_rows) + 1}"
-
+    # STRICTLY SINGLE SHEET ONLY: No separate sheet for child cells!
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -896,6 +992,7 @@ def export_metadata_csv(
         ("Ref No.", "ref_no"),
         ("Part No.", "part_no"),
         ("Clean Part No.", "clean_part_no"),
+        ("Description", "description"),
     ]
 
     resolved_model_cols: list[str] = []
@@ -911,7 +1008,8 @@ def export_metadata_csv(
                     "series", "compatible_models", "image_filename", "product_title",
                     "meta_title", "meta_description", "meta_long_description",
                     "meta_desc_chars", "long_desc_length", "product_description",
-                    "product_desc_words", "page", "remarks", "first_page", "id"
+                    "product_desc_words", "page", "remarks", "first_page", "id",
+                    "is_parent", "cell_type", "parent_fig_no", "parent_fig_name"
                 }:
                     if re.match(r"^[A-Z0-9]{3,6}$", str(k).upper()):
                         seen_cols.add(str(k))
@@ -958,11 +1056,17 @@ def export_metadata_csv(
     last_fig_key = None
     for row_idx, r in enumerate(meta_rows):
         raw_fno = str(r.get("parent_fig_no") or r.get("fig_no") or "").strip()
-        raw_pname = str(r.get("part_name", "") or r.get("fig_name", "") or r.get("description", "")).strip()
-        fig_key = (raw_fno, raw_pname) if (raw_fno or raw_pname) else ("row", str(row_idx))
-        is_parent = (fig_key != last_fig_key)
+        raw_pname = str(r.get("parent_fig_name") or r.get("part_name", "") or r.get("fig_name", "") or "").strip()
+
+        if r.get("is_parent") is not None:
+            is_parent = bool(r.get("is_parent"))
+        else:
+            fig_key = (raw_fno, raw_pname) if (raw_fno or raw_pname) else ("row", str(row_idx))
+            is_parent = (fig_key != last_fig_key)
+            if is_parent:
+                last_fig_key = fig_key
+
         if is_parent:
-            last_fig_key = fig_key
             curr_fno = raw_fno
             curr_pname = raw_pname
             curr_cat_code = r.get("catalogue_code") or build_catalogue_code(r.get("model_code", ""), raw_pname, raw_fno)
@@ -979,12 +1083,18 @@ def export_metadata_csv(
                 v = curr_pname
             elif field_key == "catalogue_code":
                 v = curr_cat_code
-            elif field_key == "meta_desc_chars":
-                v = r.get("meta_desc_chars", len(str(r.get("meta_description") or "")))
-            elif field_key == "product_desc_words":
-                v = r.get("product_desc_words", len(str(r.get("product_description") or "").split()))
             elif field_key == "clean_part_no":
                 v = r.get("clean_part_no", "") or clean_part_number(str(r.get("part_no", "") or ""))
+            elif field_key == "meta_description":
+                v = r.get("meta_description", "") if (is_parent or r.get("meta_description")) else ""
+            elif field_key == "meta_desc_chars":
+                m_desc = r.get("meta_description", "") if (is_parent or r.get("meta_description")) else ""
+                v = len(m_desc) if m_desc else 0
+            elif field_key == "product_description":
+                v = r.get("product_description", "") if (is_parent or r.get("product_description")) else ""
+            elif field_key == "product_desc_words":
+                p_desc = r.get("product_description", "") if (is_parent or r.get("product_description")) else ""
+                v = len(p_desc.split()) if p_desc else 0
             else:
                 v = r.get(field_key, "")
             val_str = str(v) if v is not None else ""

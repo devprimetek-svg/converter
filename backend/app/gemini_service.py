@@ -22,6 +22,7 @@ from app.meta_generator import (
     clean_no_commas,
     enforce_meta_desc_length,
     format_india_spare,
+    prompt_references_child_cells,
 )
 from app.parts_extractor import clean_part_number
 
@@ -516,6 +517,8 @@ def enhance_metadata_with_gemini(
     - 'IndiaSpare' proper casing
     - Fallback gracefully to existing descriptions if an item fails
     - Guarantees completely unique output on every click and prompt change
+    - CRITICAL RULE: Child cell descriptions are NEVER generated on their own until the user
+      explicitly references child cells in the prompt.
     """
     key = (api_key or os.getenv("GEMINI_API_KEY") or "").strip()
     if not key:
@@ -525,15 +528,37 @@ def enhance_metadata_with_gemini(
     m_disp = f"{model_code} {model}".strip() if model else model_code
     base_gen_id = generation_id or f"gen_{int(time.time() * 1000)}_{random.randint(1000, 9999)}"
 
-    # Process items in batches of `batch_size` to avoid token/output truncation
+    allow_child = prompt_references_child_cells(user_prompt)
+
     enhanced_items = [dict(it) for it in metadata_items]
-    batches = [enhanced_items[i : i + batch_size] for i in range(0, len(enhanced_items), batch_size)]
+
+    # Filter target items:
+    # If user prompt does NOT reference child cells, child cells must remain strictly blank!
+    if not allow_child:
+        for it in enhanced_items:
+            is_parent = bool(it.get("is_parent", True))
+            if not is_parent:
+                it["meta_description"] = ""
+                it["meta_long_description"] = ""
+                it["meta_desc_chars"] = 0
+                it["long_desc_length"] = 0
+                it["product_description"] = ""
+                it["product_desc_words"] = 0
+                it["ai_analysis"] = ""
+                it["ai_generated"] = False
+        target_items = [it for it in enhanced_items if it.get("is_parent", True)]
+    else:
+        target_items = enhanced_items
+
+    if not target_items:
+        return enhanced_items
+
+    batches = [target_items[i : i + batch_size] for i in range(0, len(target_items), batch_size)]
 
     for idx, batch in enumerate(batches):
         batch_cycle = f"{base_gen_id}_batch_{idx}"
         batch_seed = random.randint(1, 2147483647)
         if idx > 0:
-            # Respect Free Tier 15 RPM rate limits by pacing between multi-batch requests
             time.sleep(1.5)
         try:
             ai_results = call_gemini_batch(
@@ -554,9 +579,18 @@ def enhance_metadata_with_gemini(
         # Post-process every item in this batch with strict mathematical validation
         for it_idx, it in enumerate(batch):
             item_seed = (batch_seed + it_idx * 7919) % 2147483647
-            f_no = str(it.get("fig_no", "")).strip()
-            p_name = str(it.get("part_name", "")).strip()
-            ai_data = ai_results.get(f_no) or ai_results.get(p_name) or {}
+            f_no = str(it.get("parent_fig_no") or it.get("fig_no", "")).strip()
+            p_name = str(it.get("parent_fig_name") or it.get("part_name", "") or it.get("description", "")).strip()
+            ref = str(it.get("ref_no", "")).strip()
+            p_no = str(it.get("part_no", "")).strip()
+
+            ai_data = (
+                (ai_results.get(f"{f_no}_{ref}") if f_no and ref else None)
+                or (ai_results.get(p_no) if p_no else None)
+                or (ai_results.get(f_no) if it.get("is_parent", True) else None)
+                or ai_results.get(p_name)
+                or {}
+            )
 
             raw_analysis = ai_data.get("analysis")
             raw_meta = ai_data.get("meta_description")

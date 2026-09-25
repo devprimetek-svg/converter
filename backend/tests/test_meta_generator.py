@@ -289,20 +289,21 @@ def test_export_metadata_excel_and_csv():
     assert ws.cell(row=1, column=5).value == "Ref No."
     assert ws.cell(row=1, column=6).value == "Part No."
     assert ws.cell(row=1, column=7).value == "Clean Part No."
-    assert ws.cell(row=1, column=8).value == "Remarks"
-    assert ws.cell(row=1, column=9).value == "Brand"
-    assert ws.cell(row=1, column=13).value == "Pic"
-    assert ws.cell(row=1, column=14).value == "Short Description"
-    assert ws.cell(row=1, column=15).value == "Meta Title"
+    assert ws.cell(row=1, column=8).value == "Description"
+    assert ws.cell(row=1, column=9).value == "Remarks"
+    assert ws.cell(row=1, column=10).value == "Brand"
+    assert ws.cell(row=1, column=14).value == "Pic"
+    assert ws.cell(row=1, column=15).value == "Short Description"
+    assert ws.cell(row=1, column=16).value == "Meta Title"
     assert ws.cell(row=2, column=1).value == "7"
     assert ws.cell(row=2, column=2).value == "1"
     assert ws.cell(row=2, column=3).value == "CYLINDER HEAD"
     assert ws.cell(row=2, column=4).value == "YAM_BGPK_CYLINDER_HEAD"
-    assert ws.cell(row=2, column=13).value == "YAM_BGPK_CYLINDER HEAD.jpeg"
-    assert ws.cell(row=2, column=14).value == "YAMAHA BGPK CYLINDER HEAD"
-    assert ws.cell(row=2, column=15).value == "Yamaha BGPK Cylinder Head | IndiaSpare"
-    assert 151 <= len(ws.cell(row=2, column=16).value) <= 158
-    assert 120 <= len(ws.cell(row=2, column=18).value.split()) <= 140
+    assert ws.cell(row=2, column=14).value == "YAM_BGPK_CYLINDER HEAD.jpeg"
+    assert ws.cell(row=2, column=15).value == "YAMAHA BGPK CYLINDER HEAD"
+    assert ws.cell(row=2, column=16).value == "Yamaha BGPK Cylinder Head | IndiaSpare"
+    assert 151 <= len(ws.cell(row=2, column=17).value) <= 158
+    assert 120 <= len(ws.cell(row=2, column=19).value.split()) <= 140
 
     # Test CSV generation
     csv_buf = export_metadata_csv(meta_items)
@@ -373,12 +374,12 @@ def test_export_both_extracted_and_seo_columns():
     assert clean_part_number("B7J-E1102-00") in row2_vals
     assert "UR FOR VRC1" in row2_vals
 
-    # Check Sheet 2: Extracted Parts Catalogue
-    assert "Extracted Parts Catalogue" in wb.sheetnames
-    ws2 = wb["Extracted Parts Catalogue"]
-    ws2_headers = [ws2.cell(row=1, column=c).value for c in range(1, ws2.max_column + 1)]
-    assert "Part No." in ws2_headers
-    assert "BGPK" in ws2_headers
+    # Verify STRICTLY SINGLE SHEET ONLY: No separate sheet for child cells per user instruction
+    assert len(wb.sheetnames) == 1
+    assert wb.sheetnames == ["Product Metadata"]
+    assert "Extracted Parts Catalogue" not in wb.sheetnames
+    # Verify Excel AutoFilter is enabled so user can filter child cells directly in the single sheet
+    assert ws.auto_filter.ref is not None
 
     # 2. CSV export with both extracted columns and SEO columns
     csv_buf = export_metadata_csv(meta_items, model_columns=["BGPK"])
@@ -501,6 +502,7 @@ def test_catalogue_columns_arranged_on_left_before_metadata_columns():
         "Ref No.",
         "Part No.",
         "Clean Part No.",
+        "Description",
         "Qty (BGPK)",
         "Qty (BGPL)",
         "Remarks",
@@ -528,5 +530,164 @@ def test_catalogue_columns_arranged_on_left_before_metadata_columns():
     csv_headers = csv_lines[0].split(",")
 
     assert csv_headers == expected_left_catalogue + expected_right_metadata
+
+
+def test_child_cells_descriptions_blank_by_default_and_populated_when_prompted():
+    """Verify child cells have blank descriptions by default, but receive descriptions when prompt mentions child cells."""
+    rows = [
+        # Parent row
+        {
+            "fig_no": "1",
+            "fig_name": "CYLINDER HEAD",
+            "ref_no": "1",
+            "part_no": "B7J-E1102-00",
+            "description": "CYLINDER HEAD ASSY",
+            "BGPK": "1",
+            "page": 7,
+        },
+        # Child row 1
+        {
+            "fig_no": "1",
+            "fig_name": "CYLINDER HEAD",
+            "ref_no": "2",
+            "part_no": "90105-06836",
+            "description": "BOLT FLANGE",
+            "BGPK": "4",
+            "page": 7,
+        },
+        # Child row 2
+        {
+            "fig_no": "1",
+            "fig_name": "CYLINDER HEAD",
+            "ref_no": "3",
+            "part_no": "94700-00879",
+            "description": "PLUG SPARK",
+            "BGPK": "1",
+            "page": 7,
+        },
+    ]
+
+    # CASE 1: Standard generation (no child cells mentioned in prompt)
+    items_default = generate_catalog_metadata(
+        rows=rows,
+        model_columns=["BGPK"],
+        brand="YAMAHA",
+        model="FZ-S",
+        series="series",
+        model_code="BGPK",
+        main_parts_only=False,
+        blank_descriptions=False,
+        user_prompt="Focus on OEM build quality and durability",
+    )
+    assert len(items_default) == 3
+
+    # Parent item
+    p = items_default[0]
+    assert p["is_parent"] is True
+    assert p["cell_type"] == "Parent"
+    assert p["fig_no"] == "1"
+    assert p["part_name"] == "CYLINDER HEAD"
+    assert p["catalogue_code"] == "YAM_BGPK_CYLINDER_HEAD"
+    assert len(p["meta_description"]) >= 151
+    assert len(p["product_description"].split()) >= 120
+
+    # Child item 1
+    c1 = items_default[1]
+    assert c1["is_parent"] is False
+    assert c1["cell_type"] == "Child"
+    assert c1["fig_no"] == ""  # Blank per user rule
+    assert c1["part_name"] == ""  # Blank per user rule
+    assert c1["catalogue_code"] == ""  # Blank per user rule
+    assert c1["description"] == "BOLT FLANGE"
+    assert c1["ref_no"] == "2"
+    assert c1["part_no"] == "90105-06836"
+    assert c1["meta_description"] == ""  # Strictly blank per user rule!
+    assert c1["product_description"] == ""  # Strictly blank per user rule!
+
+    # Child item 2
+    c2 = items_default[2]
+    assert c2["is_parent"] is False
+    assert c2["fig_no"] == ""
+    assert c2["part_name"] == ""
+    assert c2["catalogue_code"] == ""
+    assert c2["meta_description"] == ""
+    assert c2["product_description"] == ""
+
+    # CASE 2: User explicitly mentions child cells in prompt
+    items_with_child_prompt = generate_catalog_metadata(
+        rows=rows,
+        model_columns=["BGPK"],
+        brand="YAMAHA",
+        model="FZ-S",
+        series="series",
+        model_code="BGPK",
+        main_parts_only=False,
+        blank_descriptions=False,
+        user_prompt="Generate descriptions for all parts including child cells with OEM precision",
+    )
+    assert len(items_with_child_prompt) == 3
+
+    # Parent still has full descriptions
+    p_prompt = items_with_child_prompt[0]
+    assert p_prompt["is_parent"] is True
+    assert len(p_prompt["meta_description"]) >= 151
+
+    # Child item 1 NOW has generated descriptions because child cells were referenced!
+    c1_prompt = items_with_child_prompt[1]
+    assert c1_prompt["is_parent"] is False
+    assert c1_prompt["fig_no"] == ""
+    assert c1_prompt["part_name"] == ""
+    assert c1_prompt["catalogue_code"] == ""
+    assert len(c1_prompt["meta_description"]) >= 151
+    assert len(c1_prompt["product_description"].split()) >= 120
+
+
+def test_export_single_sheet_with_autofilter_for_child_cells():
+    """Verify export is STRICTLY a single sheet and AutoFilter is applied across all columns for child filtering."""
+    rows = [
+        {"fig_no": "1", "fig_name": "CYLINDER HEAD", "ref_no": "1", "part_no": "B7J-E1102-00", "description": "CYLINDER HEAD ASSY", "BGPK": "1", "page": 7},
+        {"fig_no": "1", "fig_name": "CYLINDER HEAD", "ref_no": "2", "part_no": "90105-06836", "description": "BOLT FLANGE", "BGPK": "4", "page": 7},
+    ]
+    meta_items = generate_catalog_metadata(
+        rows=rows,
+        model_columns=["BGPK"],
+        brand="YAMAHA",
+        model="RAY ZR",
+        series="series",
+        model_code="BGPK",
+        main_parts_only=False,
+        blank_descriptions=False,
+    )
+
+    xlsx_buf = export_metadata_excel(
+        meta_items,
+        brand="YAMAHA",
+        model_columns=["BGPK"],
+        raw_rows=rows,
+    )
+    wb = openpyxl.load_workbook(xlsx_buf)
+
+    # Strictly 1 sheet
+    assert len(wb.sheetnames) == 1
+    assert wb.sheetnames == ["Product Metadata"]
+
+    ws = wb["Product Metadata"]
+    # AutoFilter is present so user can filter parent/child cells
+    assert ws.auto_filter.ref is not None
+    assert "A1:" in ws.auto_filter.ref
+
+    # Row 2 (Parent) has Fig No and Catalogue Code populated
+    assert ws.cell(row=2, column=2).value == "1"
+    assert ws.cell(row=2, column=3).value == "CYLINDER HEAD"
+    assert ws.cell(row=2, column=4).value == "YAM_BGPK_CYLINDER_HEAD"
+
+    # Row 3 (Child) has Fig No, Catalog Name, Catalogue Code BLANK
+    assert (ws.cell(row=3, column=2).value or "") == ""
+    assert (ws.cell(row=3, column=3).value or "") == ""
+    assert (ws.cell(row=3, column=4).value or "") == ""
+    assert str(ws.cell(row=3, column=5).value) == "2"  # Ref No
+    assert str(ws.cell(row=3, column=6).value) == "90105-06836"  # Part No
+    assert str(ws.cell(row=3, column=8).value) == "BOLT FLANGE"  # Description
+
 
 
