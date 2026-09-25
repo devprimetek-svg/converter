@@ -263,6 +263,16 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
     if (isAi) {
       setGenerationNotice(null);
     }
+
+    // Pre-flight check: if using AI mode and no API key is entered
+    if (isAi && !geminiApiKey.trim()) {
+      setIsGenerating(false);
+      setAiError(
+        "Google AI Studio API key not found. Please enter your API key in the 'Google AI Studio API Key' box below (free at aistudio.google.com), or click 'Generate with Rule-Based Mode Instead' for instant generation."
+      );
+      return;
+    }
+
     const nextGenCount = isAi ? generationCount + 1 : generationCount;
     const runId = isAi ? `run_${Date.now()}_${Math.random().toString(36).substring(2, 8)}` : undefined;
 
@@ -283,6 +293,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
         gemini_api_key: isAi && geminiApiKey.trim() ? geminiApiKey.trim() : undefined,
         blank_descriptions: !isAi,
         generation_id: runId,
+        fallback_to_rules: true,
       };
 
       const res = await fetch('/api/meta/generate', {
@@ -292,13 +303,39 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
       });
 
       if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.detail || 'Failed to generate metadata');
+        let errMessage = '';
+        try {
+          const text = await res.text();
+          try {
+            const errJson = JSON.parse(text);
+            if (typeof errJson.detail === 'string') {
+              errMessage = errJson.detail;
+            } else if (Array.isArray(errJson.detail)) {
+              errMessage = errJson.detail.map((d: any) => d.msg || JSON.stringify(d)).join('; ');
+            } else {
+              errMessage = errJson.message || errJson.error || text;
+            }
+          } catch {
+            if (res.status === 504) {
+              errMessage = 'Gateway Timeout (504): The AI generation took longer than the server limit. Please use Rule-Based Mode for instant generation.';
+            } else if (res.status === 502 || res.status === 503) {
+              errMessage = `Server temporarily unavailable (${res.status}). Please retry or use Rule-Based Mode.`;
+            } else {
+              errMessage = text.slice(0, 250) || `HTTP Error ${res.status}: Failed to generate metadata`;
+            }
+          }
+        } catch {
+          errMessage = `Network Error (${res.status}): Failed to generate metadata`;
+        }
+        throw new Error(errMessage);
       }
 
       const data = await res.json();
       setMetadataItems(data.items || []);
-      if (isAi) {
+
+      if (data.ai_fallback && data.notice) {
+        setAiError(data.notice);
+      } else if (isAi) {
         setGenerationCount(nextGenCount);
         setLastGeneratedPrompt(aiPrompt.trim());
         setGenerationNotice(`Run #${nextGenCount} Complete: Fresh unique AI descriptions generated for ${data.items?.length || 0} parts with your prompt directives applied.`);
@@ -983,13 +1020,44 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
               </div>
             )}
 
-            {/* Error Banner */}
+            {/* Error Banner with 1-Click Fallback Recovery */}
             {aiError && (
-              <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold">Google AI Studio Notice: </span>
-                  {aiError}
+              <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300 space-y-2.5 shadow-xs animate-in fade-in duration-150">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+                  <div className="flex-1">
+                    <span className="font-bold">Google AI Studio Notice: </span>
+                    <span>{aiError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAiError(null)}
+                    className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-xs font-mono px-1 rounded cursor-pointer"
+                    title="Dismiss"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-red-200/60 dark:border-red-800/60">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAiMode(false);
+                      generateMetadata(false);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black text-white dark:bg-white dark:text-black font-bold text-[11px] uppercase tracking-wider hover:opacity-90 transition-opacity cursor-pointer shadow-xs"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    ⚡ Generate with Rule-Based Mode Instead (Instant &amp; Free)
+                  </button>
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 dark:bg-red-900/40 dark:hover:bg-red-900/60 text-red-800 dark:text-red-200 font-semibold text-[11px] transition-colors"
+                  >
+                    Get Free Gemini API Key &rarr;
+                  </a>
                 </div>
               </div>
             )}

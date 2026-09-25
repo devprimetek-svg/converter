@@ -831,6 +831,7 @@ class MetaGenerateRequest(BaseModel):
     gemini_api_key: Optional[str] = None
     blank_descriptions: Optional[bool] = None
     generation_id: Optional[str] = None
+    fallback_to_rules: bool = True
 
 
 class MetaExportRequest(BaseModel):
@@ -929,7 +930,18 @@ def generate_metadata_endpoint(req: MetaGenerateRequest):
         user_prompt=req.ai_prompt,
     )
 
+    ai_error_msg = None
+    ai_fallback = False
+    notice_msg = None
+
     if req.ai_mode:
+        key = (req.gemini_api_key or os.getenv("GEMINI_API_KEY") or "").strip()
+        if not key:
+            raise HTTPException(
+                status_code=400,
+                detail="Google AI Studio API key not found. Please enter your API key in the 'Google AI Studio API Key' box above (free at aistudio.google.com), or switch to 'Rule-Based Mode (Instant)'."
+            )
+
         try:
             items = enhance_metadata_with_gemini(
                 metadata_items=items,
@@ -938,12 +950,43 @@ def generate_metadata_endpoint(req: MetaGenerateRequest):
                 model_code=m_code,
                 model=req.model,
                 series=req.series,
-                api_key=req.gemini_api_key,
+                api_key=key,
                 generation_id=req.generation_id,
+                fallback_on_error=req.fallback_to_rules,
             )
+            fallback_items = [it for it in items if it.get("ai_notice")]
+            if fallback_items:
+                ai_fallback = True
+                first_notice = fallback_items[0].get("ai_notice", "")
+                notice_msg = f"Google AI Studio Notice: {first_notice}. High-quality descriptions were generated automatically so your catalogue is complete."
         except Exception as e:
             logger.warning("AI generation error: %s", e)
-            raise HTTPException(status_code=400, detail=str(e))
+            clean_err = str(e)
+            if "API key not found" in clean_err or "API_KEY_INVALID" in clean_err or "not valid" in clean_err.lower() or "unauthorized" in clean_err.lower():
+                raise HTTPException(status_code=400, detail=clean_err)
+
+            if req.fallback_to_rules:
+                logger.info("Falling back to rule-based generation after AI error: %s", clean_err)
+                items = generate_catalog_metadata(
+                    rows=rows,
+                    model_columns=model_cols,
+                    brand=req.brand,
+                    model=req.model,
+                    series=req.series,
+                    model_code=m_code,
+                    main_parts_only=req.main_parts_only,
+                    figures=figures,
+                    style=req.style,
+                    custom_templates=req.custom_templates,
+                    blank_descriptions=False,
+                    parts_scope=req.parts_scope,
+                    user_prompt=req.ai_prompt,
+                )
+                ai_fallback = True
+                ai_error_msg = clean_err
+                notice_msg = f"Google AI Studio Notice: {clean_err}. High-quality rule-based descriptions were generated automatically so your export is ready."
+            else:
+                raise HTTPException(status_code=400, detail=clean_err)
 
     # If job_id was provided (e.g. from AutoPipeline), update the job state so exports reflect generated descriptions!
     if req.job_id:
@@ -954,7 +997,14 @@ def generate_metadata_endpoint(req: MetaGenerateRequest):
                 pipe_job.metadata_excel_bytes = export_metadata_excel(items, brand=req.brand, model_columns=model_cols).getvalue()
                 pipe_job.metadata_csv_bytes = export_metadata_csv(items, model_columns=model_cols).getvalue()
 
-    return {"total": len(items), "items": items, "ai_mode": req.ai_mode}
+    return {
+        "total": len(items),
+        "items": items,
+        "ai_mode": req.ai_mode,
+        "ai_fallback": ai_fallback,
+        "ai_error": ai_error_msg,
+        "notice": notice_msg,
+    }
 
 
 @app.post("/api/meta/export")

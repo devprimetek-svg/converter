@@ -367,3 +367,50 @@ def test_enforce_meta_desc_length_produces_unique_variations():
     assert "IndiaSpare" in m2
 
 
+def test_immediate_invalid_api_key_detection():
+    """Verify that an invalid API key error is caught immediately with an actionable message."""
+    from app.gemini_service import discover_supported_models
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 400
+    mock_resp.text = '{"error": {"code": 400, "message": "API key not valid", "status": "INVALID_ARGUMENT", "details": [{"reason": "API_KEY_INVALID"}]}}'
+
+    mock_client = MagicMock()
+    mock_client.get.return_value = mock_resp
+
+    with pytest.raises(ValueError, match="Google AI Studio API key is invalid or unauthorized"):
+        discover_supported_models("bad-api-key-test-999", mock_client)
+
+
+@patch("app.gemini_service.call_gemini_batch")
+def test_enhance_metadata_fallback_on_error(mock_call):
+    """Verify that when call_gemini_batch raises a quota error, fallback_on_error populates rule-based descriptions."""
+    mock_call.side_effect = RuntimeError("Google AI Studio rate limit or quota exceeded across models.")
+
+    items = [
+        {"fig_no": "1", "part_name": "CYLINDER HEAD", "is_parent": True, "brand": "YAMAHA", "model_code": "BGPK"}
+    ]
+
+    enhanced = enhance_metadata_with_gemini(
+        metadata_items=items,
+        api_key="valid-key",
+        brand="YAMAHA",
+        model_code="BGPK",
+        fallback_on_error=True,
+    )
+
+    assert len(enhanced) == 1
+    it = enhanced[0]
+    # Check that descriptions were populated via fallback
+    assert 151 <= len(it["meta_description"]) <= 158
+    assert 120 <= len(it["product_description"].split()) <= 140
+    assert "," not in it["meta_description"]
+    assert "," not in it["product_description"]
+    assert "IndiaSpare" in it["meta_description"]
+    assert "IndiaSpare" in it["product_description"]
+    assert it["ai_generated"] is False
+    assert "ai_notice" in it
+    assert "rule-based fallback" in it["ai_notice"]
+
+
+

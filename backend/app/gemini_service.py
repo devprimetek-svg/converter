@@ -19,6 +19,8 @@ from typing import Any, Optional
 import httpx
 
 from app.meta_generator import (
+    build_meta_description,
+    build_product_description,
     clean_no_commas,
     enforce_meta_desc_length,
     format_india_spare,
@@ -337,7 +339,7 @@ def discover_supported_models(api_key: str, client: httpx.Client) -> list[tuple[
     for api_version in ("v1beta", "v1"):
         try:
             list_url = f"https://generativelanguage.googleapis.com/{api_version}/models?key={api_key}"
-            resp = client.get(list_url, timeout=12.0)
+            resp = client.get(list_url, timeout=8.0)
             if resp.status_code == 200:
                 data = resp.json()
                 for m in data.get("models", []):
@@ -350,6 +352,19 @@ def discover_supported_models(api_key: str, client: httpx.Client) -> list[tuple[
                             if any(sub in n_lower for sub in NON_TEXT_SUBSTRINGS):
                                 continue
                             discovered.append((api_version, m_name))
+            elif resp.status_code in (400, 403):
+                err_text = resp.text
+                if (
+                    "API_KEY_INVALID" in err_text
+                    or "not valid" in err_text.lower()
+                    or "permission_denied" in err_text.lower()
+                    or "key expired" in err_text.lower()
+                ):
+                    raise ValueError(
+                        "Google AI Studio API key is invalid or unauthorized. Please verify your API key at https://aistudio.google.com/app/apikey or switch to Rule-Based Mode."
+                    )
+        except ValueError:
+            raise
         except Exception as e:
             logger.info("ListModels on %s returned: %s", api_version, e)
 
@@ -359,13 +374,13 @@ def discover_supported_models(api_key: str, client: httpx.Client) -> list[tuple[
             ver, name = item
             n = name.lower()
             s = 0
-            # Gemini 2.0 Flash is Google AI Studio's primary production text model with generous free-tier limits
+            # Gemini 2.0 Flash and Flash-Lite are Google AI Studio's fastest production text models
             if "2.0-flash" in n and "lite" not in n:
                 s += 120
-            elif "2.0-flash-lite" in n:
-                s += 115
+            elif "2.0-flash-lite" in n or "flash-lite" in n:
+                s += 118
             elif "2.5-flash" in n:
-                s += 110
+                s += 115
             elif "1.5-flash" in n and ("latest" in n or "002" in n or "001" in n):
                 s += 95
             elif "1.5-flash" in n:
@@ -376,8 +391,6 @@ def discover_supported_models(api_key: str, client: httpx.Client) -> list[tuple[
                 s += 60
             elif "1.5-pro" in n:
                 s += 50
-            elif "pro" in n:
-                s += 40
             elif "gemini" in n:
                 s += 30
 
@@ -390,19 +403,17 @@ def discover_supported_models(api_key: str, client: httpx.Client) -> list[tuple[
         logger.info("Discovered %d models for API key: best is %s", len(sorted_models), sorted_models[0])
         return sorted_models
 
-    # Fallback static candidates if ListModels was not reachable
+    # Fallback static candidates if ListModels was not reachable (prioritizing stable, fast flash models)
     fallbacks = [
         ("v1beta", "models/gemini-2.0-flash"),
         ("v1beta", "models/gemini-2.0-flash-lite"),
+        ("v1beta", "models/gemini-flash-lite-latest"),
         ("v1beta", "models/gemini-2.5-flash"),
         ("v1beta", "models/gemini-1.5-flash-latest"),
         ("v1beta", "models/gemini-1.5-flash-002"),
-        ("v1beta", "models/gemini-1.5-flash-001"),
         ("v1beta", "models/gemini-1.5-flash"),
         ("v1", "models/gemini-2.0-flash"),
         ("v1", "models/gemini-1.5-flash"),
-        ("v1beta", "models/gemini-1.5-pro"),
-        ("v1", "models/gemini-pro"),
     ]
     return fallbacks
 
@@ -431,7 +442,7 @@ def call_gemini_batch(
     )
 
     last_error = None
-    with httpx.Client(timeout=45.0) as client:
+    with httpx.Client(timeout=25.0) as client:
         models_to_try = discover_supported_models(api_key, client)
 
         for api_version, model_identifier in models_to_try:
@@ -469,6 +480,11 @@ def call_gemini_batch(
                             ]
                             return results_map
                 elif resp.status_code in (404, 400):
+                    err_text = resp.text
+                    if "API_KEY_INVALID" in err_text or "not valid" in err_text.lower():
+                        raise ValueError(
+                            "Google AI Studio API key is invalid or unauthorized. Please verify your API key at https://aistudio.google.com/app/apikey or switch to Rule-Based Mode."
+                        )
                     last_error = f"{clean_path} ({api_version}) HTTP {resp.status_code}: {resp.text}"
                     logger.info("Model %s returned %s, trying next...", clean_path, resp.status_code)
                     continue
@@ -489,6 +505,8 @@ def call_gemini_batch(
                     last_error = f"{clean_path} ({api_version}) HTTP {resp.status_code}: {resp.text}"
                     logger.warning("Gemini API call failed (%s): %s", resp.status_code, resp.text)
                     continue
+            except ValueError:
+                raise
             except Exception as e:
                 last_error = str(e)
                 logger.warning("Gemini request exception with %s: %s", clean_path, e)
@@ -510,8 +528,9 @@ def enhance_metadata_with_gemini(
     model: str = "",
     series: str = "series",
     api_key: Optional[str] = None,
-    batch_size: int = 15,
+    batch_size: int = 8,
     generation_id: Optional[str] = None,
+    fallback_on_error: bool = True,
 ) -> list[dict[str, Any]]:
     """Process a list of metadata items through Gemini AI Studio, then enforce all strict constraints:
     - 151-158 characters for meta description
@@ -580,8 +599,42 @@ def enhance_metadata_with_gemini(
                 seed=batch_seed,
             )
         except Exception as e:
-            logger.error("Failed to generate AI batch: %s. Preserving rule-based metadata.", e)
-            raise e
+            logger.error("Failed to generate AI batch %d: %s.", idx, e)
+            if not fallback_on_error:
+                raise e
+            err_str = str(e)
+            if "API key not valid" in err_str or "API_KEY_INVALID" in err_str or "not found" in err_str.lower() or "invalid or unauthorized" in err_str.lower():
+                raise e
+            # Graceful fallback: for items in this batch, populate rule-based descriptions
+            # so the user is never stuck with blank descriptions or failed screen!
+            logger.warning("Using rule-based fallback for batch %d: %s", idx, err_str)
+            for it_idx, it in enumerate(batch):
+                item_seed = (batch_seed + it_idx * 7919) % 2147483647
+                p_name = str(it.get("parent_fig_name") or it.get("part_name", "") or it.get("description", "") or "PARTS ASSEMBLY")
+                r_meta = build_meta_description(
+                    brand=brand,
+                    model_code=model_code,
+                    part_name=p_name,
+                    model=model,
+                    series=series,
+                    seed=item_seed,
+                )
+                r_prod = build_product_description(
+                    brand=brand,
+                    model_code=model_code,
+                    part_name=p_name,
+                    model=model,
+                    series=series,
+                )
+                it["meta_description"] = r_meta
+                it["meta_long_description"] = r_meta
+                it["meta_desc_chars"] = len(r_meta)
+                it["long_desc_length"] = len(r_meta)
+                it["product_description"] = r_prod
+                it["product_desc_words"] = len(r_prod.split())
+                it["ai_generated"] = False
+                it["ai_notice"] = f"Generated via rule-based fallback ({err_str[:120]})"
+            continue
 
         # Post-process every item in this batch with strict mathematical validation
         for it_idx, it in enumerate(batch):
