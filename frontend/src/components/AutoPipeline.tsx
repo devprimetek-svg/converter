@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   UploadCloud,
   FileSpreadsheet,
@@ -48,10 +48,18 @@ interface PipelineStatus {
     size_bytes: number;
     fig_no?: string;
     fig_name?: string;
+    models?: string[];
   }>;
   rows_sample: Array<Record<string, any>>;
   rows?: Array<Record<string, any>>;
   figures?: Array<{ fig_no: string; fig_name: string; first_page?: number }>;
+  model_folders?: Array<{
+    model_code: string;
+    parts_count: number;
+    excel_filename: string;
+    zip_filename: string;
+    images_count: number;
+  }>;
   error?: string;
 }
 
@@ -92,6 +100,13 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta }) =
   const [status, setStatus] = useState<PipelineStatus | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeResultTab, setActiveResultTab] = useState<'images' | 'parts'>('images');
+  const [selectedModelFilter, setSelectedModelFilter] = useState<string>('ALL');
+
+  const visibleThumbnails = useMemo(() => {
+    if (!status?.processed_thumbnails) return [];
+    if (selectedModelFilter === 'ALL') return status.processed_thumbnails;
+    return status.processed_thumbnails.filter((t) => !t.models || t.models.includes(selectedModelFilter));
+  }, [status?.processed_thumbnails, selectedModelFilter]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -231,6 +246,16 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta }) =
   const downloadExcelOnly = () => {
     if (!status?.job_id) return;
     window.location.href = `/api/pipeline/download-excel/${status.job_id}`;
+  };
+
+  const downloadModelZip = (model: string) => {
+    if (!status?.job_id) return;
+    window.location.href = `/api/pipeline/download/${status.job_id}?model=${encodeURIComponent(model)}`;
+  };
+
+  const downloadModelExcel = (model: string) => {
+    if (!status?.job_id) return;
+    window.location.href = `/api/pipeline/download-excel/${status.job_id}?model=${encodeURIComponent(model)}`;
   };
 
   const handleReset = () => {
@@ -688,6 +713,11 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta }) =
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   onClick={downloadMasterZip}
+                  title={
+                    status.model_columns && status.model_columns.length >= 2
+                      ? `Master ZIP contains separate folders: ${status.model_columns.join(', ')}`
+                      : 'Download Master ZIP'
+                  }
                   className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-full bg-black hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-zinc-200 dark:text-black font-bold text-sm uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer"
                 >
                   <Download className="w-4 h-4 text-white dark:text-black" />
@@ -726,6 +756,53 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta }) =
                 </button>
               </div>
             </div>
+
+            {/* Multiple Models Detected Banner */}
+            {status.model_columns && status.model_columns.length >= 2 && (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-900/50 text-xs space-y-3">
+                <div className="flex items-center gap-2 font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                  <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span>{status.model_columns.length} Model Codes Detected • Extracted into Separate Folders</span>
+                </div>
+                <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                  This catalogue covers multiple model codes. The Master ZIP bundle automatically compiles individual standalone folders with dedicated Excel workbooks and diagrams for each model:
+                </p>
+                <div className="flex flex-wrap gap-2.5 pt-1">
+                  {status.model_columns.map((m) => {
+                    const folderInfo = status.model_folders?.find((f) => f.model_code === m);
+                    return (
+                      <div
+                        key={m}
+                        className="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-800 font-mono text-xs shadow-xs"
+                      >
+                        <span className="font-bold text-blue-600 dark:text-blue-400 font-mono text-xs">{m}/</span>
+                        {folderInfo && (
+                          <span className="text-[11px] text-zinc-500 font-sans">
+                            ({folderInfo.parts_count} parts • {folderInfo.images_count} diagrams)
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => downloadModelExcel(m)}
+                          className="px-2 py-1 rounded-md bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 text-[10px] font-bold text-zinc-800 dark:text-zinc-200 cursor-pointer"
+                          title={`Download ${m} Excel sheet only`}
+                        >
+                          Excel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => downloadModelZip(m)}
+                          className="px-2 py-1 rounded-md bg-black hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-zinc-200 dark:text-black text-[10px] font-bold cursor-pointer"
+                          title={`Download ${m} standalone ZIP folder`}
+                        >
+                          ZIP
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Quick Metrics */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-zinc-200 dark:border-zinc-800/80 font-mono text-xs">
@@ -777,9 +854,44 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta }) =
           {/* Processed Images Gallery Tab */}
           {activeResultTab === 'images' && (
             <div className="space-y-4 animate-in fade-in duration-150">
-              {status.processed_thumbnails && status.processed_thumbnails.length > 0 ? (
+              {/* Filter by Model if multiple models exist */}
+              {status.model_columns && status.model_columns.length >= 2 && (
+                <div className="flex items-center gap-2 pb-1 overflow-x-auto">
+                  <span className="text-xs font-mono uppercase text-zinc-500 font-semibold mr-1 shrink-0">Filter Diagrams:</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedModelFilter('ALL')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold font-mono transition-all cursor-pointer ${
+                      selectedModelFilter === 'ALL'
+                        ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs font-bold'
+                        : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+                    }`}
+                  >
+                    All Diagrams ({status.processed_thumbnails?.length || 0})
+                  </button>
+                  {status.model_columns.map((m) => {
+                    const count = status.processed_thumbnails?.filter((t) => !t.models || t.models.includes(m)).length || 0;
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setSelectedModelFilter(m)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold font-mono transition-all cursor-pointer ${
+                          selectedModelFilter === m
+                            ? 'bg-blue-600 text-white shadow-xs font-bold'
+                            : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+                        }`}
+                      >
+                        {m} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {visibleThumbnails && visibleThumbnails.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                  {status.processed_thumbnails.map((img) => (
+                  {visibleThumbnails.map((img) => (
                     <div
                       key={img.id}
                       className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 overflow-hidden shadow-sm hover:border-zinc-400 dark:hover:border-zinc-700 transition-all group"
@@ -802,23 +914,37 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta }) =
                           </span>
                         )}
                       </div>
-                      <div className="p-3">
+                      <div className="p-3 space-y-1">
                         <p className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate" title={img.filename}>
                           {img.filename}
                         </p>
-                        <p className="text-[11px] text-zinc-500 mt-0.5 flex items-center justify-between">
+                        <div className="flex items-center justify-between text-[11px] text-zinc-500">
                           <span>Page {img.page}</span>
                           <span className="font-mono text-emerald-600 dark:text-emerald-400 font-semibold bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 text-[10px]">
                             {formatBytes(img.size_bytes)}
                           </span>
-                        </p>
+                        </div>
+                        {img.models && img.models.length > 0 && status.model_columns && status.model_columns.length >= 2 && (
+                          <div className="flex flex-wrap gap-1 pt-0.5">
+                            {img.models.map((m) => (
+                              <span
+                                key={m}
+                                className="px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900 text-[9px] font-mono font-bold"
+                              >
+                                {m}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
                 <div className="p-8 text-center bg-white dark:bg-zinc-950 rounded-2xl border border-zinc-200 dark:border-zinc-800 text-zinc-500 text-xs">
-                  No images were embedded in this PDF. The Excel parts workbook has been bundled into the Master ZIP archive.
+                  {selectedModelFilter !== 'ALL'
+                    ? `No diagrams found specifically mapped to model ${selectedModelFilter}.`
+                    : 'No images were embedded in this PDF. The Excel parts workbook has been bundled into the Master ZIP archive.'}
                 </div>
               )}
             </div>
@@ -827,17 +953,30 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta }) =
           {/* Parts Sample Table Tab */}
           {activeResultTab === 'parts' && (
             <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3 animate-in fade-in duration-150">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <h4 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
                   Parts Extracted Sample (First {status.rows_sample?.length || 0} of {status.total_rows})
                 </h4>
-                <button
-                  onClick={downloadExcelOnly}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Download Full Excel ({status.total_rows} rows)
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={downloadExcelOnly}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white transition-colors cursor-pointer border border-zinc-200 dark:border-zinc-800 font-mono"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Master Excel
+                  </button>
+                  {status.model_columns && status.model_columns.length >= 2 && status.model_columns.map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => downloadModelExcel(m)}
+                      className="inline-flex items-center gap-1 text-xs font-mono font-semibold px-2.5 py-1.5 rounded-lg bg-white dark:bg-zinc-900 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 cursor-pointer shadow-xs"
+                      title={`Download Excel filtered specifically for model ${m}`}
+                    >
+                      <FileSpreadsheet className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                      {m} Excel
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">

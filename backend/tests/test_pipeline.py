@@ -308,3 +308,167 @@ def test_parts_only_deduplication_and_figure_naming():
         im = Image.open(io.BytesIO(raw_data))
         assert im.size == (1000, 1200)
 
+
+def _create_synthetic_multi_model_pdf() -> io.BytesIO:
+    """Generate a PDF with two vertical model columns: BGP1 and BGP2."""
+    img = Image.new("RGB", (200, 150), color=(50, 120, 200))
+    img_buf = io.BytesIO()
+    img.save(img_buf, format="JPEG")
+    img_buf.seek(0)
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=(842, 595))  # Landscape A4
+
+    # Page 1: Cover
+    c.drawString(100, 500, "PARTS CATALOGUE")
+    c.showPage()
+
+    # Page 2: Figure 1 with 2 Model Columns: BGP1 and BGP2
+    c.drawString(50, 550, "FIG. 1 CYLINDER HEAD")
+    c.drawString(50, 520, "REF.")
+    c.drawString(50, 510, "NO.")
+    c.drawString(120, 520, "PART NO.")
+    c.drawString(240, 520, "DESCRIPTION")
+
+    # Vertical model code 1: BGP1
+    c.drawString(500, 540, "1")
+    c.drawString(500, 533, "P")
+    c.drawString(500, 526, "G")
+    c.drawString(500, 519, "B")
+
+    # Vertical model code 2: BGP2
+    c.drawString(530, 540, "2")
+    c.drawString(530, 533, "P")
+    c.drawString(530, 526, "G")
+    c.drawString(530, 519, "B")
+
+    c.drawString(600, 520, "REMARKS")
+
+    # Row 1: Common to both BGP1 and BGP2
+    c.drawString(50, 490, "1")
+    c.drawString(120, 490, "B7J-E1102-00")
+    c.drawString(240, 490, "CYLINDER HEAD ASSY")
+    c.drawString(500, 490, "1")
+    c.drawString(530, 490, "1")
+
+    # Row 2: BGP1 only
+    c.drawString(50, 470, "2")
+    c.drawString(120, 470, "95022-06010")
+    c.drawString(240, 470, "BOLT, FLANGE")
+    c.drawString(500, 470, "1")
+
+    # Row 3: BGP2 only
+    c.drawString(50, 450, "3")
+    c.drawString(120, 450, "90430-06817")
+    c.drawString(240, 450, "GASKET")
+    c.drawString(530, 450, "2")
+
+    c.drawImage(ImageReader(img_buf), 620, 300, width=150, height=120)
+    c.drawString(420, 30, "1")
+    c.showPage()
+    c.save()
+    buf.seek(0)
+    return buf
+
+
+def test_pipeline_multi_model_separate_folders():
+    """Verify that when a PDF contains multiple model codes (e.g. BGP1 and BGP2):
+    1. Two separate folders (BGP1/ and BGP2/) are produced inside the Master ZIP archive.
+    2. Each model folder contains its dedicated model-specific Excel sheet.
+    3. Each model folder contains its own images/ directory with YAM_{model}_... diagrams.
+    4. Individual downloads via API (?model=BGP1) work correctly.
+    """
+    pdf_buf = _create_synthetic_multi_model_pdf()
+    pdf_bytes = pdf_buf.getvalue()
+
+    job = pipeline_manager.create_job("Synthetic_Multi_Model.pdf")
+
+    wm_config = {
+        "text": "INDIA SPARE",
+        "angle": -30.0,
+        "padding": 115,
+        "size_pct": 25,
+        "opacity": 0.10,
+        "color": "#1E3A8A",
+        "is_tiled": True,
+    }
+
+    resize_config = {
+        "width": 1000,
+        "height": 1200,
+        "quality": 100,
+    }
+
+    run_pipeline_worker(
+        job=job,
+        pdf_bytes=pdf_bytes,
+        watermark_config=wm_config,
+        resize_config=resize_config,
+        clean_parts=True,
+    )
+
+    assert job.status == "completed", f"Job failed: {job.error}"
+    assert "BGP1" in job.model_columns
+    assert "BGP2" in job.model_columns
+    assert len(job.model_columns) == 2
+
+    # Verify model_data contains both models
+    assert "BGP1" in job.model_data
+    assert "BGP2" in job.model_data
+
+    # Inspect the Master ZIP package
+    zf = zipfile.ZipFile(io.BytesIO(job.zip_bytes))
+    filenames = zf.namelist()
+
+    # 1. BGP1 folder checks
+    assert any(f.startswith("BGP1/") for f in filenames), f"BGP1/ folder missing in {filenames}"
+    assert "BGP1/Synthetic_Multi_Model_BGP1_Parts.xlsx" in filenames
+    assert "BGP1/images/YAM_BGP1_CYLINDER HEAD.jpeg" in filenames
+
+    # Verify BGP1 Excel content (Row 1 and Row 2 have BGP1 quantity; Row 3 has None/blank)
+    bgp1_excel = zf.read("BGP1/Synthetic_Multi_Model_BGP1_Parts.xlsx")
+    wb_bgp1 = openpyxl.load_workbook(io.BytesIO(bgp1_excel))
+    ws_bgp1 = wb_bgp1.active
+    bgp1_cells = [str(c.value) for row in ws_bgp1.iter_rows() for c in row if c.value is not None]
+    assert any("CYLINDER HEAD ASSY" in c for c in bgp1_cells)
+    assert any("BOLT, FLANGE" in c for c in bgp1_cells)
+    # GASKET had quantity only for BGP2, so must be excluded from BGP1 sheet!
+    assert not any("GASKET" in c for c in bgp1_cells)
+
+    # 2. BGP2 folder checks
+    assert any(f.startswith("BGP2/") for f in filenames), f"BGP2/ folder missing in {filenames}"
+    assert "BGP2/Synthetic_Multi_Model_BGP2_Parts.xlsx" in filenames
+    assert "BGP2/images/YAM_BGP2_CYLINDER HEAD.jpeg" in filenames
+
+    # Verify BGP2 Excel content (Row 1 and Row 3 have BGP2 quantity; Row 2 has None/blank)
+    bgp2_excel = zf.read("BGP2/Synthetic_Multi_Model_BGP2_Parts.xlsx")
+    wb_bgp2 = openpyxl.load_workbook(io.BytesIO(bgp2_excel))
+    ws_bgp2 = wb_bgp2.active
+    bgp2_cells = [str(c.value) for row in ws_bgp2.iter_rows() for c in row if c.value is not None]
+    assert any("CYLINDER HEAD ASSY" in c for c in bgp2_cells)
+    assert any("GASKET" in c for c in bgp2_cells)
+    # BOLT, FLANGE had quantity only for BGP1, so must be excluded from BGP2 sheet!
+    assert not any("BOLT, FLANGE" in c for c in bgp2_cells)
+
+    # 3. Root files check
+    assert "Synthetic_Multi_Model_All_Models_Parts.xlsx" in filenames
+    assert "PROCESSING_SUMMARY.txt" in filenames
+
+    # 4. to_dict payload checks
+    payload = job.to_dict()
+    assert len(payload["model_folders"]) == 2
+    bgp1_folder = next(f for f in payload["model_folders"] if f["model_code"] == "BGP1")
+    assert bgp1_folder["parts_count"] == 2
+    assert bgp1_folder["images_count"] >= 1
+
+    # 5. Test individual API downloads with ?model= parameter
+    dl_bgp1 = client.get(f"/api/pipeline/download/{job.job_id}?model=BGP1")
+    assert dl_bgp1.status_code == 200
+    assert dl_bgp1.headers["content-type"] == "application/zip"
+    assert "BGP1_Bundle.zip" in dl_bgp1.headers.get("content-disposition", "")
+
+    excel_bgp1 = client.get(f"/api/pipeline/download-excel/{job.job_id}?model=BGP1")
+    assert excel_bgp1.status_code == 200
+    assert "BGP1_Parts.xlsx" in excel_bgp1.headers.get("content-disposition", "")
+
+

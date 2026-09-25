@@ -714,13 +714,24 @@ def get_pipeline_status_endpoint(job_id: str):
 
 
 @app.get("/api/pipeline/download/{job_id}")
-def download_pipeline_bundle(job_id: str):
-    """Download the complete Master ZIP bundle (Excel + processed images)."""
+def download_pipeline_bundle(job_id: str, model: Optional[str] = None):
+    """Download the complete Master ZIP bundle (Excel + processed images) or a specific model bundle."""
     job = pipeline_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
     if job.status != "completed" or not job.zip_bytes:
         raise HTTPException(status_code=400, detail="Pipeline job is not ready for download.")
+
+    if model and model.strip().upper() in job.model_data:
+        m_data = job.model_data[model.strip().upper()]
+        return StreamingResponse(
+            io.BytesIO(m_data["zip_bytes"]),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{m_data["zip_filename"]}"',
+                "Access-Control-Expose-Headers": "Content-Disposition",
+            },
+        )
 
     return StreamingResponse(
         io.BytesIO(job.zip_bytes),
@@ -733,13 +744,24 @@ def download_pipeline_bundle(job_id: str):
 
 
 @app.get("/api/pipeline/download-excel/{job_id}")
-def download_pipeline_excel(job_id: str):
-    """Download just the generated Excel spreadsheet from the pipeline."""
+def download_pipeline_excel(job_id: str, model: Optional[str] = None):
+    """Download just the generated Excel spreadsheet from the pipeline (all models or specific model)."""
     job = pipeline_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
     if not job.excel_bytes:
         raise HTTPException(status_code=400, detail="Excel workbook not ready.")
+
+    if model and model.strip().upper() in job.model_data:
+        m_data = job.model_data[model.strip().upper()]
+        return StreamingResponse(
+            io.BytesIO(m_data["excel_bytes"]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f'attachment; filename="{m_data["excel_filename"]}"',
+                "Access-Control-Expose-Headers": "Content-Disposition",
+            },
+        )
 
     return StreamingResponse(
         io.BytesIO(job.excel_bytes),
