@@ -40,6 +40,7 @@ export interface PartMetadataItem {
   product_desc_words?: number;
   remarks?: string;
   ai_generated?: boolean;
+  ai_analysis?: string;
   [key: string]: any;
 }
 

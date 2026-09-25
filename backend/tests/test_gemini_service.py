@@ -210,3 +210,89 @@ def test_enhance_metadata_with_gemini_multibatch(mock_sleep, mock_call):
     assert mock_sleep.call_count == 1
     mock_sleep.assert_called_with(1.5)
 
+
+def test_build_gemini_payload_dual_records():
+    """Verify _build_gemini_payload builds both extracted catalogue and SEO metadata records for dual analysis."""
+    from app.gemini_service import _build_gemini_payload
+
+    items = [
+        {
+            "page": 7,
+            "fig_no": "1",
+            "part_name": "CYLINDER HEAD",
+            "ref_no": "1",
+            "part_no": "BGP-E1111-00",
+            "clean_part_no": "BGPE111100",
+            "BGPK": "1",
+            "BGPL": "2",
+            "remarks": "UR FOR VRC1",
+            "image_filename": "YAM_BGPK_CYLINDER HEAD.jpeg",
+            "product_title": "YAMAHA BGPK RAY ZR CYLINDER HEAD",
+            "meta_title": "Yamaha Ray Zr BGPK Cylinder Head | IndiaSpare",
+        }
+    ]
+
+    payload = _build_gemini_payload(
+        items=items,
+        user_prompt="Custom prompt testing dual records",
+        brand="YAMAHA",
+        model_code="BGPK",
+        model="RAY ZR",
+        series="STREET RALLY",
+    )
+
+    system_instruction = payload["system_instruction"]["parts"][0]["text"]
+    assert "DUAL-RECORD ARCHITECTURE" in system_instruction
+    assert "extracted_parts_catalogue_record" in system_instruction
+    assert "seo_metadata_record" in system_instruction
+    assert "MANDATORY TWO-STEP PROCEDURE" in system_instruction
+    assert "DUAL-RECORD ANALYSIS" in system_instruction
+
+    prompt_text = payload["contents"][0]["parts"][0]["text"]
+    assert "MANDATORY INSTRUCTION: You must analyze BOTH Excel records" in prompt_text
+    assert '"extracted_parts_catalogue_record"' in prompt_text
+    assert '"seo_metadata_record"' in prompt_text
+    assert '"BGP-E1111-00"' in prompt_text
+    assert '"BGPE111100"' in prompt_text
+    assert '"BGPK": "1"' in prompt_text
+    assert '"BGPL": "2"' in prompt_text
+    assert '"analysis":' in prompt_text
+
+
+@patch("app.gemini_service.call_gemini_batch")
+def test_enhance_metadata_captures_ai_analysis(mock_call):
+    """Verify enhance_metadata_with_gemini correctly captures and formats the AI dual-record analysis."""
+    mock_call.return_value = {
+        "1": {
+            "analysis": "Analyzed Record 1 (CYLINDER HEAD BGP-E1111-00) and Record 2 (YAMAHA BGPK). Genuine Yamaha OEM factory casting from IndiaSpare.",
+            "meta_description": "buy authentic yamaha bgpk ray zr cylinder head genuine oem spare parts diagram from indiaspare with verified vehicle fitment today.",
+            "product_description": "This authentic Yamaha BGPK Ray ZR cylinder head is engineered to official factory specifications from IndiaSpare. " * 6,
+        }
+    }
+
+    raw_items = [
+        {
+            "fig_no": "1",
+            "part_name": "CYLINDER HEAD",
+            "brand": "YAMAHA",
+            "model_code": "BGPK",
+            "model": "RAY ZR",
+            "series": "SERIES",
+            "product_title": "YAMAHA BGPK RAY ZR SERIES CYLINDER HEAD",
+            "meta_title": "Yamaha Ray Zr Series BGPK Cylinder Head | IndiaSpare",
+        }
+    ]
+
+    enhanced = enhance_metadata_with_gemini(
+        metadata_items=raw_items,
+        api_key="test-key",
+    )
+
+    assert len(enhanced) == 1
+    item = enhanced[0]
+    assert "ai_analysis" in item
+    assert "IndiaSpare" in item["ai_analysis"]
+    assert "," not in item["ai_analysis"]
+    assert "Analyzed Record 1" in item["ai_analysis"]
+    assert item["ai_generated"] is True
+

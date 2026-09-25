@@ -692,6 +692,12 @@ def export_metadata_excel(
         ("Product Desc Words", "product_desc_words", center_align, 16),
     ])
 
+    has_ai_analysis = any(bool(r.get("ai_analysis")) for r in meta_rows) or (
+        selected_columns and any("analysis" in str(s).lower() for s in selected_columns)
+    )
+    if has_ai_analysis:
+        headers.append(("AI Dual-Record Analysis", "ai_analysis", wrap_left_align, 60))
+
     # Column Selection Filter: if provided and not empty, filter headers
     if selected_columns and len(selected_columns) > 0:
         sel_set = set(selected_columns)
@@ -844,6 +850,12 @@ def export_metadata_csv(
         ("Product Description (120-140 Words)", "product_description"),
         ("Product Desc Words", "product_desc_words"),
     ])
+
+    has_ai_analysis = any(bool(r.get("ai_analysis")) for r in meta_rows) or (
+        selected_columns and any("analysis" in str(s).lower() for s in selected_columns)
+    )
+    if has_ai_analysis:
+        col_defs.append(("AI Dual-Record Analysis", "ai_analysis"))
 
     # Column Selection Filter: if provided and not empty, filter col_defs
     if selected_columns and len(selected_columns) > 0:

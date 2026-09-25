@@ -180,6 +180,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
       'Meta Desc Chars',
       'Product Description (120-140 Words)',
       'Product Desc Words',
+      'AI Dual-Record Analysis',
     ];
 
     return [...catalogueCols, ...metaCols];
@@ -450,7 +451,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
               )}
             </div>
             <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-              Extracts main parts with Short Description and Meta Title. Meta Description & Product Description remain blank during scan. Enter prompt below and click "Generate with Gemini AI", then Export Excel.
+              Extracts main parts with Short Description and Meta Title. Meta Description &amp; Product Description remain blank during scan. Gemini AI analyzes both Extracted Parts Catalogue Excel records and SEO Metadata records before generating descriptions. Enter prompt below, click "Generate with Gemini AI", then Export Excel.
             </p>
           </div>
 
@@ -862,7 +863,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
             {/* Generate with AI Button */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
               <div className="text-[11px] text-zinc-500 font-mono">
-                Auto-enforces: 151–158 chars (Meta Desc) • 120–140 words (Prod Desc) • zero commas • IndiaSpare casing.
+                Two-Step AI Protocol: Analyzes Extracted Catalogue &amp; SEO Excel records first • Enforces 151–158 chars (Meta Desc) • 120–140 words (Prod Desc) • zero commas • IndiaSpare.
               </div>
               <button
                 type="button"
@@ -1120,6 +1121,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                       const itemKey = `${item.fig_no}_${item.part_name || item.description}_${idx}`;
                       const isExpandedMeta = expandedItemKey === `meta_${itemKey}`;
                       const isExpandedProd = expandedItemKey === `prod_${itemKey}`;
+                      const isExpandedAnalysis = expandedItemKey === `analysis_${itemKey}`;
                       const metaDesc = item.meta_description || item.meta_long_description || '';
                       const metaChars = item.meta_desc_chars || metaDesc.length;
                       const prodDesc = item.product_description || '';
@@ -1161,6 +1163,18 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                   <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                                     <Sparkles className="w-2.5 h-2.5" /> AI
                                   </span>
+                                )}
+                                {item.ai_analysis && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedItemKey(isExpandedAnalysis ? null : `analysis_${itemKey}`)}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors cursor-pointer"
+                                    title="View Gemini AI Dual-Record Analysis"
+                                  >
+                                    <Sparkles className="w-2.5 h-2.5" />
+                                    <span>Analysis</span>
+                                    {isExpandedAnalysis ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
+                                  </button>
                                 )}
                               </div>
                             </td>
@@ -1270,6 +1284,31 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                             </td>
                           </tr>
 
+                          {/* Expanded AI Dual-Record Analysis */}
+                          {isExpandedAnalysis && (
+                            <tr className="bg-indigo-50/50 dark:bg-indigo-950/30 border-y border-indigo-200 dark:border-indigo-800">
+                              <td colSpan={11 + models.length} className="p-3.5 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold font-mono text-indigo-900 dark:text-indigo-200 uppercase tracking-wider flex items-center gap-1.5">
+                                      <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                                      Gemini AI Dual-Record Analysis (Extracted Parts Catalogue + SEO Records)
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() => copyToClipboard(item.ai_analysis || '', `analysis_${itemKey}`)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                                  >
+                                    {copiedId === `analysis_${itemKey}` ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy Analysis</>}
+                                  </button>
+                                </div>
+                                <div className="p-3 rounded-xl bg-white dark:bg-black border border-indigo-200 dark:border-indigo-800 text-xs font-sans leading-relaxed text-indigo-950 dark:text-indigo-200">
+                                  {item.ai_analysis}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+
                           {/* Expanded Meta Description */}
                           {isExpandedMeta && (
                             <tr className="bg-zinc-50 dark:bg-zinc-900/60 border-y border-zinc-200 dark:border-zinc-800">
@@ -1290,6 +1329,14 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                     {copiedId === `meta_desc_${itemKey}` ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy Meta Desc</>}
                                   </button>
                                 </div>
+                                {item.ai_analysis && (
+                                  <div className="p-2.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-900 text-xs text-indigo-950 dark:text-indigo-200">
+                                    <span className="font-bold font-mono text-[10px] uppercase text-indigo-700 dark:text-indigo-400 block mb-0.5">
+                                      🔍 Gemini AI Dual-Record Analysis Grounding:
+                                    </span>
+                                    <span>{item.ai_analysis}</span>
+                                  </div>
+                                )}
                                 <div className="p-3 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 text-xs font-sans text-zinc-800 dark:text-zinc-200">
                                   {metaDesc}
                                 </div>
@@ -1317,6 +1364,14 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                     {copiedId === `prod_desc_${itemKey}` ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy Product Desc</>}
                                   </button>
                                 </div>
+                                {item.ai_analysis && (
+                                  <div className="p-2.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-900 text-xs text-indigo-950 dark:text-indigo-200">
+                                    <span className="font-bold font-mono text-[10px] uppercase text-indigo-700 dark:text-indigo-400 block mb-0.5">
+                                      🔍 Gemini AI Dual-Record Analysis Grounding:
+                                    </span>
+                                    <span>{item.ai_analysis}</span>
+                                  </div>
+                                )}
                                 <div className="p-3 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 text-xs font-sans leading-relaxed text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">
                                   {prodDesc}
                                 </div>
@@ -1415,6 +1470,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                       const itemKey = `${item.fig_no}_${item.part_name || item.description}_${idx}`;
                       const isExpandedMeta = expandedItemKey === `meta_${itemKey}`;
                       const isExpandedProd = expandedItemKey === `prod_${itemKey}`;
+                      const isExpandedAnalysis = expandedItemKey === `analysis_${itemKey}`;
                       const metaDesc = item.meta_description || item.meta_long_description || '';
                       const metaChars = item.meta_desc_chars || metaDesc.length;
                       const prodDesc = item.product_description || '';
@@ -1441,6 +1497,18 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
                                     <Sparkles className="w-2.5 h-2.5" /> AI
                                   </span>
+                                )}
+                                {item.ai_analysis && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedItemKey(isExpandedAnalysis ? null : `analysis_${itemKey}`)}
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors cursor-pointer"
+                                    title="View Gemini AI Dual-Record Analysis"
+                                  >
+                                    <Sparkles className="w-2.5 h-2.5" />
+                                    <span>Analysis</span>
+                                    {isExpandedAnalysis ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
+                                  </button>
                                 )}
                               </div>
                               <div className="text-[10px] text-zinc-500 font-mono mt-0.5">
@@ -1543,6 +1611,31 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                             </td>
                           </tr>
 
+                          {/* Expanded AI Dual-Record Analysis */}
+                          {isExpandedAnalysis && (
+                            <tr className="bg-indigo-50/50 dark:bg-indigo-950/30 border-y border-indigo-200 dark:border-indigo-800">
+                              <td colSpan={7} className="p-4 sm:p-5 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold font-mono text-indigo-900 dark:text-indigo-200 uppercase tracking-wider flex items-center gap-1.5">
+                                      <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                                      Gemini AI Dual-Record Analysis (Extracted Parts Catalogue + SEO Records)
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() => copyToClipboard(item.ai_analysis || '', `analysis_${itemKey}`)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                                  >
+                                    {copiedId === `analysis_${itemKey}` ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy Analysis</>}
+                                  </button>
+                                </div>
+                                <div className="p-3.5 rounded-xl bg-white dark:bg-black border border-indigo-200 dark:border-indigo-800 text-xs font-sans text-indigo-950 dark:text-indigo-200 leading-relaxed">
+                                  {item.ai_analysis}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+
                           {/* Expanded Meta Description */}
                           {isExpandedMeta && (
                             <tr className="bg-zinc-50 dark:bg-zinc-900/60 border-y border-zinc-200 dark:border-zinc-800">
@@ -1563,6 +1656,14 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                     {copiedId === `meta_desc_${itemKey}` ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Copied Meta Desc!</> : <><Copy className="w-3.5 h-3.5" /> Copy Meta Desc</>}
                                   </button>
                                 </div>
+                                {item.ai_analysis && (
+                                  <div className="p-2.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-900 text-xs text-indigo-950 dark:text-indigo-200">
+                                    <span className="font-bold font-mono text-[10px] uppercase text-indigo-700 dark:text-indigo-400 block mb-0.5">
+                                      🔍 Gemini AI Dual-Record Analysis Grounding:
+                                    </span>
+                                    <span>{item.ai_analysis}</span>
+                                  </div>
+                                )}
                                 <div className="p-3.5 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 text-xs font-sans text-zinc-800 dark:text-zinc-200">
                                   {metaDesc}
                                 </div>
@@ -1590,6 +1691,14 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                     {copiedId === `prod_desc_${itemKey}` ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Copied Product Desc!</> : <><Copy className="w-3.5 h-3.5" /> Copy Product Desc</>}
                                   </button>
                                 </div>
+                                {item.ai_analysis && (
+                                  <div className="p-2.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-900 text-xs text-indigo-950 dark:text-indigo-200">
+                                    <span className="font-bold font-mono text-[10px] uppercase text-indigo-700 dark:text-indigo-400 block mb-0.5">
+                                      🔍 Gemini AI Dual-Record Analysis Grounding:
+                                    </span>
+                                    <span>{item.ai_analysis}</span>
+                                  </div>
+                                )}
                                 <div className="p-3.5 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 text-xs font-sans leading-relaxed text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">
                                   {prodDesc}
                                 </div>

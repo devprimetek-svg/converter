@@ -22,6 +22,7 @@ from app.meta_generator import (
     enforce_meta_desc_length,
     format_india_spare,
 )
+from app.parts_extractor import clean_part_number
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +34,9 @@ GEMINI_MODELS = [
 ]
 
 DEFAULT_AI_PROMPT = (
-    "Generate authentic eCommerce descriptions for IndiaSpare parts catalogue. "
-    "Emphasize genuine OEM factory specifications, precision dimensional fitment, "
+    "Analyze both the Extracted Parts Catalogue Excel record and SEO Metadata record for each component. "
+    "Evaluate OEM part numbers, clean part numbers, assembly diagram context, model quantities, and remarks alongside vehicle branding. "
+    "Generate authentic eCommerce descriptions emphasizing OEM factory specifications, precision dimensional fitment, "
     "high heat and stress resistance, long-term road safety, and IndiaSpare verified quality guarantee."
 )
 
@@ -120,43 +122,96 @@ def _build_gemini_payload(
     model: str,
     series: str,
 ) -> dict[str, Any]:
-    """Build the JSON request payload for Google AI Studio generateContent endpoint."""
+    """Build the JSON request payload for Google AI Studio generateContent endpoint,
+    bundling both the Extracted Parts Catalogue Record and SEO Metadata Record for dual-record analysis.
+    """
     system_instruction = (
-        "You are an expert automotive parts copywriter for 'IndiaSpare', an authentic OEM spare parts supplier in India. "
-        "Your task is to generate unique, high-quality, professional eCommerce descriptions for motorcycle and scooter parts. "
+        "You are an expert automotive parts engineer and eCommerce copywriter for 'IndiaSpare', "
+        "an authentic OEM motorcycle and scooter spare parts supplier in India.\n\n"
+        "DUAL-RECORD ARCHITECTURE:\n"
+        "For each part assembly, you are provided with TWO distinct Excel records:\n"
+        "1. 'extracted_parts_catalogue_record': Contains raw extracted engineering catalogue data "
+        "(page, fig_no, catalog_name, ref_no, OEM part_no, clean_part_no, model_quantities, and remarks).\n"
+        "2. 'seo_metadata_record': Contains customer-facing SEO & vehicle metadata "
+        "(brand, model_code, model, series, pic image filename, short_description title in CAPS, and meta_title).\n\n"
+        "MANDATORY TWO-STEP PROCEDURE:\n"
+        "STEP 1 - DUAL-RECORD ANALYSIS:\n"
+        "Before generating any descriptions, you MUST systematically analyze BOTH Excel records together. "
+        "Evaluate the mechanical role, OEM part number, clean part number format, assembly context (fig_no, ref_no), "
+        "quantities across vehicle model variants, remarks, and vehicle identity (brand, model, series). "
+        "Provide a concise technical grounding analysis in the 'analysis' field.\n\n"
+        "STEP 2 - GENERATE DESCRIPTIONS GROUNDED IN ANALYSIS:\n"
+        "Using your Step 1 analysis as direct grounding, generate:\n"
+        "- 'meta_description': strictly 151 to 158 characters, zero commas, exact proper casing 'IndiaSpare'. "
+        "Must be a high-converting eCommerce SEO summary with vehicle fitment and IndiaSpare genuine guarantee.\n"
+        "- 'product_description': strictly 120 to 140 words, zero commas, exact proper casing 'IndiaSpare'. "
+        "Must detail genuine OEM factory specifications, high heat and stress tolerance, precise dimensional fitment, "
+        "and IndiaSpare verified replacement reliability.\n\n"
         "CRITICAL RULES:\n"
-        "1. Do NOT include ANY commas in the text (zero commas).\n"
-        "2. Always reference 'IndiaSpare' (exact proper casing).\n"
-        "3. For 'meta_description': produce a concise, compelling eCommerce SEO sentence between 145 and 155 characters. "
-        "Include the brand, model, series, part name, and 'from IndiaSpare'.\n"
-        "4. For 'product_description': produce a detailed, authoritative product description of about 125 to 135 words. "
-        "Highlight OEM factory precision, material durability, direct fitment, and IndiaSpare reliability.\n"
-        "5. Respond STRICTLY with a valid JSON object matching the requested schema."
+        "1. ZERO COMMAS: Do NOT include ANY commas (,) in any field (analysis, meta_description, product_description).\n"
+        "2. EXACT CASING: Strictly use 'IndiaSpare' (no spaces, never 'indiaspare' or 'INDIA SPARE').\n"
+        "3. OUTPUT FORMAT: Return a valid JSON object matching the requested schema with 'fig_no', 'part_name', 'analysis', 'meta_description', and 'product_description'."
     )
 
     parts_catalog_data = []
     for it in items:
+        # Collect dynamic model quantities from item (e.g. BGPJ: 1, BGPL: 1, etc.)
+        model_quantities: dict[str, Any] = {}
+        for k, v in it.items():
+            if re.match(r"^[A-Z0-9]{3,6}$", str(k).upper()) and str(k).upper() not in {
+                "ID", "PAGE", "FIG_NO", "REF_NO", "PART_NO", "CLEAN_PART_NO",
+                "BRAND", "MODEL_CODE", "MODEL", "SERIES"
+            }:
+                if v is not None and str(v).strip() != "":
+                    model_quantities[str(k)] = str(v)
+
+        p_no = str(it.get("part_no") or "")
+        c_p_no = str(it.get("clean_part_no") or (clean_part_number(p_no) if p_no else ""))
+        p_name = str(it.get("part_name") or it.get("fig_name") or it.get("description") or "")
+        b_val = brand or str(it.get("brand", "YAMAHA"))
+        mc_val = model_code or str(it.get("model_code", "MODEL"))
+        m_val = model or str(it.get("model", ""))
+        s_val = series or str(it.get("series", "series"))
+
         parts_catalog_data.append({
             "fig_no": str(it.get("fig_no", "")),
-            "part_name": str(it.get("part_name") or it.get("description") or ""),
-            "brand": brand,
-            "model_code": model_code,
-            "model": model,
-            "series": series,
-            "product_title": it.get("product_title", ""),
-            "meta_title": it.get("meta_title", ""),
+            "part_name": p_name,
+            # Record 1: Extracted Parts Catalogue Excel Record
+            "extracted_parts_catalogue_record": {
+                "page": it.get("page", 1),
+                "fig_no": str(it.get("fig_no", "")),
+                "catalog_name": p_name,
+                "ref_no": str(it.get("ref_no", "1")),
+                "part_no": p_no,
+                "clean_part_no": c_p_no,
+                "model_quantities": model_quantities if model_quantities else {mc_val: "1"},
+                "remarks": str(it.get("remarks", "")),
+            },
+            # Record 2: SEO & Vehicle Metadata Excel Record
+            "seo_metadata_record": {
+                "brand": b_val,
+                "model_code": mc_val,
+                "model": m_val,
+                "series": s_val,
+                "pic": str(it.get("image_filename", "")),
+                "short_description": str(it.get("product_title", "")),
+                "meta_title": str(it.get("meta_title", "")),
+            },
         })
 
     prompt_content = (
-        f"Custom Instructions: {user_prompt.strip() or DEFAULT_AI_PROMPT}\n\n"
-        f"Generate descriptions for the following {len(parts_catalog_data)} parts:\n"
+        f"Custom Copywriting Directives: {user_prompt.strip() or DEFAULT_AI_PROMPT}\n\n"
+        f"MANDATORY INSTRUCTION: You must analyze BOTH Excel records ('extracted_parts_catalogue_record' and 'seo_metadata_record') "
+        f"for each of the {len(parts_catalog_data)} parts listed below before generating the descriptions.\n\n"
+        f"PARTS DUAL-RECORD DATA:\n"
         f"{json.dumps(parts_catalog_data, indent=2)}\n\n"
-        "Return a JSON object in this exact structure:\n"
+        "Return a valid JSON object in this exact structure:\n"
         "{\n"
         '  "items": [\n'
         '    {\n'
         '      "fig_no": "1",\n'
         '      "part_name": "CYLINDER HEAD",\n'
+        '      "analysis": "Analyzed Record 1 (CYLINDER HEAD OEM part no BGP-E1111-00 clean part no BGPE111100 fig 1 ref 1) and Record 2 (YAMAHA BGPK RAY ZR). Critical combustion chamber assembly requiring precision dimensional tolerance and high heat resistance.",\n'
         '      "meta_description": "...",\n'
         '      "product_description": "..."\n'
         '    }\n'
@@ -349,6 +404,7 @@ def call_gemini_batch(
                                 p_name = str(res_it.get("part_name", "")).strip()
                                 key = f_no or p_name
                                 results_map[key] = {
+                                    "analysis": res_it.get("analysis", ""),
                                     "meta_description": res_it.get("meta_description", ""),
                                     "product_description": res_it.get("product_description", ""),
                                 }
@@ -444,8 +500,13 @@ def enhance_metadata_with_gemini(
             p_name = str(it.get("part_name", "")).strip()
             ai_data = ai_results.get(f_no) or ai_results.get(p_name) or {}
 
+            raw_analysis = ai_data.get("analysis")
             raw_meta = ai_data.get("meta_description")
             raw_prod = ai_data.get("product_description")
+
+            if raw_analysis:
+                cleaned_analysis = clean_no_commas(str(raw_analysis))
+                it["ai_analysis"] = format_india_spare(cleaned_analysis)
 
             if raw_meta:
                 cleaned_meta = clean_no_commas(raw_meta)
@@ -466,6 +527,6 @@ def enhance_metadata_with_gemini(
                 it["product_description"] = valid_prod
                 it["product_desc_words"] = len(valid_prod.split())
 
-            it["ai_generated"] = bool(raw_meta or raw_prod)
+            it["ai_generated"] = bool(raw_meta or raw_prod or raw_analysis)
 
     return enhanced_items
