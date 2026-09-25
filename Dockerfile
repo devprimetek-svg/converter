@@ -1,4 +1,4 @@
-﻿# Multi-stage Docker build: Builds React frontend and packages into FastAPI backend
+# Multi-stage Docker build: Builds React frontend and packages into FastAPI backend
 
 # Stage 1: Build the React frontend
 FROM node:20-alpine AS frontend-builder
@@ -25,6 +25,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend application source
 COPY backend/app ./app
+COPY sample_yamaha_catalogue.pdf* ./
 
 # Copy built frontend assets into static/ directory
 COPY --from=frontend-builder /app/frontend/dist ./static

@@ -4,6 +4,7 @@ import io
 import openpyxl
 import pytest
 
+from app.parts_extractor import clean_part_number
 from app.meta_generator import (
     build_product_title,
     build_meta_title,
@@ -306,3 +307,76 @@ def test_export_metadata_excel_and_csv():
     assert "YAMAHA BGPK CYLINDER HEAD" in csv_content
     assert "Yamaha BGPK Cylinder Head | India Spare" in csv_content
     assert "INDIA SPARE" not in csv_content
+
+
+def test_export_both_extracted_and_seo_columns():
+    """Verify Excel and CSV exports contain BOTH extracted catalogue columns and SEO metadata columns."""
+    rows = [
+        {
+            "fig_no": "1",
+            "fig_name": "CYLINDER HEAD",
+            "ref_no": "1",
+            "part_no": "B7J-E1102-00",
+            "description": "CYLINDER HEAD ASSY",
+            "BGPK": "1",
+            "remarks": "UR FOR VRC1",
+            "page": 7,
+        }
+    ]
+    meta_items = generate_catalog_metadata(
+        rows=rows,
+        model_columns=["BGPK"],
+        brand="YAMAHA",
+        model="FZ",
+        series="series",
+        model_code="BGPK",
+        main_parts_only=False,
+        blank_descriptions=False,
+    )
+
+    # 1. Excel export with both extracted columns and SEO columns
+    xlsx_buf = export_metadata_excel(
+        meta_items,
+        brand="YAMAHA",
+        model_columns=["BGPK"],
+        raw_rows=rows,
+    )
+    wb = openpyxl.load_workbook(xlsx_buf)
+    ws = wb["Product Metadata"]
+
+    header_vals = [ws.cell(row=1, column=c).value for c in range(1, ws.max_column + 1)]
+    assert "Fig No." in header_vals
+    assert "Catalog Name" in header_vals
+    assert "Brand" in header_vals
+    assert "Pic" in header_vals
+    assert "Short Description" in header_vals
+    assert "Meta Title" in header_vals
+    assert "Ref No." in header_vals
+    assert "Part No." in header_vals
+    assert "Clean Part No." in header_vals
+    assert "Qty (BGPK)" in header_vals
+    assert "Remarks" in header_vals
+
+    row2_vals = [str(ws.cell(row=2, column=c).value or "") for c in range(1, ws.max_column + 1)]
+    assert "B7J-E1102-00" in row2_vals
+    assert clean_part_number("B7J-E1102-00") in row2_vals
+    assert "UR FOR VRC1" in row2_vals
+
+    # Check Sheet 2: Extracted Parts Catalogue
+    assert "Extracted Parts Catalogue" in wb.sheetnames
+    ws2 = wb["Extracted Parts Catalogue"]
+    ws2_headers = [ws2.cell(row=1, column=c).value for c in range(1, ws2.max_column + 1)]
+    assert "Part No." in ws2_headers
+    assert "BGPK" in ws2_headers
+
+    # 2. CSV export with both extracted columns and SEO columns
+    csv_buf = export_metadata_csv(meta_items, model_columns=["BGPK"])
+    csv_text = csv_buf.getvalue().decode("utf-8-sig")
+    assert "Ref No." in csv_text
+    assert "Part No." in csv_text
+    assert "Clean Part No." in csv_text
+    assert "Qty (BGPK)" in csv_text
+    assert "B7J-E1102-00" in csv_text
+    assert "UR FOR VRC1" in csv_text
+    assert "Short Description" in csv_text
+

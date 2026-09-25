@@ -71,9 +71,16 @@ export interface AutoPipelineProps {
     modelColumns: string[];
     filename: string;
   }) => void;
+  onJobCompleted?: (data: {
+    jobId: string;
+    rows: any[];
+    figures: any[];
+    modelColumns: string[];
+    filename: string;
+  }) => void;
 }
 
-export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta }) => {
+export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta, onJobCompleted }) => {
   // Preset States (Pre-filled exactly per user specifications: Company logo, -30° rotation, 115 padding, 25% scale, 10% opacity, tiled)
   const [wmType, setWmType] = useState<'logo' | 'text'>('logo');
   const [wmText, setWmText] = useState<string>('INDIA SPARE');
@@ -192,6 +199,15 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta }) =
 
           if (data.status === 'completed') {
             setIsProcessing(false);
+            if (onJobCompleted) {
+              onJobCompleted({
+                jobId: data.job_id,
+                rows: data.rows || data.rows_sample || [],
+                figures: data.figures || [],
+                modelColumns: data.model_columns || [],
+                filename: data.filename?.replace(/\.pdf$/i, '') || 'catalogue',
+              });
+            }
             sse.close();
           } else if (data.status === 'error') {
             setIsProcessing(false);
@@ -224,6 +240,15 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta }) =
 
         if (data.status === 'completed') {
           setIsProcessing(false);
+          if (onJobCompleted) {
+            onJobCompleted({
+              jobId: data.job_id,
+              rows: data.rows || data.rows_sample || [],
+              figures: data.figures || [],
+              modelColumns: data.model_columns || [],
+              filename: data.filename?.replace(/\.pdf$/i, '') || 'catalogue',
+            });
+          }
           if (pollingRef.current) clearInterval(pollingRef.current);
         } else if (data.status === 'error') {
           setIsProcessing(false);

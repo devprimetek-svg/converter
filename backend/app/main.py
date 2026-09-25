@@ -835,6 +835,49 @@ class MetaExportRequest(BaseModel):
     format: str = "xlsx"  # "xlsx" or "csv"
     filename: str = "Product_Metadata"
     brand: str = "YAMAHA"
+    model_columns: list[str] = Field(default_factory=list)
+    raw_rows: Optional[list[dict[str, Any]]] = None
+
+
+_SAMPLE_CATALOG_CACHE: Optional[dict[str, Any]] = None
+
+
+def get_sample_catalog_data() -> dict[str, Any]:
+    global _SAMPLE_CATALOG_CACHE
+    if _SAMPLE_CATALOG_CACHE is not None:
+        return _SAMPLE_CATALOG_CACHE
+    # Check for sample_yamaha_catalogue.pdf in root or parent
+    root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    pdf_path = os.path.join(root_dir, "sample_yamaha_catalogue.pdf")
+    if not os.path.exists(pdf_path):
+        pdf_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "sample_yamaha_catalogue.pdf")
+    if os.path.exists(pdf_path):
+        try:
+            with open(pdf_path, "rb") as f:
+                data = extract_parts_from_pdf(f.read())
+                _SAMPLE_CATALOG_CACHE = {
+                    "filename": "Sample_Yamaha_Catalogue",
+                    "model_columns": data.get("model_columns", ["BGPJ", "BGPL"]),
+                    "total_pages": data.get("total_pages", 4),
+                    "rows": data.get("rows", []),
+                    "figures": data.get("figures", []),
+                }
+                return _SAMPLE_CATALOG_CACHE
+        except Exception as e:
+            logger.warning("Failed to extract sample catalogue: %s", e)
+    return {
+        "filename": "Sample_Yamaha_Catalogue",
+        "model_columns": ["BGPJ", "BGPL"],
+        "total_pages": 4,
+        "rows": [],
+        "figures": [],
+    }
+
+
+@app.get("/api/meta/sample")
+def get_meta_sample():
+    """Return pre-extracted sample catalogue data so extracted data is visible before user uploads PDF."""
+    return get_sample_catalog_data()
 
 
 @app.post("/api/meta/generate")
@@ -901,22 +944,22 @@ def generate_metadata_endpoint(req: MetaGenerateRequest):
         if pipe_job:
             with pipe_job.lock:
                 pipe_job.metadata_items = items
-                pipe_job.metadata_excel_bytes = export_metadata_excel(items, brand=req.brand).getvalue()
-                pipe_job.metadata_csv_bytes = export_metadata_csv(items).getvalue()
+                pipe_job.metadata_excel_bytes = export_metadata_excel(items, brand=req.brand, model_columns=model_cols).getvalue()
+                pipe_job.metadata_csv_bytes = export_metadata_csv(items, model_columns=model_cols).getvalue()
 
     return {"total": len(items), "items": items, "ai_mode": req.ai_mode}
 
 
 @app.post("/api/meta/export")
 def export_metadata_endpoint(req: MetaExportRequest):
-    """Export generated metadata as Excel (.xlsx) or CSV."""
+    """Export generated metadata as Excel (.xlsx) or CSV containing both extracted catalogue and SEO columns."""
     if not req.items:
         raise HTTPException(status_code=400, detail="No metadata items to export.")
 
     safe_name = re.sub(r'[\\/*?:"<>|]', "", req.filename).strip() or "Product_Metadata"
 
     if req.format.lower() == "csv":
-        csv_buf = export_metadata_csv(req.items)
+        csv_buf = export_metadata_csv(req.items, model_columns=req.model_columns)
         return StreamingResponse(
             csv_buf,
             media_type="text/csv",
@@ -926,7 +969,12 @@ def export_metadata_endpoint(req: MetaExportRequest):
             },
         )
     else:
-        xlsx_buf = export_metadata_excel(req.items, brand=req.brand)
+        xlsx_buf = export_metadata_excel(
+            req.items,
+            brand=req.brand,
+            model_columns=req.model_columns,
+            raw_rows=req.raw_rows,
+        )
         return StreamingResponse(
             xlsx_buf,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

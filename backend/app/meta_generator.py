@@ -514,6 +514,11 @@ def generate_child_part_metadata(
         "page": page,
         "remarks": str(row.get("remarks") or ""),
     }
+    # Copy all model quantity columns from extracted row
+    for m in model_columns:
+        if m in row:
+            record[m] = row[m]
+
     for k, v in record.items():
         if isinstance(v, str) and "india spare" in v.lower():
             record[k] = format_india_spare(v)
@@ -563,6 +568,10 @@ def generate_catalog_metadata(
                     })
 
         for fig in fig_list:
+            fno = str(fig.get("fig_no") or "").strip()
+            fig_rows = [r for r in rows if str(r.get("fig_no") or "").strip() == fno]
+            prim_row = fig_rows[0] if fig_rows else {}
+
             item = generate_main_part_metadata(
                 figure=fig,
                 model_code=mc,
@@ -571,6 +580,18 @@ def generate_catalog_metadata(
                 series=series,
                 blank_descriptions=blank_descriptions,
             )
+            # Retain extracted catalogue row details (ref_no, part_no, remarks, model quantities)
+            if prim_row:
+                if prim_row.get("part_no"):
+                    item["part_no"] = str(prim_row["part_no"])
+                    item["clean_part_no"] = clean_part_number(item["part_no"])
+                if prim_row.get("ref_no"):
+                    item["ref_no"] = str(prim_row["ref_no"])
+                if prim_row.get("remarks"):
+                    item["remarks"] = str(prim_row["remarks"])
+                for m in model_columns:
+                    if m in prim_row:
+                        item[m] = prim_row[m]
             results.append(item)
     else:
         for r in rows:
@@ -588,8 +609,13 @@ def generate_catalog_metadata(
     return results
 
 
-def export_metadata_excel(meta_rows: list[dict[str, Any]], brand: str = "YAMAHA") -> io.BytesIO:
-    """Generate an Excel workbook (.xlsx) containing all generated metadata."""
+def export_metadata_excel(
+    meta_rows: list[dict[str, Any]],
+    brand: str = "YAMAHA",
+    model_columns: Optional[list[str]] = None,
+    raw_rows: Optional[list[dict[str, Any]]] = None,
+) -> io.BytesIO:
+    """Generate an Excel workbook (.xlsx) containing both extracted catalogue columns and generated SEO metadata."""
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Product Metadata"
@@ -611,7 +637,8 @@ def export_metadata_excel(meta_rows: list[dict[str, Any]], brand: str = "YAMAHA"
         bottom=thin_border_side,
     )
 
-    headers = [
+    # Base columns (preserving 1-14 for exact backward compatibility)
+    headers: list[tuple[str, str, Any, int]] = [
         ("Fig No.", "fig_no", center_align, 10),
         ("Catalog Name", "part_name", left_align, 28),
         ("Brand", "brand", center_align, 14),
@@ -626,7 +653,36 @@ def export_metadata_excel(meta_rows: list[dict[str, Any]], brand: str = "YAMAHA"
         ("Product Description (120-140 Words)", "product_description", wrap_left_align, 75),
         ("Product Desc Words", "product_desc_words", center_align, 16),
         ("Page", "page", center_align, 8),
+        # Extracted Catalogue Columns (Both extracted columns exported together)
+        ("Ref No.", "ref_no", center_align, 10),
+        ("Part No.", "part_no", left_align, 20),
+        ("Clean Part No.", "clean_part_no", left_align, 20),
     ]
+
+    # Resolve dynamic model quantity columns
+    resolved_model_cols: list[str] = []
+    if model_columns:
+        resolved_model_cols = [str(m).strip() for m in model_columns if str(m).strip()]
+    else:
+        seen_cols: set[str] = set()
+        for r in (meta_rows + (raw_rows or [])):
+            for k in r.keys():
+                if k not in {
+                    "fig_no", "fig_name", "part_name", "description", "part_no",
+                    "clean_part_no", "ref_no", "brand", "model_code", "model",
+                    "series", "compatible_models", "image_filename", "product_title",
+                    "meta_title", "meta_description", "meta_long_description",
+                    "meta_desc_chars", "long_desc_length", "product_description",
+                    "product_desc_words", "page", "remarks", "first_page", "id"
+                }:
+                    if re.match(r"^[A-Z0-9]{3,6}$", str(k).upper()):
+                        seen_cols.add(str(k))
+        resolved_model_cols = sorted(list(seen_cols))
+
+    for m in resolved_model_cols:
+        headers.append((f"Qty ({m})", m, center_align, 12))
+
+    headers.append(("Remarks", "remarks", left_align, 24))
 
     ws.row_dimensions[1].height = 28.0
     for col_idx, (label, _, _, col_width) in enumerate(headers, start=1):
@@ -656,14 +712,57 @@ def export_metadata_excel(meta_rows: list[dict[str, Any]], brand: str = "YAMAHA"
         max_col_letter = get_column_letter(len(headers))
         ws.auto_filter.ref = f"A1:{max_col_letter}{len(meta_rows) + 1}"
 
+    # Sheet 2: Extracted Parts Catalogue (raw table if raw_rows provided)
+    if raw_rows and len(raw_rows) > 0:
+        ws2 = wb.create_sheet(title="Extracted Parts Catalogue")
+        ws2_header_fill = PatternFill(start_color="333333", end_color="333333", fill_type="solid")
+        raw_headers = [
+            ("Fig No.", "fig_no", center_align, 10),
+            ("Fig Name", "fig_name", left_align, 28),
+            ("Ref No.", "ref_no", center_align, 10),
+            ("Part No.", "part_no", left_align, 20),
+            ("Description", "description", left_align, 32),
+        ]
+        for m in resolved_model_cols:
+            raw_headers.append((m, m, center_align, 12))
+        raw_headers.append(("Remarks", "remarks", left_align, 24))
+        raw_headers.append(("Page", "page", center_align, 8))
+
+        ws2.row_dimensions[1].height = 26.0
+        for col_idx, (label, _, _, col_width) in enumerate(raw_headers, start=1):
+            cell = ws2.cell(row=1, column=col_idx, value=label)
+            cell.fill = ws2_header_fill
+            cell.font = header_font
+            cell.alignment = header_alignment
+            cell.border = thin_border
+            col_letter = get_column_letter(col_idx)
+            ws2.column_dimensions[col_letter].width = col_width
+
+        for row_idx, r in enumerate(raw_rows, start=2):
+            ws2.row_dimensions[row_idx].height = 20.0
+            for col_idx, (_, field_key, align, _) in enumerate(raw_headers, start=1):
+                val = r.get(field_key, "")
+                cell = ws2.cell(row=row_idx, column=col_idx, value=str(val) if val is not None else "")
+                cell.font = data_font
+                cell.alignment = align
+                cell.border = thin_border
+                cell.number_format = "@"
+
+        ws2.freeze_panes = "A2"
+        max_col_letter2 = get_column_letter(len(raw_headers))
+        ws2.auto_filter.ref = f"A1:{max_col_letter2}{len(raw_rows) + 1}"
+
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
     return buf
 
 
-def export_metadata_csv(meta_rows: list[dict[str, Any]]) -> io.BytesIO:
-    """Generate RFC-compliant UTF-8 CSV containing all generated metadata."""
+def export_metadata_csv(
+    meta_rows: list[dict[str, Any]],
+    model_columns: Optional[list[str]] = None,
+) -> io.BytesIO:
+    """Generate RFC-compliant UTF-8 CSV containing both extracted catalogue columns and generated SEO metadata."""
     buf = io.StringIO()
     writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL)
 
@@ -682,13 +781,40 @@ def export_metadata_csv(meta_rows: list[dict[str, Any]]) -> io.BytesIO:
         "Product Description (120-140 Words)",
         "Product Desc Words",
         "Page",
+        "Ref No.",
+        "Part No.",
+        "Clean Part No.",
     ]
+
+    resolved_model_cols: list[str] = []
+    if model_columns:
+        resolved_model_cols = [str(m).strip() for m in model_columns if str(m).strip()]
+    else:
+        seen_cols: set[str] = set()
+        for r in meta_rows:
+            for k in r.keys():
+                if k not in {
+                    "fig_no", "fig_name", "part_name", "description", "part_no",
+                    "clean_part_no", "ref_no", "brand", "model_code", "model",
+                    "series", "compatible_models", "image_filename", "product_title",
+                    "meta_title", "meta_description", "meta_long_description",
+                    "meta_desc_chars", "long_desc_length", "product_description",
+                    "product_desc_words", "page", "remarks", "first_page", "id"
+                }:
+                    if re.match(r"^[A-Z0-9]{3,6}$", str(k).upper()):
+                        seen_cols.add(str(k))
+        resolved_model_cols = sorted(list(seen_cols))
+
+    for m in resolved_model_cols:
+        headers.append(f"Qty ({m})")
+    headers.append("Remarks")
+
     writer.writerow(headers)
 
     for r in meta_rows:
         row_vals = [
             r.get("fig_no", ""),
-            r.get("part_name", ""),
+            r.get("part_name", "") or r.get("description", ""),
             r.get("brand", "YAMAHA"),
             r.get("model_code", ""),
             r.get("model", ""),
@@ -697,11 +823,18 @@ def export_metadata_csv(meta_rows: list[dict[str, Any]]) -> io.BytesIO:
             r.get("product_title", ""),
             r.get("meta_title", ""),
             r.get("meta_description", ""),
-            r.get("meta_desc_chars", len(r.get("meta_description", ""))),
+            r.get("meta_desc_chars", len(str(r.get("meta_description") or ""))),
             r.get("product_description", ""),
-            r.get("product_desc_words", len(str(r.get("product_description", "")).split())),
+            r.get("product_desc_words", len(str(r.get("product_description") or "").split())),
             r.get("page", 1),
+            r.get("ref_no", ""),
+            r.get("part_no", ""),
+            r.get("clean_part_no", ""),
         ]
+        for m in resolved_model_cols:
+            row_vals.append(r.get(m, ""))
+        row_vals.append(r.get("remarks", ""))
+
         sanitized_vals = [
             format_india_spare(str(v)) if isinstance(v, str) and "india spare" in v.lower() else v
             for v in row_vals

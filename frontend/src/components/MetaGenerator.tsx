@@ -79,11 +79,39 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
     }
   }, [modelColumns]);
 
+  const [isLoadingSample, setIsLoadingSample] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<'combined' | 'extracted' | 'seo'>('combined');
+
+  // Auto-load pre-extracted catalogue data if no catalogue was provided so extracted data is visible immediately before user uploads PDF
   useEffect(() => {
-    if (initialFilename && initialFilename !== 'Catalogue') {
-      setFilename(initialFilename);
+    if (
+      (!initialRows || initialRows.length === 0) &&
+      (!initialFigures || initialFigures.length === 0) &&
+      !jobId &&
+      rows.length === 0
+    ) {
+      setIsLoadingSample(true);
+      fetch('/api/meta/sample')
+        .then((res) => {
+          if (!res.ok) throw new Error('Sample fetch failed');
+          return res.json();
+        })
+        .then((data) => {
+          if (data.rows && data.rows.length > 0) {
+            setRows(data.rows);
+            if (data.figures) setFigures(data.figures);
+            if (data.model_columns) setModels(data.model_columns);
+            if (data.filename) setFilename(data.filename.replace(/\.pdf$/i, ''));
+          }
+        })
+        .catch((err) => {
+          console.warn('Could not load sample catalogue data:', err);
+        })
+        .finally(() => {
+          setIsLoadingSample(false);
+        });
     }
-  }, [initialFilename]);
+  }, []);
 
   // User Requested Text Boxes:
   // 1. Brand (default YAMAHA)
@@ -250,6 +278,12 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
     }
   };
 
+  const cleanPartNo = (p: string) => {
+    if (!p) return '';
+    const cleaned = p.replace(/[\s\-\u2010\u2011\u2012\u2013\u2014\u2015]/g, '');
+    return cleaned.length === 10 ? `${cleaned}00` : cleaned;
+  };
+
   const downloadExport = async (format: 'xlsx' | 'csv') => {
     if (!metadataItems || metadataItems.length === 0) return;
     if (!isModelFilled) {
@@ -266,6 +300,8 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
           format,
           filename: `${filename}_Product_Metadata`,
           brand: brand.trim() || 'YAMAHA',
+          model_columns: models,
+          raw_rows: rows,
         }),
       });
 
@@ -287,7 +323,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
     }
   };
 
-  // Filtered metadata items
+  // Filtered metadata items for Combined and SEO views
   const filteredItems = useMemo(() => {
     return metadataItems.filter((item) => {
       const pName = item.part_name || item.description || '';
@@ -301,10 +337,32 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
         item.product_title.toLowerCase().includes(q) ||
         (item.meta_title && item.meta_title.toLowerCase().includes(q)) ||
         item.image_filename.toLowerCase().includes(q) ||
-        String(item.fig_no).toLowerCase().includes(q)
+        String(item.fig_no).toLowerCase().includes(q) ||
+        (item.part_no && item.part_no.toLowerCase().includes(q)) ||
+        (item.clean_part_no && item.clean_part_no.toLowerCase().includes(q)) ||
+        (item.remarks && item.remarks.toLowerCase().includes(q))
       );
     });
   }, [metadataItems, selectedFigure, searchTerm]);
+
+  // Filtered raw extracted catalogue rows for Extracted view
+  const filteredRows = useMemo(() => {
+    return rows.filter((r) => {
+      if (selectedFigure !== 'ALL' && r.fig_name !== selectedFigure) {
+        return false;
+      }
+      if (!searchTerm) return true;
+      const q = searchTerm.toLowerCase();
+      return (
+        (r.part_no && r.part_no.toLowerCase().includes(q)) ||
+        (r.description && r.description.toLowerCase().includes(q)) ||
+        (r.fig_name && r.fig_name.toLowerCase().includes(q)) ||
+        (r.remarks && r.remarks.toLowerCase().includes(q)) ||
+        String(r.fig_no || '').includes(q) ||
+        String(r.ref_no || '').includes(q)
+      );
+    });
+  }, [rows, selectedFigure, searchTerm]);
 
   return (
     <div className="space-y-6">
@@ -697,7 +755,17 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
       </div>
 
       {/* Main Content Area */}
-      {rows.length === 0 && figures.length === 0 && metadataItems.length === 0 ? (
+      {isLoadingSample ? (
+        <div className="p-12 text-center rounded-3xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 space-y-3">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600 dark:text-blue-400" />
+          <h3 className="text-sm font-bold text-zinc-900 dark:text-white font-sans">
+            Loading Extracted Parts Catalogue...
+          </h3>
+          <p className="text-xs text-zinc-500 font-mono">
+            Fetching extracted Excel parts and assemblies before PDF upload.
+          </p>
+        </div>
+      ) : rows.length === 0 && figures.length === 0 && metadataItems.length === 0 ? (
         <div className="p-12 text-center rounded-3xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 space-y-4">
           <div className="w-12 h-12 rounded-2xl bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center mx-auto text-zinc-700 dark:text-zinc-300">
             <Tag className="w-6 h-6" />
@@ -707,306 +775,668 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
               No Parts Catalogue Loaded
             </h3>
             <p className="text-xs text-zinc-500">
-              Upload a Yamaha parts catalogue PDF to automatically extract main parts, diagram images,
-              and generate SEO titles and descriptions.
+              Upload a Yamaha parts catalogue PDF or load sample catalogue data to inspect extracted parts and generate SEO metadata.
             </p>
           </div>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-black text-white dark:bg-white dark:text-black font-bold text-xs uppercase tracking-wider shadow-sm hover:opacity-90 active:scale-95 cursor-pointer"
-          >
-            <UploadCloud className="w-4 h-4" />
-            Select PDF File
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-black text-white dark:bg-white dark:text-black font-bold text-xs uppercase tracking-wider shadow-sm hover:opacity-90 active:scale-95 cursor-pointer"
+            >
+              <UploadCloud className="w-4 h-4" />
+              Upload PDF File
+            </button>
+            <button
+              onClick={() => {
+                setIsLoadingSample(true);
+                fetch('/api/meta/sample')
+                  .then((r) => r.json())
+                  .then((d) => {
+                    if (d.rows) setRows(d.rows);
+                    if (d.figures) setFigures(d.figures);
+                    if (d.model_columns) setModels(d.model_columns);
+                    if (d.filename) setFilename(d.filename.replace(/\.pdf$/i, ''));
+                  })
+                  .finally(() => setIsLoadingSample(false));
+              }}
+              className="inline-flex items-center gap-2 px-5 py-3 rounded-full bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-bold text-xs uppercase tracking-wider border border-zinc-200 dark:border-zinc-800 cursor-pointer"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              Load Sample Catalogue
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Quick Metrics & Filter Bar */}
-          <div className="p-4 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
-            {/* Search Input */}
-            <div className="relative w-full sm:w-80">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search catalog name, short description, pic..."
-                className="w-full pl-9 pr-3 py-2 rounded-xl text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none font-medium"
-              />
+          {/* Active Extracted Catalogue Banner */}
+          <div className="p-3.5 px-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 border border-blue-200 dark:border-blue-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5 text-blue-950 dark:text-blue-200">
+              <CheckCircle2 className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+              <div>
+                <span className="font-bold">Extracted Catalogue Data Active: </span>
+                <span className="font-mono font-semibold">{rows.length} parts</span> across{' '}
+                <span className="font-mono font-semibold">{figures.length || uniqueFigures.length} assemblies</span>{' '}
+                ({filename}).
+                <span className="hidden md:inline text-zinc-600 dark:text-zinc-400 ml-1">
+                  • Both extracted catalogue columns and SEO metadata columns are exported to Excel &amp; CSV.
+                </span>
+              </div>
             </div>
-
-            {/* Figure Dropdown Filter */}
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Filter className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-              <select
-                value={selectedFigure}
-                onChange={(e) => setSelectedFigure(e.target.value)}
-                className="w-full sm:w-64 px-3 py-2 rounded-xl text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none font-medium"
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-xs font-mono font-semibold hover:bg-blue-50 dark:hover:bg-blue-950/60 cursor-pointer shadow-xs"
               >
-                <option value="ALL">All Figures ({uniqueFigures.length} assemblies)</option>
-                {uniqueFigures.map((fig) => (
-                  <option key={fig} value={fig}>
-                    {fig}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Metrics Counter */}
-            <div className="shrink-0 text-xs font-mono text-zinc-500">
-              Showing <strong className="text-zinc-900 dark:text-white">{filteredItems.length}</strong> of{' '}
-              <strong className="text-zinc-900 dark:text-white">{metadataItems.length}</strong> {mainPartsOnly ? 'main parts' : 'parts'}
+                <UploadCloud className="w-3.5 h-3.5" />
+                Upload New PDF
+              </button>
             </div>
           </div>
 
-          {/* Results Table */}
-          <div className="rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 font-semibold border-b border-zinc-200 dark:border-zinc-800">
-                  <tr>
-                    <th className="p-3 w-12 text-center">Fig</th>
-                    <th className="p-3">Catalog Name</th>
-                    <th className="p-3">Pic</th>
-                    <th className="p-3">Short Description</th>
-                    <th className="p-3">Meta Title</th>
-                    <th className="p-3 w-28 text-center">Meta Desc</th>
-                    <th className="p-3 w-28 text-center">Product Desc</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
-                  {filteredItems.map((item, idx) => {
-                    const itemKey = `${item.fig_no}_${item.part_name || item.description}_${idx}`;
-                    const isExpandedMeta = expandedItemKey === `meta_${itemKey}`;
-                    const isExpandedProd = expandedItemKey === `prod_${itemKey}`;
-                    const metaDesc = item.meta_description || item.meta_long_description || '';
-                    const metaChars = item.meta_desc_chars || metaDesc.length;
-                    const prodDesc = item.product_description || '';
-                    const prodWords = item.product_desc_words || prodDesc.split(/\s+/).filter(Boolean).length;
+          {/* Quick Metrics & Filter Bar with View Mode Switcher */}
+          <div className="p-4 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3">
+            {/* View Mode Switcher */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-100 dark:border-zinc-900">
+              <div className="flex items-center gap-1 p-1 bg-zinc-100 dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('combined')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                    viewMode === 'combined'
+                      ? 'bg-white dark:bg-zinc-800 text-black dark:text-white shadow-xs'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white'
+                  }`}
+                >
+                  Combined View (Extracted + SEO)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('extracted')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    viewMode === 'extracted'
+                      ? 'bg-white dark:bg-zinc-800 text-black dark:text-white shadow-xs'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white'
+                  }`}
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  Extracted Parts Catalogue ({rows.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('seo')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                    viewMode === 'seo'
+                      ? 'bg-white dark:bg-zinc-800 text-black dark:text-white shadow-xs'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white'
+                  }`}
+                >
+                  SEO Metadata View
+                </button>
+              </div>
 
-                    return (
-                      <React.Fragment key={itemKey}>
-                        <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors">
-                          {/* Fig No */}
-                          <td className="p-3 text-center">
-                            <span className="inline-block px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-900 font-mono font-bold text-[11px] text-zinc-700 dark:text-zinc-300">
-                              #{item.fig_no || '-'}
-                            </span>
-                            <div className="text-[10px] text-zinc-400 mt-0.5">p.{item.page}</div>
-                          </td>
+              <div className="text-xs font-mono text-zinc-500">
+                {viewMode === 'extracted' ? (
+                  <>
+                    Showing <strong className="text-zinc-900 dark:text-white">{filteredRows.length}</strong> of{' '}
+                    <strong className="text-zinc-900 dark:text-white">{rows.length}</strong> catalogue parts
+                  </>
+                ) : (
+                  <>
+                    Showing <strong className="text-zinc-900 dark:text-white">{filteredItems.length}</strong> of{' '}
+                    <strong className="text-zinc-900 dark:text-white">{metadataItems.length}</strong>{' '}
+                    {mainPartsOnly ? 'main assemblies' : 'parts'}
+                  </>
+                )}
+              </div>
+            </div>
 
-                          {/* Main Part Name */}
-                          <td className="p-3">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-bold text-zinc-900 dark:text-white font-mono text-xs uppercase">
-                                {item.part_name || item.description}
+            {/* Search and Figure Filter */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="relative w-full sm:w-80">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search part no, description, fig no, remarks..."
+                  className="w-full pl-9 pr-3 py-2 rounded-xl text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none font-medium"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Filter className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                <select
+                  value={selectedFigure}
+                  onChange={(e) => setSelectedFigure(e.target.value)}
+                  className="w-full sm:w-64 px-3 py-2 rounded-xl text-xs bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none font-medium"
+                >
+                  <option value="ALL">All Figures ({uniqueFigures.length} assemblies)</option>
+                  {uniqueFigures.map((fig) => (
+                    <option key={fig} value={fig}>
+                      {fig}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* VIEW MODE 1: COMBINED TABLE (Extracted Catalogue + SEO Columns) */}
+          {viewMode === 'combined' && (
+            <div className="rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden animate-in fade-in duration-150">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 font-semibold border-b border-zinc-200 dark:border-zinc-800">
+                    <tr>
+                      <th className="p-2.5 w-12 text-center">Fig</th>
+                      <th className="p-2.5 w-12 text-center">Ref</th>
+                      <th className="p-2.5">Part No.</th>
+                      <th className="p-2.5">Description</th>
+                      {models.map((m) => (
+                        <th key={m} className="p-2.5 font-mono text-center text-zinc-900 dark:text-white">
+                          Qty ({m})
+                        </th>
+                      ))}
+                      <th className="p-2.5">Remarks</th>
+                      <th className="p-2.5">Pic</th>
+                      <th className="p-2.5">Short Description</th>
+                      <th className="p-2.5">Meta Title</th>
+                      <th className="p-2.5 w-24 text-center">Meta Desc</th>
+                      <th className="p-2.5 w-24 text-center">Product Desc</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
+                    {filteredItems.map((item, idx) => {
+                      const itemKey = `${item.fig_no}_${item.part_name || item.description}_${idx}`;
+                      const isExpandedMeta = expandedItemKey === `meta_${itemKey}`;
+                      const isExpandedProd = expandedItemKey === `prod_${itemKey}`;
+                      const metaDesc = item.meta_description || item.meta_long_description || '';
+                      const metaChars = item.meta_desc_chars || metaDesc.length;
+                      const prodDesc = item.product_description || '';
+                      const prodWords = item.product_desc_words || prodDesc.split(/\s+/).filter(Boolean).length;
+
+                      return (
+                        <React.Fragment key={itemKey}>
+                          <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors">
+                            {/* Fig */}
+                            <td className="p-2.5 text-center">
+                              <span className="inline-block px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-900 font-mono font-bold text-[11px] text-zinc-700 dark:text-zinc-300">
+                                #{item.fig_no || '-'}
                               </span>
-                              {item.ai_generated && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                                  <Sparkles className="w-2.5 h-2.5" /> AI
-                                </span>
+                              <div className="text-[10px] text-zinc-400 mt-0.5">p.{item.page}</div>
+                            </td>
+
+                            {/* Ref */}
+                            <td className="p-2.5 text-center font-mono text-zinc-500 font-semibold">
+                              {item.ref_no || '-'}
+                            </td>
+
+                            {/* Part No */}
+                            <td className="p-2.5">
+                              <div className="font-mono font-bold text-zinc-900 dark:text-white">
+                                {item.part_no || '-'}
+                              </div>
+                              {item.clean_part_no && item.clean_part_no !== item.part_no && (
+                                <div className="text-[10px] font-mono text-zinc-400">
+                                  Clean: {item.clean_part_no}
+                                </div>
                               )}
-                            </div>
-                            <div className="text-[10px] text-zinc-500 font-mono mt-0.5">
-                              Model: <span className="font-semibold text-zinc-700 dark:text-zinc-300">{item.model_code}</span>
-                              {item.model ? ` • ${item.model}` : ''}
-                              {item.series ? ` • ${item.series}` : ''}
-                            </div>
-                          </td>
+                            </td>
 
-                          {/* Diagram Image */}
-                          <td className="p-3">
-                            <div className="flex items-center gap-1.5">
-                              <ImageIcon className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                              <span className="font-mono text-[11px] font-semibold text-zinc-800 dark:text-zinc-200 truncate max-w-[160px]" title={item.image_filename}>
-                                {item.image_filename}
-                              </span>
-                            </div>
-                          </td>
-
-                          {/* Product Title (IN ALL CAPS, no commas) */}
-                          <td className="p-3 max-w-xs">
-                            <div className="flex items-start justify-between gap-1.5">
-                              <p className="text-xs font-bold text-zinc-900 dark:text-white line-clamp-2 uppercase font-mono">
-                                {item.product_title}
-                              </p>
-                              <button
-                                onClick={() => copyToClipboard(item.product_title, `prod_title_${itemKey}`)}
-                                title="Copy Short Description"
-                                className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
-                              >
-                                {copiedId === `prod_title_${itemKey}` ? (
-                                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                ) : (
-                                  <Copy className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                            </div>
-                          </td>
-
-                          {/* Meta Title (Separate, Title Case, no commas) */}
-                          <td className="p-3 max-w-xs">
-                            <div className="flex items-start justify-between gap-1.5">
-                              <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 line-clamp-2">
-                                {item.meta_title || item.product_title}
-                              </p>
-                              <button
-                                onClick={() => copyToClipboard(item.meta_title || item.product_title, `meta_title_${itemKey}`)}
-                                title="Copy Meta Title"
-                                className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
-                              >
-                                {copiedId === `meta_title_${itemKey}` ? (
-                                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                ) : (
-                                  <Copy className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                            </div>
-                          </td>
-
-
-                          {/* Meta Description (151-158 Chars without caps) */}
-                          <td className="p-3 text-center">
-                            {metaDesc ? (
-                              <div className="space-y-1">
-                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                                  {metaChars} chars
-                                </span>
-                                <div>
-                                  <button
-                                    onClick={() => setExpandedItemKey(isExpandedMeta ? null : `meta_${itemKey}`)}
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
-                                  >
-                                    {isExpandedMeta ? (
-                                      <>Hide <ChevronUp className="w-3 h-3" /></>
-                                    ) : (
-                                      <>View <ChevronDown className="w-3 h-3" /></>
-                                    )}
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-[11px] text-zinc-400 font-mono italic">
-                                Blank
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Product Description (120-140 Words) */}
-                          <td className="p-3 text-center">
-                            {prodDesc ? (
-                              <div className="space-y-1">
-                                <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-                                  {prodWords} words
-                                </span>
-                                <div>
-                                  <button
-                                    onClick={() => setExpandedItemKey(isExpandedProd ? null : `prod_${itemKey}`)}
-                                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
-                                  >
-                                    {isExpandedProd ? (
-                                      <>Hide <ChevronUp className="w-3 h-3" /></>
-                                    ) : (
-                                      <>View <ChevronDown className="w-3 h-3" /></>
-                                    )}
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-[11px] text-zinc-400 font-mono italic">
-                                Blank
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-
-                        {/* Expanded Meta Description Row */}
-                        {isExpandedMeta && (
-                          <tr className="bg-zinc-50 dark:bg-zinc-900/60 border-y border-zinc-200 dark:border-zinc-800">
-                            <td colSpan={8} className="p-4 sm:p-5 space-y-3">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-bold font-mono text-zinc-900 dark:text-white uppercase tracking-wider">
-                                    Meta Description (151–158 Chars without Caps, No Commas)
+                            {/* Description / Part Name */}
+                            <td className="p-2.5 font-semibold text-zinc-800 dark:text-zinc-200">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span>{item.part_name || item.description}</span>
+                                {item.ai_generated && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                    <Sparkles className="w-2.5 h-2.5" /> AI
                                   </span>
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
-                                    Exact: {metaChars} Characters
-                                  </span>
-                                </div>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Model Quantities */}
+                            {models.map((m) => (
+                              <td key={m} className="p-2.5 font-mono text-center font-bold text-zinc-800 dark:text-zinc-200">
+                                {item[m] || '-'}
+                              </td>
+                            ))}
+
+                            {/* Remarks */}
+                            <td className="p-2.5 text-zinc-500 max-w-[120px] truncate" title={item.remarks}>
+                              {item.remarks || '-'}
+                            </td>
+
+                            {/* Diagram Image Pic */}
+                            <td className="p-2.5">
+                              <div className="flex items-center gap-1">
+                                <ImageIcon className="w-3 h-3 text-zinc-400 shrink-0" />
+                                <span className="font-mono text-[10px] font-semibold text-zinc-700 dark:text-zinc-300 truncate max-w-[120px]" title={item.image_filename}>
+                                  {item.image_filename}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Short Description */}
+                            <td className="p-2.5 max-w-[160px]">
+                              <div className="flex items-start justify-between gap-1">
+                                <p className="text-[11px] font-bold text-zinc-900 dark:text-white line-clamp-2 uppercase font-mono">
+                                  {item.product_title}
+                                </p>
                                 <button
-                                  onClick={() =>
-                                    copyToClipboard(metaDesc, `meta_desc_${itemKey}`)
-                                  }
-                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-black text-white dark:bg-white dark:text-black text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                                  onClick={() => copyToClipboard(item.product_title, `prod_title_${itemKey}`)}
+                                  title="Copy Short Description"
+                                  className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
                                 >
-                                  {copiedId === `meta_desc_${itemKey}` ? (
-                                    <>
-                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                      Copied Meta Desc!
-                                    </>
+                                  {copiedId === `prod_title_${itemKey}` ? (
+                                    <Check className="w-3 h-3 text-emerald-500" />
                                   ) : (
-                                    <>
-                                      <Copy className="w-3.5 h-3.5" />
-                                      Copy Meta Desc
-                                    </>
+                                    <Copy className="w-3 h-3" />
                                   )}
                                 </button>
                               </div>
-
-                              <div className="p-3.5 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 text-xs font-sans text-zinc-800 dark:text-zinc-200">
-                                {metaDesc}
-                              </div>
                             </td>
-                          </tr>
-                        )}
 
-                        {/* Expanded Product Description Row */}
-                        {isExpandedProd && (
-                          <tr className="bg-zinc-50 dark:bg-zinc-900/60 border-y border-zinc-200 dark:border-zinc-800">
-                            <td colSpan={8} className="p-4 sm:p-5 space-y-3">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-bold font-mono text-zinc-900 dark:text-white uppercase tracking-wider">
-                                    Product Description (120–140 Words, No Commas)
-                                  </span>
-                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
-                                    Exact: {prodWords} Words
-                                  </span>
-                                </div>
+                            {/* Meta Title */}
+                            <td className="p-2.5 max-w-[160px]">
+                              <div className="flex items-start justify-between gap-1">
+                                <p className="text-[11px] font-semibold text-zinc-800 dark:text-zinc-200 line-clamp-2">
+                                  {item.meta_title || item.product_title}
+                                </p>
                                 <button
-                                  onClick={() =>
-                                    copyToClipboard(prodDesc, `prod_desc_${itemKey}`)
-                                  }
-                                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-black text-white dark:bg-white dark:text-black text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                                  onClick={() => copyToClipboard(item.meta_title || item.product_title, `meta_title_${itemKey}`)}
+                                  title="Copy Meta Title"
+                                  className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
                                 >
-                                  {copiedId === `prod_desc_${itemKey}` ? (
-                                    <>
-                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                      Copied Product Desc!
-                                    </>
+                                  {copiedId === `meta_title_${itemKey}` ? (
+                                    <Check className="w-3 h-3 text-emerald-500" />
                                   ) : (
-                                    <>
-                                      <Copy className="w-3.5 h-3.5" />
-                                      Copy Product Desc
-                                    </>
+                                    <Copy className="w-3 h-3" />
                                   )}
                                 </button>
                               </div>
+                            </td>
 
-                              <div className="p-3.5 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 text-xs font-sans leading-relaxed text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">
-                                {prodDesc}
-                              </div>
+                            {/* Meta Description */}
+                            <td className="p-2.5 text-center">
+                              {metaDesc ? (
+                                <div className="space-y-0.5">
+                                  <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                                    {metaChars}c
+                                  </span>
+                                  <div>
+                                    <button
+                                      onClick={() => setExpandedItemKey(isExpandedMeta ? null : `meta_${itemKey}`)}
+                                      className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+                                    >
+                                      {isExpandedMeta ? <>Hide <ChevronUp className="w-3 h-3" /></> : <>View <ChevronDown className="w-3 h-3" /></>}
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-zinc-400 font-mono italic">Blank</span>
+                              )}
+                            </td>
+
+                            {/* Product Description */}
+                            <td className="p-2.5 text-center">
+                              {prodDesc ? (
+                                <div className="space-y-0.5">
+                                  <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                                    {prodWords}w
+                                  </span>
+                                  <div>
+                                    <button
+                                      onClick={() => setExpandedItemKey(isExpandedProd ? null : `prod_${itemKey}`)}
+                                      className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+                                    >
+                                      {isExpandedProd ? <>Hide <ChevronUp className="w-3 h-3" /></> : <>View <ChevronDown className="w-3 h-3" /></>}
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-zinc-400 font-mono italic">Blank</span>
+                              )}
                             </td>
                           </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
+
+                          {/* Expanded Meta Description */}
+                          {isExpandedMeta && (
+                            <tr className="bg-zinc-50 dark:bg-zinc-900/60 border-y border-zinc-200 dark:border-zinc-800">
+                              <td colSpan={11 + models.length} className="p-3.5 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold font-mono text-zinc-900 dark:text-white uppercase tracking-wider">
+                                      Meta Description (151–158 Chars without Caps, No Commas)
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
+                                      {metaChars} Characters
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() => copyToClipboard(metaDesc, `meta_desc_${itemKey}`)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-black text-white dark:bg-white dark:text-black text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                                  >
+                                    {copiedId === `meta_desc_${itemKey}` ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy Meta Desc</>}
+                                  </button>
+                                </div>
+                                <div className="p-3 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 text-xs font-sans text-zinc-800 dark:text-zinc-200">
+                                  {metaDesc}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+
+                          {/* Expanded Product Description */}
+                          {isExpandedProd && (
+                            <tr className="bg-zinc-50 dark:bg-zinc-900/60 border-y border-zinc-200 dark:border-zinc-800">
+                              <td colSpan={11 + models.length} className="p-3.5 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold font-mono text-zinc-900 dark:text-white uppercase tracking-wider">
+                                      Product Description (120–140 Words, No Commas)
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
+                                      {prodWords} Words
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() => copyToClipboard(prodDesc, `prod_desc_${itemKey}`)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-black text-white dark:bg-white dark:text-black text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                                  >
+                                    {copiedId === `prod_desc_${itemKey}` ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy Product Desc</>}
+                                  </button>
+                                </div>
+                                <div className="p-3 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 text-xs font-sans leading-relaxed text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">
+                                  {prodDesc}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* VIEW MODE 2: EXTRACTED PARTS CATALOGUE (Pure Extracted Excel Table View) */}
+          {viewMode === 'extracted' && (
+            <div className="rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden animate-in fade-in duration-150">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 font-semibold border-b border-zinc-200 dark:border-zinc-800">
+                    <tr>
+                      <th className="p-2.5 w-14 text-center">Fig No.</th>
+                      <th className="p-2.5">Fig Name</th>
+                      <th className="p-2.5 w-14 text-center">Ref No.</th>
+                      <th className="p-2.5 font-mono">Part No.</th>
+                      <th className="p-2.5 font-mono">Clean Part No.</th>
+                      <th className="p-2.5">Description</th>
+                      {models.map((m) => (
+                        <th key={m} className="p-2.5 font-mono text-center text-zinc-900 dark:text-white">
+                          {m}
+                        </th>
+                      ))}
+                      <th className="p-2.5">Remarks</th>
+                      <th className="p-2.5 w-14 text-center">Page</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
+                    {filteredRows.map((r, idx) => (
+                      <tr key={idx} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
+                        <td className="p-2.5 text-center font-bold text-zinc-600 dark:text-zinc-400 font-mono">
+                          {r.fig_no || '-'}
+                        </td>
+                        <td className="p-2.5 font-medium text-zinc-800 dark:text-zinc-200">
+                          {r.fig_name || '-'}
+                        </td>
+                        <td className="p-2.5 text-center font-mono text-zinc-500 font-semibold">
+                          {r.ref_no || '-'}
+                        </td>
+                        <td className="p-2.5 font-mono font-bold text-zinc-900 dark:text-white">
+                          {r.part_no || '-'}
+                        </td>
+                        <td className="p-2.5 font-mono text-zinc-500">
+                          {cleanPartNo(r.part_no) || '-'}
+                        </td>
+                        <td className="p-2.5 font-medium text-zinc-800 dark:text-zinc-200">
+                          {r.description || '-'}
+                        </td>
+                        {models.map((m) => (
+                          <td key={m} className="p-2.5 font-mono text-center font-bold text-zinc-900 dark:text-white">
+                            {r[m] || '-'}
+                          </td>
+                        ))}
+                        <td className="p-2.5 text-zinc-500">
+                          {r.remarks || '-'}
+                        </td>
+                        <td className="p-2.5 text-center font-mono text-zinc-400">
+                          {r.page || 1}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW MODE 3: SEO METADATA FOCUSED VIEW */}
+          {viewMode === 'seo' && (
+            <div className="rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden animate-in fade-in duration-150">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 font-semibold border-b border-zinc-200 dark:border-zinc-800">
+                    <tr>
+                      <th className="p-3 w-12 text-center">Fig</th>
+                      <th className="p-3">Catalog Name</th>
+                      <th className="p-3">Pic</th>
+                      <th className="p-3">Short Description</th>
+                      <th className="p-3">Meta Title</th>
+                      <th className="p-3 w-28 text-center">Meta Desc</th>
+                      <th className="p-3 w-28 text-center">Product Desc</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
+                    {filteredItems.map((item, idx) => {
+                      const itemKey = `${item.fig_no}_${item.part_name || item.description}_${idx}`;
+                      const isExpandedMeta = expandedItemKey === `meta_${itemKey}`;
+                      const isExpandedProd = expandedItemKey === `prod_${itemKey}`;
+                      const metaDesc = item.meta_description || item.meta_long_description || '';
+                      const metaChars = item.meta_desc_chars || metaDesc.length;
+                      const prodDesc = item.product_description || '';
+                      const prodWords = item.product_desc_words || prodDesc.split(/\s+/).filter(Boolean).length;
+
+                      return (
+                        <React.Fragment key={itemKey}>
+                          <tr className="hover:bg-zinc-50 dark:hover:bg-zinc-900/40 transition-colors">
+                            {/* Fig No */}
+                            <td className="p-3 text-center">
+                              <span className="inline-block px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-900 font-mono font-bold text-[11px] text-zinc-700 dark:text-zinc-300">
+                                #{item.fig_no || '-'}
+                              </span>
+                              <div className="text-[10px] text-zinc-400 mt-0.5">p.{item.page}</div>
+                            </td>
+
+                            {/* Main Part Name */}
+                            <td className="p-3">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-zinc-900 dark:text-white font-mono text-xs uppercase">
+                                  {item.part_name || item.description}
+                                </span>
+                                {item.ai_generated && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                    <Sparkles className="w-2.5 h-2.5" /> AI
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-zinc-500 font-mono mt-0.5">
+                                Model: <span className="font-semibold text-zinc-700 dark:text-zinc-300">{item.model_code}</span>
+                                {item.model ? ` • ${item.model}` : ''}
+                                {item.series ? ` • ${item.series}` : ''}
+                              </div>
+                            </td>
+
+                            {/* Diagram Image */}
+                            <td className="p-3">
+                              <div className="flex items-center gap-1.5">
+                                <ImageIcon className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                <span className="font-mono text-[11px] font-semibold text-zinc-800 dark:text-zinc-200 truncate max-w-[160px]" title={item.image_filename}>
+                                  {item.image_filename}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Product Title (IN ALL CAPS, no commas) */}
+                            <td className="p-3 max-w-xs">
+                              <div className="flex items-start justify-between gap-1.5">
+                                <p className="text-xs font-bold text-zinc-900 dark:text-white line-clamp-2 uppercase font-mono">
+                                  {item.product_title}
+                                </p>
+                                <button
+                                  onClick={() => copyToClipboard(item.product_title, `prod_title_${itemKey}`)}
+                                  title="Copy Short Description"
+                                  className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
+                                >
+                                  {copiedId === `prod_title_${itemKey}` ? (
+                                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* Meta Title (Separate, Title Case, no commas) */}
+                            <td className="p-3 max-w-xs">
+                              <div className="flex items-start justify-between gap-1.5">
+                                <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 line-clamp-2">
+                                  {item.meta_title || item.product_title}
+                                </p>
+                                <button
+                                  onClick={() => copyToClipboard(item.meta_title || item.product_title, `meta_title_${itemKey}`)}
+                                  title="Copy Meta Title"
+                                  className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
+                                >
+                                  {copiedId === `meta_title_${itemKey}` ? (
+                                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* Meta Description */}
+                            <td className="p-3 text-center">
+                              {metaDesc ? (
+                                <div className="space-y-1">
+                                  <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                                    {metaChars} chars
+                                  </span>
+                                  <div>
+                                    <button
+                                      onClick={() => setExpandedItemKey(isExpandedMeta ? null : `meta_${itemKey}`)}
+                                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+                                    >
+                                      {isExpandedMeta ? <>Hide <ChevronUp className="w-3 h-3" /></> : <>View <ChevronDown className="w-3 h-3" /></>}
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-zinc-400 font-mono italic">Blank</span>
+                              )}
+                            </td>
+
+                            {/* Product Description */}
+                            <td className="p-3 text-center">
+                              {prodDesc ? (
+                                <div className="space-y-1">
+                                  <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                                    {prodWords} words
+                                  </span>
+                                  <div>
+                                    <button
+                                      onClick={() => setExpandedItemKey(isExpandedProd ? null : `prod_${itemKey}`)}
+                                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+                                    >
+                                      {isExpandedProd ? <>Hide <ChevronUp className="w-3 h-3" /></> : <>View <ChevronDown className="w-3 h-3" /></>}
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-zinc-400 font-mono italic">Blank</span>
+                              )}
+                            </td>
+                          </tr>
+
+                          {/* Expanded Meta Description */}
+                          {isExpandedMeta && (
+                            <tr className="bg-zinc-50 dark:bg-zinc-900/60 border-y border-zinc-200 dark:border-zinc-800">
+                              <td colSpan={7} className="p-4 sm:p-5 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold font-mono text-zinc-900 dark:text-white uppercase tracking-wider">
+                                      Meta Description (151–158 Chars without Caps, No Commas)
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300">
+                                      Exact: {metaChars} Characters
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() => copyToClipboard(metaDesc, `meta_desc_${itemKey}`)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-black text-white dark:bg-white dark:text-black text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                                  >
+                                    {copiedId === `meta_desc_${itemKey}` ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Copied Meta Desc!</> : <><Copy className="w-3.5 h-3.5" /> Copy Meta Desc</>}
+                                  </button>
+                                </div>
+                                <div className="p-3.5 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 text-xs font-sans text-zinc-800 dark:text-zinc-200">
+                                  {metaDesc}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+
+                          {/* Expanded Product Description */}
+                          {isExpandedProd && (
+                            <tr className="bg-zinc-50 dark:bg-zinc-900/60 border-y border-zinc-200 dark:border-zinc-800">
+                              <td colSpan={7} className="p-4 sm:p-5 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold font-mono text-zinc-900 dark:text-white uppercase tracking-wider">
+                                      Product Description (120–140 Words, No Commas)
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
+                                      Exact: {prodWords} Words
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() => copyToClipboard(prodDesc, `prod_desc_${itemKey}`)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-black text-white dark:bg-white dark:text-black text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                                  >
+                                    {copiedId === `prod_desc_${itemKey}` ? <><Check className="w-3.5 h-3.5 text-emerald-400" /> Copied Product Desc!</> : <><Copy className="w-3.5 h-3.5" /> Copy Product Desc</>}
+                                  </button>
+                                </div>
+                                <div className="p-3.5 rounded-xl bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 text-xs font-sans leading-relaxed text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap">
+                                  {prodDesc}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
