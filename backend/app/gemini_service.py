@@ -531,6 +531,10 @@ def enhance_metadata_with_gemini(
     allow_child = prompt_references_child_cells(user_prompt)
 
     enhanced_items = [dict(it) for it in metadata_items]
+    for it in enhanced_items:
+        if it.get("is_parent") is False:
+            it["product_title"] = ""
+            it["meta_title"] = ""
 
     # Filter target items:
     # If user prompt does NOT reference child cells, child cells must remain strictly blank!

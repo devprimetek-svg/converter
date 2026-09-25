@@ -523,8 +523,9 @@ def generate_child_part_metadata(
     model_str = " ".join(parts_model_str)
     full_part_name = f"{desc} {fig_name}".strip()
 
-    prod_title = build_product_title(brand=b, model_code=mc, part_name=full_part_name, model=mn, series=ser)
-    meta_title = build_meta_title(brand=b, model_code=mc, part_name=full_part_name, model=mn, series=ser)
+    # Per user rule: Child rows of short description and meta title must be blank
+    prod_title = ""
+    meta_title = ""
     if blank_descriptions:
         meta_desc = ""
         prod_desc = ""
@@ -651,6 +652,7 @@ def generate_catalog_metadata(
             img_filename = resolve_image_filename(raw_fname or desc, model_code=mc)
 
             if is_parent:
+                # Parent cell's parts name only for short description and meta title
                 display_name = raw_fname or desc or "PARTS ASSEMBLY"
                 prod_title = build_product_title(brand=b, model_code=mc, part_name=display_name, model=mn, series=ser)
                 meta_title = build_meta_title(brand=b, model_code=mc, part_name=display_name, model=mn, series=ser)
@@ -661,10 +663,11 @@ def generate_catalog_metadata(
                     meta_desc = build_meta_description(brand=b, model_code=mc, part_name=display_name, model=mn, series=ser)
                     prod_desc = build_product_description(brand=b, model_code=mc, part_name=display_name, model=mn, series=ser)
             else:
-                child_name = desc or "PART"
-                prod_title = build_product_title(brand=b, model_code=mc, part_name=child_name, model=mn, series=ser)
-                meta_title = build_meta_title(brand=b, model_code=mc, part_name=child_name, model=mn, series=ser)
+                # Per user rule: child rows of short description and meta title must be strictly blank!
+                prod_title = ""
+                meta_title = ""
                 if allow_child_desc and not blank_descriptions:
+                    child_name = desc or "PART"
                     meta_desc = build_meta_description(brand=b, model_code=mc, part_name=child_name, model=mn, series=ser)
                     prod_desc = build_product_description(brand=b, model_code=mc, part_name=child_name, model=mn, series=ser)
                 else:
@@ -883,8 +886,8 @@ def export_metadata_excel(
             merged_item["model"] = m_val
             merged_item["series"] = ser_val
             merged_item["image_filename"] = parent_meta.get("image_filename") or resolve_image_filename(fname, model_code=mc_val)
-            merged_item["product_title"] = parent_meta.get("product_title") if is_parent else build_product_title(b_val, mc_val, desc or "PART", m_val, ser_val)
-            merged_item["meta_title"] = parent_meta.get("meta_title") if is_parent else build_meta_title(b_val, mc_val, desc or "PART", m_val, ser_val)
+            merged_item["product_title"] = parent_meta.get("product_title", "") if is_parent else ""
+            merged_item["meta_title"] = parent_meta.get("meta_title", "") if is_parent else ""
             merged_item["meta_description"] = parent_meta.get("meta_description") if is_parent else ""
             merged_item["meta_desc_chars"] = len(merged_item["meta_description"]) if merged_item["meta_description"] else 0
             merged_item["product_description"] = parent_meta.get("product_description") if is_parent else ""
@@ -938,6 +941,10 @@ def export_metadata_excel(
                 val = curr_cat_code
             elif field_key == "clean_part_no":
                 val = r.get("clean_part_no", "") or clean_part_number(str(r.get("part_no", "") or ""))
+            elif field_key == "product_title":
+                val = r.get("product_title", "") if is_parent else ""
+            elif field_key == "meta_title":
+                val = r.get("meta_title", "") if is_parent else ""
             elif field_key == "meta_description":
                 val = r.get("meta_description", "") if (is_parent or r.get("meta_description")) else ""
             elif field_key == "meta_desc_chars":
@@ -1085,6 +1092,10 @@ def export_metadata_csv(
                 v = curr_cat_code
             elif field_key == "clean_part_no":
                 v = r.get("clean_part_no", "") or clean_part_number(str(r.get("part_no", "") or ""))
+            elif field_key == "product_title":
+                v = r.get("product_title", "") if is_parent else ""
+            elif field_key == "meta_title":
+                v = r.get("meta_title", "") if is_parent else ""
             elif field_key == "meta_description":
                 v = r.get("meta_description", "") if (is_parent or r.get("meta_description")) else ""
             elif field_key == "meta_desc_chars":

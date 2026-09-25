@@ -999,22 +999,22 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
         {/* Live Rules Legend (per user prompt) */}
         <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-[11px] font-mono grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           <div>
-            <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Short Description (IN CAPS, no commas):</span>
+            <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Short Description (Parent Only, IN CAPS):</span>
             <span className="font-bold text-zinc-800 dark:text-zinc-200">
-              {brand || 'YAMAHA'} {activeModelCode} {model ? `${model.toUpperCase()} ${series ? `${series.toUpperCase()} ` : ''}` : (series && series.toLowerCase() !== 'series' ? `${series.toUpperCase()} ` : '')}[PARTS NAME]
+              {brand || 'YAMAHA'} {activeModelCode} {model ? `${model.toUpperCase()} ${series ? `${series.toUpperCase()} ` : ''}` : (series && series.toLowerCase() !== 'series' ? `${series.toUpperCase()} ` : '')}[PARENT ASSEMBLY NAME]
             </span>
           </div>
           <div>
-            <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Meta Title (Separate, no commas):</span>
+            <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Meta Title (Parent Only, Separate):</span>
             <span className="font-bold text-zinc-800 dark:text-zinc-200">
-              {brand ? brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase() : 'Yamaha'} {model ? `${model} ${series ? `${series} ` : ''}` : (series && series.toLowerCase() !== 'series' ? `${series} ` : '')}{activeModelCode} [Parts Name] | IndiaSpare
+              {brand ? brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase() : 'Yamaha'} {model ? `${model} ${series ? `${series} ` : ''}` : (series && series.toLowerCase() !== 'series' ? `${series} ` : '')}{activeModelCode} [Parent Assembly Name] | IndiaSpare
             </span>
           </div>
           <div>
-            <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Length Constraints:</span>
+            <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Child Rows Hierarchy Rule:</span>
             <span className="inline-flex items-center gap-1 font-bold text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              Meta Desc 151–158 chars | Prod Desc 120–140 words
+              Child rows of Short Description &amp; Meta Title remain strictly blank
             </span>
           </div>
         </div>
@@ -1328,42 +1328,54 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
                             {/* Short Description */}
                             <td className="p-2.5 max-w-[160px]">
-                              <div className="flex items-start justify-between gap-1">
-                                <p className="text-[11px] font-bold text-zinc-900 dark:text-white line-clamp-2 uppercase font-mono">
-                                  {item.product_title}
-                                </p>
-                                <button
-                                  onClick={() => copyToClipboard(item.product_title, `prod_title_${itemKey}`)}
-                                  title="Copy Short Description"
-                                  className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
-                                >
-                                  {copiedId === `prod_title_${itemKey}` ? (
-                                    <Check className="w-3 h-3 text-emerald-500" />
-                                  ) : (
-                                    <Copy className="w-3 h-3" />
-                                  )}
-                                </button>
-                              </div>
+                              {item.product_title ? (
+                                <div className="flex items-start justify-between gap-1">
+                                  <p className="text-[11px] font-bold text-zinc-900 dark:text-white line-clamp-2 uppercase font-mono">
+                                    {item.product_title}
+                                  </p>
+                                  <button
+                                    onClick={() => copyToClipboard(item.product_title, `prod_title_${itemKey}`)}
+                                    title="Copy Short Description"
+                                    className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
+                                  >
+                                    {copiedId === `prod_title_${itemKey}` ? (
+                                      <Check className="w-3 h-3 text-emerald-500" />
+                                    ) : (
+                                      <Copy className="w-3 h-3" />
+                                    )}
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-zinc-400 font-mono italic" title="Child rows of short description remain blank per rule">
+                                  {item.is_parent === false ? 'Blank (Child)' : '-'}
+                                </span>
+                              )}
                             </td>
 
                             {/* Meta Title */}
                             <td className="p-2.5 max-w-[160px]">
-                              <div className="flex items-start justify-between gap-1">
-                                <p className="text-[11px] font-semibold text-zinc-800 dark:text-zinc-200 line-clamp-2">
-                                  {item.meta_title || item.product_title}
-                                </p>
-                                <button
-                                  onClick={() => copyToClipboard(item.meta_title || item.product_title, `meta_title_${itemKey}`)}
-                                  title="Copy Meta Title"
-                                  className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
-                                >
-                                  {copiedId === `meta_title_${itemKey}` ? (
-                                    <Check className="w-3 h-3 text-emerald-500" />
-                                  ) : (
-                                    <Copy className="w-3 h-3" />
-                                  )}
-                                </button>
-                              </div>
+                              {item.meta_title ? (
+                                <div className="flex items-start justify-between gap-1">
+                                  <p className="text-[11px] font-semibold text-zinc-800 dark:text-zinc-200 line-clamp-2">
+                                    {item.meta_title}
+                                  </p>
+                                  <button
+                                    onClick={() => copyToClipboard(item.meta_title || '', `meta_title_${itemKey}`)}
+                                    title="Copy Meta Title"
+                                    className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
+                                  >
+                                    {copiedId === `meta_title_${itemKey}` ? (
+                                      <Check className="w-3 h-3 text-emerald-500" />
+                                    ) : (
+                                      <Copy className="w-3 h-3" />
+                                    )}
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-zinc-400 font-mono italic" title="Child rows of meta title remain blank per rule">
+                                  {item.is_parent === false ? 'Blank (Child)' : '-'}
+                                </span>
+                              )}
                             </td>
 
                             {/* Meta Description */}
@@ -1691,42 +1703,54 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
                             {/* Product Title (IN ALL CAPS, no commas) */}
                             <td className="p-3 max-w-xs">
-                              <div className="flex items-start justify-between gap-1.5">
-                                <p className="text-xs font-bold text-zinc-900 dark:text-white line-clamp-2 uppercase font-mono">
-                                  {item.product_title}
-                                </p>
-                                <button
-                                  onClick={() => copyToClipboard(item.product_title, `prod_title_${itemKey}`)}
-                                  title="Copy Short Description"
-                                  className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
-                                >
-                                  {copiedId === `prod_title_${itemKey}` ? (
-                                    <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                  ) : (
-                                    <Copy className="w-3.5 h-3.5" />
-                                  )}
-                                </button>
-                              </div>
+                              {item.product_title ? (
+                                <div className="flex items-start justify-between gap-1.5">
+                                  <p className="text-xs font-bold text-zinc-900 dark:text-white line-clamp-2 uppercase font-mono">
+                                    {item.product_title}
+                                  </p>
+                                  <button
+                                    onClick={() => copyToClipboard(item.product_title, `prod_title_${itemKey}`)}
+                                    title="Copy Short Description"
+                                    className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
+                                  >
+                                    {copiedId === `prod_title_${itemKey}` ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-zinc-400 font-mono italic" title="Child rows of short description remain blank per rule">
+                                  {item.is_parent === false ? 'Blank (Child)' : '-'}
+                                </span>
+                              )}
                             </td>
 
                             {/* Meta Title (Separate, Title Case, no commas) */}
                             <td className="p-3 max-w-xs">
-                              <div className="flex items-start justify-between gap-1.5">
-                                <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 line-clamp-2">
-                                  {item.meta_title || item.product_title}
-                                </p>
-                                <button
-                                  onClick={() => copyToClipboard(item.meta_title || item.product_title, `meta_title_${itemKey}`)}
-                                  title="Copy Meta Title"
-                                  className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
-                                >
-                                  {copiedId === `meta_title_${itemKey}` ? (
-                                    <Check className="w-3.5 h-3.5 text-emerald-500" />
-                                  ) : (
-                                    <Copy className="w-3.5 h-3.5" />
-                                  )}
-                                </button>
-                              </div>
+                              {item.meta_title ? (
+                                <div className="flex items-start justify-between gap-1.5">
+                                  <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 line-clamp-2">
+                                    {item.meta_title}
+                                  </p>
+                                  <button
+                                    onClick={() => copyToClipboard(item.meta_title || '', `meta_title_${itemKey}`)}
+                                    title="Copy Meta Title"
+                                    className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer shrink-0"
+                                  >
+                                    {copiedId === `meta_title_${itemKey}` ? (
+                                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                    ) : (
+                                      <Copy className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-zinc-400 font-mono italic" title="Child rows of meta title remain blank per rule">
+                                  {item.is_parent === false ? 'Blank (Child)' : '-'}
+                                </span>
+                              )}
                             </td>
 
                             {/* Meta Description */}

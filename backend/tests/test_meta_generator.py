@@ -588,6 +588,9 @@ def test_child_cells_descriptions_blank_by_default_and_populated_when_prompted()
     assert p["fig_no"] == "1"
     assert p["part_name"] == "CYLINDER HEAD"
     assert p["catalogue_code"] == "YAM_BGPK_CYLINDER_HEAD"
+    # Parent includes only parent cell's parts name in short description and meta title
+    assert p["product_title"] == "YAMAHA BGPK FZ-S SERIES CYLINDER HEAD"
+    assert p["meta_title"] == "Yamaha Fz-S Series BGPK Cylinder Head | IndiaSpare"
     assert len(p["meta_description"]) >= 151
     assert len(p["product_description"].split()) >= 120
 
@@ -601,6 +604,8 @@ def test_child_cells_descriptions_blank_by_default_and_populated_when_prompted()
     assert c1["description"] == "BOLT FLANGE"
     assert c1["ref_no"] == "2"
     assert c1["part_no"] == "90105-06836"
+    assert c1["product_title"] == ""  # Strictly blank per user rule!
+    assert c1["meta_title"] == ""  # Strictly blank per user rule!
     assert c1["meta_description"] == ""  # Strictly blank per user rule!
     assert c1["product_description"] == ""  # Strictly blank per user rule!
 
@@ -610,6 +615,8 @@ def test_child_cells_descriptions_blank_by_default_and_populated_when_prompted()
     assert c2["fig_no"] == ""
     assert c2["part_name"] == ""
     assert c2["catalogue_code"] == ""
+    assert c2["product_title"] == ""  # Strictly blank per user rule!
+    assert c2["meta_title"] == ""  # Strictly blank per user rule!
     assert c2["meta_description"] == ""
     assert c2["product_description"] == ""
 
@@ -627,17 +634,21 @@ def test_child_cells_descriptions_blank_by_default_and_populated_when_prompted()
     )
     assert len(items_with_child_prompt) == 3
 
-    # Parent still has full descriptions
+    # Parent still has full descriptions and parent part name
     p_prompt = items_with_child_prompt[0]
     assert p_prompt["is_parent"] is True
+    assert p_prompt["product_title"] == "YAMAHA BGPK FZ-S SERIES CYLINDER HEAD"
+    assert p_prompt["meta_title"] == "Yamaha Fz-S Series BGPK Cylinder Head | IndiaSpare"
     assert len(p_prompt["meta_description"]) >= 151
 
-    # Child item 1 NOW has generated descriptions because child cells were referenced!
+    # Child item 1 NOW has generated descriptions, but short description & meta title remain blank!
     c1_prompt = items_with_child_prompt[1]
     assert c1_prompt["is_parent"] is False
     assert c1_prompt["fig_no"] == ""
     assert c1_prompt["part_name"] == ""
     assert c1_prompt["catalogue_code"] == ""
+    assert c1_prompt["product_title"] == ""  # Strictly blank per user rule!
+    assert c1_prompt["meta_title"] == ""  # Strictly blank per user rule!
     assert len(c1_prompt["meta_description"]) >= 151
     assert len(c1_prompt["product_description"].split()) >= 120
 
@@ -676,18 +687,22 @@ def test_export_single_sheet_with_autofilter_for_child_cells():
     assert ws.auto_filter.ref is not None
     assert "A1:" in ws.auto_filter.ref
 
-    # Row 2 (Parent) has Fig No and Catalogue Code populated
+    # Row 2 (Parent) has Fig No, Catalogue Code, Short Description & Meta Title populated
     assert ws.cell(row=2, column=2).value == "1"
     assert ws.cell(row=2, column=3).value == "CYLINDER HEAD"
     assert ws.cell(row=2, column=4).value == "YAM_BGPK_CYLINDER_HEAD"
+    assert ws.cell(row=2, column=16).value == "YAMAHA BGPK RAY ZR SERIES CYLINDER HEAD"
+    assert ws.cell(row=2, column=17).value == "Yamaha Ray Zr Series BGPK Cylinder Head | IndiaSpare"
 
-    # Row 3 (Child) has Fig No, Catalog Name, Catalogue Code BLANK
+    # Row 3 (Child) has Fig No, Catalog Name, Catalogue Code, Short Description & Meta Title BLANK
     assert (ws.cell(row=3, column=2).value or "") == ""
     assert (ws.cell(row=3, column=3).value or "") == ""
     assert (ws.cell(row=3, column=4).value or "") == ""
     assert str(ws.cell(row=3, column=5).value) == "2"  # Ref No
     assert str(ws.cell(row=3, column=6).value) == "90105-06836"  # Part No
     assert str(ws.cell(row=3, column=8).value) == "BOLT FLANGE"  # Description
+    assert (ws.cell(row=3, column=16).value or "") == ""  # Short Description is BLANK for child
+    assert (ws.cell(row=3, column=17).value or "") == ""  # Meta Title is BLANK for child
 
 
 
