@@ -16,25 +16,26 @@ import {
   Sparkles,
   Zap,
   AlertCircle,
+  Columns,
 } from 'lucide-react';
 import type { PartRow, PartMetadataItem } from '../types';
 
 const PROMPT_PRESETS = [
   {
     label: '🌟 OEM Durability',
-    prompt: 'Emphasize genuine factory OEM specifications, strict automotive quality testing, high heat resistance, and India Spare verified fitment.',
+    prompt: 'Emphasize genuine factory OEM specifications, strict automotive quality testing, high heat resistance, and IndiaSpare verified fitment.',
   },
   {
     label: '🚀 Performance & Longevity',
-    prompt: 'Highlight optimum engine efficiency, zero vibration, seamless mechanical compatibility, long-term road reliability, and India Spare authenticity.',
+    prompt: 'Highlight optimum engine efficiency, zero vibration, seamless mechanical compatibility, long-term road reliability, and IndiaSpare authenticity.',
   },
   {
     label: '🛡️ Warranty & Safe Packaging',
-    prompt: 'Focus on 100% genuine replacement guarantee, damage-free protective packaging, verified vehicle fitment, and India Spare customer support.',
+    prompt: 'Focus on 100% genuine replacement guarantee, damage-free protective packaging, verified vehicle fitment, and IndiaSpare customer support.',
   },
   {
     label: '🛒 eCommerce Conversion',
-    prompt: 'Write in an energetic, persuasive, high-converting eCommerce style encouraging two-wheeler riders to upgrade with genuine parts from India Spare.',
+    prompt: 'Write in an energetic, persuasive, high-converting eCommerce style encouraging two-wheeler riders to upgrade with genuine parts from IndiaSpare.',
   },
 ];
 
@@ -132,9 +133,57 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
     return localStorage.getItem('converter_gemini_api_key') || '';
   });
   const [aiPrompt, setAiPrompt] = useState<string>(
-    'Generate authentic OEM eCommerce descriptions emphasizing factory precision, durability, heat resistance, direct vehicle fitment, and India Spare verified quality.'
+    'Generate authentic OEM eCommerce descriptions emphasizing factory precision, durability, heat resistance, direct vehicle fitment, and IndiaSpare verified quality.'
   );
   const [aiError, setAiError] = useState<string | null>(null);
+
+  // Column Selection State for Custom Export
+  const [showColumnSelector, setShowColumnSelector] = useState<boolean>(false);
+
+  // Base and dynamic model export columns
+  const allAvailableColumns = useMemo(() => {
+    const base = [
+      'Fig No.',
+      'Catalog Name',
+      'Brand',
+      'Model Code',
+      'Model',
+      'Series',
+      'Pic',
+      'Short Description',
+      'Meta Title',
+      'Meta Description (151-158 Chars)',
+      'Meta Desc Chars',
+      'Product Description (120-140 Words)',
+      'Product Desc Words',
+      'Page',
+      'Ref No.',
+      'Part No.',
+      'Clean Part No.',
+    ];
+    if (models && models.length > 0) {
+      models.forEach((m) => {
+        const qCol = `Qty (${m})`;
+        if (!base.includes(qCol)) base.push(qCol);
+      });
+    }
+    if (!base.includes('Remarks')) base.push('Remarks');
+    return base;
+  }, [models]);
+
+  const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+
+  // Initialize and sync selectedColumns with available columns
+  useEffect(() => {
+    setSelectedColumns((prev) => {
+      if (prev.length === 0) return allAvailableColumns;
+      const valid = prev.filter((c) => allAvailableColumns.includes(c));
+      allAvailableColumns.forEach((c) => {
+        if (!valid.includes(c)) valid.push(c);
+      });
+      return valid.length > 0 ? valid : allAvailableColumns;
+    });
+  }, [allAvailableColumns]);
 
   // Processing state
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
@@ -194,7 +243,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
         figures: figures && figures.length > 0 ? figures : undefined,
         model_columns: models,
         brand: brand.trim() || 'YAMAHA',
-        model: model.trim(),
+        model: model.trim().toUpperCase(),
         series: series.trim() || 'series',
         model_code: activeModelCode,
         main_parts_only: mainPartsOnly,
@@ -290,6 +339,10 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
       alert('Model is mandatory! Please fill in the Model text box before exporting.');
       return;
     }
+    if (selectedColumns.length === 0) {
+      alert('Please select at least one column to export using the Columns button.');
+      return;
+    }
     setIsExporting(true);
     try {
       const res = await fetch('/api/meta/export', {
@@ -302,6 +355,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
           brand: brand.trim() || 'YAMAHA',
           model_columns: models,
           raw_rows: rows,
+          selected_columns: selectedColumns,
         }),
       });
 
@@ -393,15 +447,31 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
             {metadataItems.length > 0 && (
               <>
                 <button
+                  type="button"
+                  onClick={() => setShowColumnSelector(!showColumnSelector)}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-full font-semibold text-xs border transition-all font-mono cursor-pointer ${
+                    showColumnSelector
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                      : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border-zinc-200 dark:border-zinc-800'
+                  }`}
+                  title="Select or unselect columns for Excel & CSV export"
+                >
+                  <Columns className="w-3.5 h-3.5" />
+                  <span>Columns ({selectedColumns.length}/{allAvailableColumns.length})</span>
+                  {showColumnSelector ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+                <button
                   onClick={() => downloadExport('xlsx')}
-                  disabled={isExporting || !isModelFilled}
+                  disabled={isExporting || !isModelFilled || selectedColumns.length === 0}
                   title={
                     !isModelFilled
                       ? 'Model is mandatory: please fill the Model text box below to enable Excel export'
+                      : selectedColumns.length === 0
+                      ? 'Please select at least 1 column using the Columns selector'
                       : 'Export Excel (.xlsx)'
                   }
                   className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-full font-bold text-xs uppercase tracking-wider transition-all shadow-xs active:scale-95 ${
-                    isModelFilled
+                    isModelFilled && selectedColumns.length > 0
                       ? 'bg-black hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-zinc-200 dark:text-black cursor-pointer'
                       : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-500 cursor-not-allowed'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -411,14 +481,16 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                 </button>
                 <button
                   onClick={() => downloadExport('csv')}
-                  disabled={isExporting || !isModelFilled}
+                  disabled={isExporting || !isModelFilled || selectedColumns.length === 0}
                   title={
                     !isModelFilled
                       ? 'Model is mandatory: please fill the Model text box below to enable CSV export'
+                      : selectedColumns.length === 0
+                      ? 'Please select at least 1 column using the Columns selector'
                       : 'Export CSV'
                   }
                   className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full font-semibold text-xs border transition-all font-mono ${
-                    isModelFilled
+                    isModelFilled && selectedColumns.length > 0
                       ? 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border-zinc-200 dark:border-zinc-800 cursor-pointer'
                       : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-400 dark:text-zinc-600 border-zinc-200 dark:border-zinc-800 cursor-not-allowed'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -464,6 +536,89 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
             />
           </div>
         </div>
+
+        {/* Expandable Column Selection Checkbox Drawer */}
+        {showColumnSelector && (
+          <div className="p-4 sm:p-5 rounded-2xl bg-zinc-50 dark:bg-zinc-900/90 border border-zinc-200 dark:border-zinc-800 space-y-4 shadow-sm animate-in slide-in-from-top-2 duration-150">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-200 dark:border-zinc-800">
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-white font-mono flex items-center gap-2">
+                  <Columns className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  Export Column Selection Checkboxes
+                </h4>
+                <p className="text-[11px] text-zinc-500 mt-0.5 font-mono">
+                  Select or unselect columns to customize which columns appear in the exported Excel (.xlsx) and CSV spreadsheets.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setSelectedColumns([...allAvailableColumns])}
+                  className="px-2.5 py-1 rounded-lg bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-[11px] font-mono font-semibold transition-colors cursor-pointer"
+                >
+                  Select All ({allAvailableColumns.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedColumns([])}
+                  className="px-2.5 py-1 rounded-lg bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-[11px] font-mono font-semibold transition-colors cursor-pointer"
+                >
+                  Deselect All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedColumns([...allAvailableColumns])}
+                  className="px-2.5 py-1 rounded-lg bg-blue-100 hover:bg-blue-200 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-[11px] font-mono font-semibold transition-colors cursor-pointer"
+                >
+                  Reset Default
+                </button>
+              </div>
+            </div>
+
+            {/* Checkbox Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+              {allAvailableColumns.map((colName) => {
+                const isChecked = selectedColumns.includes(colName);
+                return (
+                  <label
+                    key={colName}
+                    className={`flex items-center gap-2 p-2 rounded-xl border text-xs font-mono transition-all cursor-pointer select-none ${
+                      isChecked
+                        ? 'bg-blue-50/80 dark:bg-blue-950/30 border-blue-300 dark:border-blue-800 text-blue-950 dark:text-blue-200 font-semibold shadow-xs'
+                        : 'bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 text-zinc-500 opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedColumns((prev) => [...prev, colName]);
+                        } else {
+                          setSelectedColumns((prev) => prev.filter((c) => c !== colName));
+                        }
+                      }}
+                      className="w-3.5 h-3.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                    />
+                    <span className="truncate" title={colName}>{colName}</span>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] font-mono text-zinc-500 pt-1">
+              <span>
+                Selected: <strong className="text-zinc-900 dark:text-white font-bold">{selectedColumns.length}</strong> of {allAvailableColumns.length} columns
+              </span>
+              {selectedColumns.length === 0 && (
+                <span className="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> Select at least 1 column to export
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Configuration Text Boxes (Brand, Model Code, Model [typed after Model Code], Series) */}
         <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800/80 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -515,7 +670,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
             <input
               type="text"
               value={model}
-              onChange={(e) => setModel(e.target.value)}
+              onChange={(e) => setModel(e.target.value.toUpperCase())}
               placeholder="Enter Model (e.g. FZ-S, R15) - Mandatory *"
               className={`w-full px-3.5 py-2 rounded-xl text-xs font-semibold uppercase transition-all ${
                 !isModelFilled
@@ -695,7 +850,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
             {/* Generate with AI Button */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
               <div className="text-[11px] text-zinc-500 font-mono">
-                Auto-enforces: 151–158 chars (Meta Desc) • 120–140 words (Prod Desc) • zero commas • India Spare casing.
+                Auto-enforces: 151–158 chars (Meta Desc) • 120–140 words (Prod Desc) • zero commas • IndiaSpare casing.
               </div>
               <button
                 type="button"
@@ -741,7 +896,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
           <div>
             <span className="text-zinc-400 uppercase font-semibold block mb-0.5">Meta Title (Separate, no commas):</span>
             <span className="font-bold text-zinc-800 dark:text-zinc-200">
-              {brand ? brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase() : 'Yamaha'} {model ? `${model} ${series ? `${series} ` : ''}` : (series && series.toLowerCase() !== 'series' ? `${series} ` : '')}{activeModelCode} [Parts Name] | India Spare
+              {brand ? brand.charAt(0).toUpperCase() + brand.slice(1).toLowerCase() : 'Yamaha'} {model ? `${model} ${series ? `${series} ` : ''}` : (series && series.toLowerCase() !== 'series' ? `${series} ` : '')}{activeModelCode} [Parts Name] | IndiaSpare
             </span>
           </div>
           <div>

@@ -589,7 +589,7 @@ def process_watermark_and_resize(
     else:
         watermarked_bytes = apply_text_watermark(
             image_bytes=resized_bytes,
-            text=watermark_config.get("text", "INDIA SPARE"),
+            text=watermark_config.get("text", "IndiaSpare"),
             opacity=watermark_config.get("opacity", 0.10),
             angle=watermark_config.get("angle", -30.0),
             padding=watermark_config.get("padding", 115),

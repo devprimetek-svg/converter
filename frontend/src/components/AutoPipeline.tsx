@@ -83,7 +83,7 @@ export interface AutoPipelineProps {
 export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta, onJobCompleted }) => {
   // Preset States (Pre-filled exactly per user specifications: Company logo, -30° rotation, 115 padding, 25% scale, 10% opacity, tiled)
   const [wmType, setWmType] = useState<'logo' | 'text'>('logo');
-  const [wmText, setWmText] = useState<string>('INDIA SPARE');
+  const [wmText, setWmText] = useState<string>('IndiaSpare');
   const [wmRotation, setWmRotation] = useState<number>(-30);
   const [wmPadding, setWmPadding] = useState<number>(115);
   const [wmSizePct, setWmSizePct] = useState<number>(25);
@@ -312,7 +312,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta, onJ
           Automate Everything from One PDF
         </h2>
         <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400 font-normal">
-          Upload catalogue once: extracts parts into Excel, detects figure diagrams, applies India Spare watermark preset, resizes to 1000x1200, and bundles Master ZIP.
+          Upload catalogue once: extracts parts into Excel, detects figure diagrams, applies IndiaSpare watermark preset, resizes to 1000x1200, and bundles Master ZIP.
         </p>
       </div>
 
@@ -326,7 +326,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta, onJ
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-300 text-xs font-mono font-medium border border-zinc-200 dark:border-zinc-800">
               <Droplet className="w-3 h-3 text-zinc-800 dark:text-white" />
               {wmType === 'logo'
-                ? (logoFile ? `Logo: ${logoFile.name.slice(0, 15)} (Tiled)` : 'Watermark: India Spare Logo (Tiled)')
+                ? (logoFile ? `Logo: ${logoFile.name.slice(0, 15)} (Tiled)` : 'Watermark: IndiaSpare Logo (Tiled)')
                 : `Watermark: "${wmText}" (Tiled)`} • {wmRotation}° • {wmPadding}px • {wmSizePct}% Scale • {wmOpacity}% Opacity
             </span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-300 text-xs font-mono font-medium border border-zinc-200 dark:border-zinc-800">
@@ -386,7 +386,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta, onJ
                 <div className="p-3 rounded-xl border border-blue-100 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      {logoFile ? `Custom Logo: ${logoFile.name}` : 'Default Preset Logo (India Spare)'}
+                      {logoFile ? `Custom Logo: ${logoFile.name}` : 'Default Preset Logo (IndiaSpare)'}
                     </span>
                     <div className="flex items-center gap-2">
                       <input

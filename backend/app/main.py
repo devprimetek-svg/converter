@@ -837,6 +837,7 @@ class MetaExportRequest(BaseModel):
     brand: str = "YAMAHA"
     model_columns: list[str] = Field(default_factory=list)
     raw_rows: Optional[list[dict[str, Any]]] = None
+    selected_columns: Optional[list[str]] = None
 
 
 _SAMPLE_CATALOG_CACHE: Optional[dict[str, Any]] = None
@@ -959,7 +960,11 @@ def export_metadata_endpoint(req: MetaExportRequest):
     safe_name = re.sub(r'[\\/*?:"<>|]', "", req.filename).strip() or "Product_Metadata"
 
     if req.format.lower() == "csv":
-        csv_buf = export_metadata_csv(req.items, model_columns=req.model_columns)
+        csv_buf = export_metadata_csv(
+            req.items,
+            model_columns=req.model_columns,
+            selected_columns=req.selected_columns,
+        )
         return StreamingResponse(
             csv_buf,
             media_type="text/csv",
@@ -974,6 +979,7 @@ def export_metadata_endpoint(req: MetaExportRequest):
             brand=req.brand,
             model_columns=req.model_columns,
             raw_rows=req.raw_rows,
+            selected_columns=req.selected_columns,
         )
         return StreamingResponse(
             xlsx_buf,

@@ -54,10 +54,10 @@ def clean_no_commas(text: str) -> str:
 
 
 def format_india_spare(text: str) -> str:
-    """Ensure any occurrence of 'india spare' is formatted strictly as 'India Spare'."""
+    """Ensure any occurrence of 'india spare' or 'indiaspare' is formatted strictly as 'IndiaSpare'."""
     if not text:
         return ""
-    return re.sub(r"(?i)\bindia spare\b", "India Spare", text)
+    return re.sub(r"(?i)\bindia\s*spare\b|\bindiaspare\b", "IndiaSpare", text)
 
 
 def build_product_title(
@@ -86,7 +86,7 @@ def build_product_title(
     parts.append(p)
 
     title = clean_no_commas(" ".join(parts)).upper()
-    return format_india_spare(title) if "india spare" in title.lower() else title
+    return format_india_spare(title) if ("india spare" in title.lower() or "indiaspare" in title.lower()) else title
 
 
 def build_meta_title(
@@ -98,7 +98,7 @@ def build_meta_title(
 ) -> str:
     """Build meta title separate from product title (Title Case, no commas between words).
     Model is typed before model code, and Series is visible after Model:
-    BRAND (MODEL if present) (SERIES if present after MODEL) MODEL_CODE PARTS_NAME | India Spare.
+    BRAND (MODEL if present) (SERIES if present after MODEL) MODEL_CODE PARTS_NAME | IndiaSpare.
     """
     b = (brand or "Yamaha").strip().title()
     mc = (model_code or "Model").strip().upper()
@@ -116,7 +116,7 @@ def build_meta_title(
     parts.append(mc)
     parts.append(p)
 
-    title = clean_no_commas(" ".join(parts)) + " | India Spare"
+    title = clean_no_commas(" ".join(parts)) + " | IndiaSpare"
     return format_india_spare(title)
 
 
@@ -126,21 +126,21 @@ def build_meta_short_description(
     part_name: str,
     model: str = "",
 ) -> str:
-    """Build meta short description ending with INDIA SPARE without commas between words."""
+    """Build meta short description ending with IndiaSpare without commas between words."""
     b = (brand or "YAMAHA").strip().upper()
     mc = (model_code or "MODEL").strip().upper()
     mn = (model or "").strip().upper()
     p = (part_name or "PARTS").strip().upper()
 
     if mn:
-        desc = f"{b} {mc} {mn} {p} INDIA SPARE"
+        desc = f"{b} {mc} {mn} {p} IndiaSpare"
     else:
-        desc = f"{b} {mc} {p} INDIA SPARE"
-    return clean_no_commas(desc).upper()
+        desc = f"{b} {mc} {p} IndiaSpare"
+    return format_india_spare(clean_no_commas(desc))
 
 
 def enforce_meta_desc_length(text: str) -> str:
-    """Enforce strictly 151 to 158 characters without commas, preserving 'India Spare'."""
+    """Enforce strictly 151 to 158 characters without commas, preserving 'IndiaSpare'."""
     text = clean_no_commas(text).lower()
     if 151 <= len(text) <= 158:
         return format_india_spare(text)
@@ -149,7 +149,7 @@ def enforce_meta_desc_length(text: str) -> str:
         "with verified vehicle fit.",
         "with guaranteed vehicle fitment.",
         "factory replacement parts.",
-        "from india spare today.",
+        "from indiaspare today.",
         "genuine oem spare.",
         "genuine oem factory diagram assembly.",
     ]
@@ -181,7 +181,7 @@ def enforce_meta_desc_length(text: str) -> str:
         "fit.", "now.", "part.", "today.", "spare.", "parts.",
         "with fit.", "exact fit.", "direct fit.",
         "with verified fit.", "with guaranteed fit.",
-        "for your motorcycle.", "from india spare.",
+        "for your motorcycle.", "from indiaspare.",
     ]
     for c in sorted(closers, key=len):
         cand = clean_no_commas(built.rstrip(".") + " " + c).lower()
@@ -198,7 +198,7 @@ def enforce_meta_desc_length(text: str) -> str:
         if last_space >= 150:
             return format_india_spare((built[:last_space] + ".").lower())
         return format_india_spare((built[:157] + ".").lower())
-    return built.lower()
+    return format_india_spare(built.lower())
 
 
 def build_meta_description(
@@ -208,7 +208,7 @@ def build_meta_description(
     model: str = "",
     series: str = "series",
 ) -> str:
-    """Build meta description strictly bounded between 151 and 158 characters without caps and without commas."""
+    """Build meta description strictly bounded between 151 and 158 characters without caps except 'IndiaSpare' and without commas."""
     b = (brand or "yamaha").strip().lower()
     mc = (model_code or "model").strip().lower()
     mn = (model or "").strip().lower()
@@ -218,19 +218,19 @@ def build_meta_description(
 
     # Ordered candidate sentences designed for various part name lengths (without caps)
     candidates = [
-        f"buy authentic {b} {m_disp} {ser} {p} genuine oem spare parts diagram from india spare. high quality factory replacement parts with verified vehicle fit.",
-        f"buy genuine {b} {m_disp} {ser} {p} original oem spare parts diagram from india spare. factory direct replacement component with verified vehicle fit.",
-        f"authentic {b} {m_disp} {ser} {p} oem spare parts diagram illustration by india spare. factory standard direct replacement parts with verified vehicle fit.",
-        f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from india spare. high quality factory replacement parts with verified vehicle fit.",
-        f"genuine {b} {m_disp} {p} authentic oem spare parts diagram from india spare. high quality factory replacement parts with verified vehicle fitment today.",
-        f"buy genuine {b} {m_disp} {ser} {p} replacement parts from india spare. authentic oem factory specification diagram assembly with guaranteed vehicle fit.",
-        f"authentic {b} {m_disp} {p} spare part from india spare. genuine factory standard oem diagram illustration with guaranteed durability and vehicle fitment.",
-        f"original {b} {m_disp} {ser} {p} replacement component from india spare. premium oem factory diagram spare with guaranteed vehicle fitment and durability.",
-        f"buy official {b} {m_disp} {p} genuine spare parts from india spare. authentic oem factory replacement diagram assembly with guaranteed fit and quality.",
-        f"official {b} {m_disp} {p} spare parts from india spare. genuine oem factory specification replacement diagram illustration with guaranteed vehicle fitment.",
-        f"authentic {b} {m_disp} {p} diagram spare part from india spare. high quality factory replacement component with guaranteed vehicle fit and durability.",
-        f"genuine {b} {m_disp} {p} spare parts from india spare. authentic oem factory specification diagram assembly with guaranteed durable vehicle fitment.",
-        f"buy genuine {b} {m_disp} {p} spare parts from india spare. authentic oem diagram assembly with guaranteed durable vehicle fitment and satisfaction.",
+        f"buy authentic {b} {m_disp} {ser} {p} genuine oem spare parts diagram from indiaspare. high quality factory replacement parts with verified vehicle fit.",
+        f"buy genuine {b} {m_disp} {ser} {p} original oem spare parts diagram from indiaspare. factory direct replacement component with verified vehicle fit.",
+        f"authentic {b} {m_disp} {ser} {p} oem spare parts diagram illustration by indiaspare. factory standard direct replacement parts with verified vehicle fit.",
+        f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from indiaspare. high quality factory replacement parts with verified vehicle fit.",
+        f"genuine {b} {m_disp} {p} authentic oem spare parts diagram from indiaspare. high quality factory replacement parts with verified vehicle fitment today.",
+        f"buy genuine {b} {m_disp} {ser} {p} replacement parts from indiaspare. authentic oem factory specification diagram assembly with guaranteed vehicle fit.",
+        f"authentic {b} {m_disp} {p} spare part from indiaspare. genuine factory standard oem diagram illustration with guaranteed durability and vehicle fitment.",
+        f"original {b} {m_disp} {ser} {p} replacement component from indiaspare. premium oem factory diagram spare with guaranteed vehicle fitment and durability.",
+        f"buy official {b} {m_disp} {p} genuine spare parts from indiaspare. authentic oem factory replacement diagram assembly with guaranteed fit and quality.",
+        f"official {b} {m_disp} {p} spare parts from indiaspare. genuine oem factory specification replacement diagram illustration with guaranteed vehicle fitment.",
+        f"authentic {b} {m_disp} {p} diagram spare part from indiaspare. high quality factory replacement component with guaranteed vehicle fit and durability.",
+        f"genuine {b} {m_disp} {p} spare parts from indiaspare. authentic oem factory specification diagram assembly with guaranteed durable vehicle fitment.",
+        f"buy genuine {b} {m_disp} {p} spare parts from indiaspare. authentic oem diagram assembly with guaranteed durable vehicle fitment and satisfaction.",
     ]
 
     for c in candidates:
@@ -239,7 +239,7 @@ def build_meta_description(
             return format_india_spare(c)
 
     # Algorithmic prefix + suffix combinations
-    prefix = clean_no_commas(f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from india spare.").lower()
+    prefix = clean_no_commas(f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from indiaspare.").lower()
 
     suffix_bank = [
         "high quality factory replacement parts with verified vehicle fit.",
@@ -265,7 +265,7 @@ def build_meta_description(
             return format_india_spare(cand)
 
     base = clean_no_commas(
-        f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from india spare. "
+        f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from indiaspare. "
         f"factory replacement with verified fitment and durable performance guarantee."
     ).lower()
     words = base.split()
@@ -280,7 +280,7 @@ def build_meta_description(
         " with verified fit.",
         " with guaranteed fit.",
         " for your vehicle.",
-        " from india spare.",
+        " from indiaspare.",
         " today.",
     ]
     for cp in closing_phrases:
@@ -329,7 +329,7 @@ def build_product_description(
         f"with adjacent assembly parts preventing premature wear and maintaining factory efficiency across all riding conditions."
     )
     p3 = (
-        f"Order your authentic {b} {m_disp} {p} diagram spare from India Spare today. "
+        f"Order your authentic {b} {m_disp} {p} diagram spare from IndiaSpare today. "
         f"We provide verified authentic OEM components with guaranteed fitment secure protective packaging and dependable delivery. "
         f"Upgrade your motorcycle with confidence using certified factory parts built for durability and road safety."
     )
@@ -347,7 +347,7 @@ def build_product_description(
 
     addon_sentences = [
         "Each component is thoroughly inspected to verify genuine factory build quality.",
-        "Trust India Spare for 100% authentic OEM replacement parts backed by guaranteed vehicle fitment.",
+        "Trust IndiaSpare for 100% authentic OEM replacement parts backed by guaranteed vehicle fitment.",
         "Proper installation following the official service manual guidelines is always recommended.",
         "Keep your two wheeler operating at peak performance with authentic factory components.",
     ]
@@ -388,13 +388,13 @@ def generate_main_part_metadata(
     part_name = str(figure.get("fig_name") or "").strip() or "PARTS ASSEMBLY"
     b = (brand or "YAMAHA").strip().upper()
     mc = (model_code or "MODEL").strip().upper()
-    mn = (model or "").strip()
+    mn = (model or "").strip().upper()
     ser = (series or "series").strip()
     p = page or int(figure.get("first_page") or figure.get("page") or 1)
 
     parts_model_str = [mc]
     if mn:
-        parts_model_str.append(mn.upper())
+        parts_model_str.append(mn)
         if ser:
             parts_model_str.append(ser.upper())
     elif ser and ser.lower() != "series":
@@ -442,7 +442,7 @@ def generate_main_part_metadata(
         "remarks": "",
     }
     for k, v in record.items():
-        if isinstance(v, str) and "india spare" in v.lower():
+        if isinstance(v, str) and ("india spare" in v.lower() or "indiaspare" in v.lower()):
             record[k] = format_india_spare(v)
     return record
 
@@ -467,12 +467,12 @@ def generate_child_part_metadata(
 
     b = (brand or "YAMAHA").strip().upper()
     mc = (model_code or ("_".join(model_columns) if model_columns else "MODEL")).strip().upper()
-    mn = (model or "").strip()
+    mn = (model or "").strip().upper()
     ser = (series or "series").strip()
 
     parts_model_str = [mc]
     if mn:
-        parts_model_str.append(mn.upper())
+        parts_model_str.append(mn)
         if ser:
             parts_model_str.append(ser.upper())
     elif ser and ser.lower() != "series":
@@ -520,7 +520,7 @@ def generate_child_part_metadata(
             record[m] = row[m]
 
     for k, v in record.items():
-        if isinstance(v, str) and "india spare" in v.lower():
+        if isinstance(v, str) and ("india spare" in v.lower() or "indiaspare" in v.lower()):
             record[k] = format_india_spare(v)
     return record
 
@@ -541,6 +541,7 @@ def generate_catalog_metadata(
     """Generate SEO metadata for catalog. Defaults to main parts only (figure assemblies).
     By default during PDF scan, meta_description and product_description are kept blank.
     """
+    model_upper = (model or "").strip().upper()
     mc = model_code
     if not mc:
         if model_columns:
@@ -576,7 +577,7 @@ def generate_catalog_metadata(
                 figure=fig,
                 model_code=mc,
                 brand=brand,
-                model=model,
+                model=model_upper,
                 series=series,
                 blank_descriptions=blank_descriptions,
             )
@@ -599,7 +600,7 @@ def generate_catalog_metadata(
                 row=r,
                 model_columns=model_columns,
                 brand=brand,
-                model=model,
+                model=model_upper,
                 series=series,
                 model_code=mc,
                 blank_descriptions=blank_descriptions,
@@ -614,8 +615,11 @@ def export_metadata_excel(
     brand: str = "YAMAHA",
     model_columns: Optional[list[str]] = None,
     raw_rows: Optional[list[dict[str, Any]]] = None,
+    selected_columns: Optional[list[str]] = None,
 ) -> io.BytesIO:
-    """Generate an Excel workbook (.xlsx) containing both extracted catalogue columns and generated SEO metadata."""
+    """Generate an Excel workbook (.xlsx) containing both extracted catalogue columns and generated SEO metadata.
+    Supports filtering columns via selected_columns.
+    """
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Product Metadata"
@@ -684,6 +688,17 @@ def export_metadata_excel(
 
     headers.append(("Remarks", "remarks", left_align, 24))
 
+    # Column Selection Filter: if provided and not empty, filter headers
+    if selected_columns and len(selected_columns) > 0:
+        sel_set = set(selected_columns)
+        sel_lower = {s.lower() for s in selected_columns}
+        filtered_headers = [
+            h for h in headers
+            if h[1] in sel_set or h[0] in sel_set or h[1].lower() in sel_lower or h[0].lower() in sel_lower
+        ]
+        if filtered_headers:
+            headers = filtered_headers
+
     ws.row_dimensions[1].height = 28.0
     for col_idx, (label, _, _, col_width) in enumerate(headers, start=1):
         cell = ws.cell(row=1, column=col_idx, value=label)
@@ -699,7 +714,7 @@ def export_metadata_excel(
         for col_idx, (_, field_key, align, _) in enumerate(headers, start=1):
             val = r.get(field_key, "")
             val_str = str(val) if val is not None else ""
-            if "india spare" in val_str.lower():
+            if "india spare" in val_str.lower() or "indiaspare" in val_str.lower():
                 val_str = format_india_spare(val_str)
             cell = ws.cell(row=row_idx, column=col_idx, value=val_str)
             cell.font = data_font
@@ -761,29 +776,32 @@ def export_metadata_excel(
 def export_metadata_csv(
     meta_rows: list[dict[str, Any]],
     model_columns: Optional[list[str]] = None,
+    selected_columns: Optional[list[str]] = None,
 ) -> io.BytesIO:
-    """Generate RFC-compliant UTF-8 CSV containing both extracted catalogue columns and generated SEO metadata."""
+    """Generate RFC-compliant UTF-8 CSV containing both extracted catalogue columns and generated SEO metadata.
+    Supports filtering columns via selected_columns.
+    """
     buf = io.StringIO()
     writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL)
 
-    headers = [
-        "Fig No.",
-        "Catalog Name",
-        "Brand",
-        "Model Code",
-        "Model",
-        "Series",
-        "Pic",
-        "Short Description",
-        "Meta Title",
-        "Meta Description (151-158 Chars)",
-        "Meta Desc Chars",
-        "Product Description (120-140 Words)",
-        "Product Desc Words",
-        "Page",
-        "Ref No.",
-        "Part No.",
-        "Clean Part No.",
+    col_defs: list[tuple[str, str]] = [
+        ("Fig No.", "fig_no"),
+        ("Catalog Name", "part_name"),
+        ("Brand", "brand"),
+        ("Model Code", "model_code"),
+        ("Model", "model"),
+        ("Series", "series"),
+        ("Pic", "image_filename"),
+        ("Short Description", "product_title"),
+        ("Meta Title", "meta_title"),
+        ("Meta Description (151-158 Chars)", "meta_description"),
+        ("Meta Desc Chars", "meta_desc_chars"),
+        ("Product Description (120-140 Words)", "product_description"),
+        ("Product Desc Words", "product_desc_words"),
+        ("Page", "page"),
+        ("Ref No.", "ref_no"),
+        ("Part No.", "part_no"),
+        ("Clean Part No.", "clean_part_no"),
     ]
 
     resolved_model_cols: list[str] = []
@@ -806,40 +824,38 @@ def export_metadata_csv(
         resolved_model_cols = sorted(list(seen_cols))
 
     for m in resolved_model_cols:
-        headers.append(f"Qty ({m})")
-    headers.append("Remarks")
+        col_defs.append((f"Qty ({m})", m))
+    col_defs.append(("Remarks", "remarks"))
 
-    writer.writerow(headers)
+    # Column Selection Filter: if provided and not empty, filter col_defs
+    if selected_columns and len(selected_columns) > 0:
+        sel_set = set(selected_columns)
+        sel_lower = {s.lower() for s in selected_columns}
+        filtered_cols = [
+            c for c in col_defs
+            if c[1] in sel_set or c[0] in sel_set or c[1].lower() in sel_lower or c[0].lower() in sel_lower
+        ]
+        if filtered_cols:
+            col_defs = filtered_cols
+
+    writer.writerow([c[0] for c in col_defs])
 
     for r in meta_rows:
-        row_vals = [
-            r.get("fig_no", ""),
-            r.get("part_name", "") or r.get("description", ""),
-            r.get("brand", "YAMAHA"),
-            r.get("model_code", ""),
-            r.get("model", ""),
-            r.get("series", "series"),
-            r.get("image_filename", ""),
-            r.get("product_title", ""),
-            r.get("meta_title", ""),
-            r.get("meta_description", ""),
-            r.get("meta_desc_chars", len(str(r.get("meta_description") or ""))),
-            r.get("product_description", ""),
-            r.get("product_desc_words", len(str(r.get("product_description") or "").split())),
-            r.get("page", 1),
-            r.get("ref_no", ""),
-            r.get("part_no", ""),
-            r.get("clean_part_no", ""),
-        ]
-        for m in resolved_model_cols:
-            row_vals.append(r.get(m, ""))
-        row_vals.append(r.get("remarks", ""))
-
-        sanitized_vals = [
-            format_india_spare(str(v)) if isinstance(v, str) and "india spare" in v.lower() else v
-            for v in row_vals
-        ]
-        writer.writerow(sanitized_vals)
+        row_vals = []
+        for label, field_key in col_defs:
+            if field_key == "meta_desc_chars":
+                v = r.get("meta_desc_chars", len(str(r.get("meta_description") or "")))
+            elif field_key == "product_desc_words":
+                v = r.get("product_desc_words", len(str(r.get("product_description") or "").split()))
+            elif field_key == "part_name":
+                v = r.get("part_name", "") or r.get("description", "")
+            else:
+                v = r.get(field_key, "")
+            val_str = str(v) if v is not None else ""
+            if "india spare" in val_str.lower() or "indiaspare" in val_str.lower():
+                val_str = format_india_spare(val_str)
+            row_vals.append(val_str)
+        writer.writerow(row_vals)
 
     out = io.BytesIO(buf.getvalue().encode("utf-8-sig"))
     out.seek(0)

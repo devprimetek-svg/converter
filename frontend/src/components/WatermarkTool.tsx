@@ -39,7 +39,7 @@ export const WatermarkTool: React.FC = () => {
   const [wmType, setWmType] = useState<WatermarkType>('image');
 
   // Text watermark state
-  const [text, setText] = useState<string>('INDIA SPARE');
+  const [text, setText] = useState<string>('IndiaSpare');
   const [fontSize, setFontSize] = useState<number>(48);
   const [color, setColor] = useState<string>('#FFFFFF');
   const [opacity, setOpacity] = useState<number>(10);
@@ -47,7 +47,7 @@ export const WatermarkTool: React.FC = () => {
   const [position, setPosition] = useState<Position>('center');
   const [isTiled, setIsTiled] = useState<boolean>(true);
 
-  // Logo watermark state (Pre-set with India Spare logo)
+  // Logo watermark state (Pre-set with IndiaSpare logo)
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>('/default_watermark_logo.png');
   const [logoScale, setLogoScale] = useState<number>(20); // 20% preset scale
@@ -470,7 +470,7 @@ export const WatermarkTool: React.FC = () => {
                           }}
                           className="text-[10px] text-blue-600 hover:underline font-semibold"
                         >
-                          Reset to India Spare Logo
+                          Reset to IndiaSpare Logo
                         </button>
                       )}
                     </div>

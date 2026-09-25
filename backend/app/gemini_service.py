@@ -33,9 +33,9 @@ GEMINI_MODELS = [
 ]
 
 DEFAULT_AI_PROMPT = (
-    "Generate authentic eCommerce descriptions for India Spare parts catalogue. "
+    "Generate authentic eCommerce descriptions for IndiaSpare parts catalogue. "
     "Emphasize genuine OEM factory specifications, precision dimensional fitment, "
-    "high heat and stress resistance, long-term road safety, and India Spare verified quality guarantee."
+    "high heat and stress resistance, long-term road safety, and IndiaSpare verified quality guarantee."
 )
 
 
@@ -46,7 +46,7 @@ def enforce_product_desc_words(
     part_name: str = "PART",
 ) -> str:
     """Ensure product description is strictly bounded between 120 and 140 words without commas,
-    strictly preserving 'India Spare' proper casing.
+    strictly preserving 'IndiaSpare' proper casing.
     """
     clean_text = clean_no_commas(text)
     words = clean_text.split()
@@ -68,11 +68,11 @@ def enforce_product_desc_words(
         f"This authentic {brand} {model_str} {part_name} is an original OEM factory specification component designed specifically for your vehicle assembly.",
         "Manufactured under strict automotive quality standards this genuine replacement part provides exact dimensional accuracy and long term mechanical reliability.",
         "It directly replaces worn or damaged factory components to restore optimum operating performance across all riding conditions.",
-        f"Order your authentic {brand} {model_str} {part_name} diagram spare from India Spare today.",
+        f"Order your authentic {brand} {model_str} {part_name} diagram spare from IndiaSpare today.",
         "We provide verified authentic OEM components with guaranteed fitment secure protective packaging and dependable delivery across India.",
         "Upgrade your motorcycle with confidence using certified factory parts built for durability and road safety.",
         "Each genuine component undergoes rigorous factory inspection to ensure optimum operating performance.",
-        "Trust India Spare for authentic OEM replacement parts backed by verified vehicle fitment and rapid delivery.",
+        "Trust IndiaSpare for authentic OEM replacement parts backed by verified vehicle fitment and rapid delivery.",
         "Professional installation following standard manufacturer guidelines guarantees maximum vehicle longevity.",
         "Keep your motorcycle performing at peak efficiency under all demanding road conditions.",
     ]
@@ -97,12 +97,12 @@ def enforce_product_desc_words(
         clean_text = clean_text.rstrip(".") + ". " + " ".join(chunk) + "."
         words = clean_text.split()
 
-    # Ensure India Spare is guaranteed to be present
-    if "india spare" not in clean_text.lower():
+    # Ensure IndiaSpare is guaranteed to be present
+    if "indiaspare" not in clean_text.lower() and "india spare" not in clean_text.lower():
         words = clean_text.rstrip(".").split()
         if len(words) >= 137:
             words = words[:134]
-        clean_text = " ".join(words) + " from India Spare."
+        clean_text = " ".join(words) + " from IndiaSpare."
         words = clean_text.split()
 
     if len(words) > 140:
@@ -122,15 +122,15 @@ def _build_gemini_payload(
 ) -> dict[str, Any]:
     """Build the JSON request payload for Google AI Studio generateContent endpoint."""
     system_instruction = (
-        "You are an expert automotive parts copywriter for 'India Spare', an authentic OEM spare parts supplier in India. "
+        "You are an expert automotive parts copywriter for 'IndiaSpare', an authentic OEM spare parts supplier in India. "
         "Your task is to generate unique, high-quality, professional eCommerce descriptions for motorcycle and scooter parts. "
         "CRITICAL RULES:\n"
         "1. Do NOT include ANY commas in the text (zero commas).\n"
-        "2. Always reference 'India Spare' (exact proper casing).\n"
+        "2. Always reference 'IndiaSpare' (exact proper casing).\n"
         "3. For 'meta_description': produce a concise, compelling eCommerce SEO sentence between 145 and 155 characters. "
-        "Include the brand, model, series, part name, and 'from India Spare'.\n"
+        "Include the brand, model, series, part name, and 'from IndiaSpare'.\n"
         "4. For 'product_description': produce a detailed, authoritative product description of about 125 to 135 words. "
-        "Highlight OEM factory precision, material durability, direct fitment, and India Spare reliability.\n"
+        "Highlight OEM factory precision, material durability, direct fitment, and IndiaSpare reliability.\n"
         "5. Respond STRICTLY with a valid JSON object matching the requested schema."
     )
 

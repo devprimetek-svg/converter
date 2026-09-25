@@ -42,7 +42,7 @@ def test_product_title_in_caps_separate_from_meta_title_and_no_commas():
     assert pt.isupper()
 
     mt = build_meta_title("YAMAHA", "BGPK", "cylinder head", model="ray zr", series="series")
-    assert mt == "Yamaha Ray Zr Series BGPK Cylinder Head | India Spare"
+    assert mt == "Yamaha Ray Zr Series BGPK Cylinder Head | IndiaSpare"
     assert "," not in mt
     assert mt != pt  # Separate from product title
 
@@ -50,19 +50,19 @@ def test_product_title_in_caps_separate_from_meta_title_and_no_commas():
     pt_no_model = build_product_title("YAMAHA", "BGPK", "cylinder head", model="", series="series")
     assert pt_no_model == "YAMAHA BGPK CYLINDER HEAD"
     mt_no_model = build_meta_title("YAMAHA", "BGPK", "cylinder head", model="", series="series")
-    assert mt_no_model == "Yamaha BGPK Cylinder Head | India Spare"
+    assert mt_no_model == "Yamaha BGPK Cylinder Head | IndiaSpare"
 
 
 def test_meta_short_description_no_commas():
-    """Verify meta short description ends with INDIA SPARE and has no commas."""
+    """Verify meta short description ends with IndiaSpare and has no commas."""
     sd = build_meta_short_description("YAMAHA", "BGPK", "CYLINDER HEAD", model="RAY ZR")
-    assert sd == "YAMAHA BGPK RAY ZR CYLINDER HEAD INDIA SPARE"
+    assert sd == "YAMAHA BGPK RAY ZR CYLINDER HEAD IndiaSpare"
     assert "," not in sd
-    assert sd.endswith("INDIA SPARE")
+    assert sd.endswith("IndiaSpare")
 
 
 def test_meta_description_character_length_151_to_158_without_caps_no_commas():
-    """Verify meta descriptions are strictly bounded between 151 and 158 characters, without caps except India Spare, and zero commas."""
+    """Verify meta descriptions are strictly bounded between 151 and 158 characters, without caps except IndiaSpare, and zero commas."""
     sample_parts = [
         "CYLINDER HEAD",
         "CRANKSHAFT & PISTON",
@@ -90,11 +90,11 @@ def test_meta_description_character_length_151_to_158_without_caps_no_commas():
             )
             assert 151 <= len(desc) <= 158, f"Part '{part}' (m='{m}') desc length {len(desc)} not in [151, 158]: '{desc}'"
             assert "," not in desc, f"Comma found in meta description: '{desc}'"
-            assert "India Spare" in desc, f"'India Spare' missing from meta description: '{desc}'"
-            assert "india spare" not in desc, f"Lowercase 'india spare' found in meta description: '{desc}'"
-            assert "INDIA SPARE" not in desc, f"Uppercase 'INDIA SPARE' found in meta description: '{desc}'"
-            rest = desc.replace("India Spare", "")
-            assert rest.islower(), f"Meta description outside 'India Spare' must be without caps: '{desc}'"
+            assert "IndiaSpare" in desc, f"'IndiaSpare' missing from meta description: '{desc}'"
+            assert "indiaspare" not in desc, f"Lowercase 'indiaspare' found in meta description: '{desc}'"
+            assert "INDIASPARE" not in desc, f"Uppercase 'INDIASPARE' found in meta description: '{desc}'"
+            rest = desc.replace("IndiaSpare", "")
+            assert rest.islower(), f"Meta description outside 'IndiaSpare' must be without caps: '{desc}'"
 
 
 def test_product_description_words_120_to_140_no_commas():
@@ -121,6 +121,7 @@ def test_product_description_words_120_to_140_no_commas():
             word_count = len(words)
             assert 120 <= word_count <= 140, f"Part '{part}' word count {word_count} not in [120, 140]: '{pdesc}'"
             assert "," not in pdesc, f"Comma found in product description: '{pdesc}'"
+            assert "IndiaSpare" in pdesc
 
 
 def test_generate_main_part_metadata_blank_by_default():
@@ -140,7 +141,7 @@ def test_generate_main_part_metadata_blank_by_default():
     assert meta["product_title"].isupper()
 
     # 2. Meta Title: separate from product title, Title Case, no commas
-    assert meta["meta_title"] == "Yamaha BGPK Cylinder Head | India Spare"
+    assert meta["meta_title"] == "Yamaha BGPK Cylinder Head | IndiaSpare"
     assert "," not in meta["meta_title"]
 
     # 3. Meta Short description: removed from entire app
@@ -174,7 +175,7 @@ def test_generate_main_part_with_descriptions_explicit():
 
     assert 151 <= len(meta["meta_description"]) <= 158
     assert "," not in meta["meta_description"]
-    assert "India Spare" in meta["meta_description"]
+    assert "IndiaSpare" in meta["meta_description"]
     assert meta["meta_desc_chars"] == len(meta["meta_description"])
 
     p_words = len(meta["product_description"].split())
@@ -200,24 +201,24 @@ def test_generate_main_part_with_custom_model_and_series():
     assert "," not in meta["product_title"]
 
     # Separate Meta Title (series visible after model, model before model code)
-    assert meta["meta_title"] == "Yamaha Ray Zr Street Rally BGPK Crankshaft & Piston | India Spare"
+    assert meta["meta_title"] == "Yamaha Ray Zr Street Rally BGPK Crankshaft & Piston | IndiaSpare"
     assert "," not in meta["meta_title"]
 
     # Short desc removed from entire app
     assert "meta_short_description" not in meta
 
-    # Meta desc strictly 151-158 chars without caps except 'India Spare', no commas
+    # Meta desc strictly 151-158 chars without caps except 'IndiaSpare', no commas
     assert 151 <= len(meta["meta_description"]) <= 158
     assert "," not in meta["meta_description"]
-    assert "India Spare" in meta["meta_description"]
-    assert "india spare" not in meta["meta_description"]
-    assert meta["meta_description"].replace("India Spare", "").islower()
+    assert "IndiaSpare" in meta["meta_description"]
+    assert "indiaspare" not in meta["meta_description"]
+    assert meta["meta_description"].replace("IndiaSpare", "").islower()
 
     # Product desc strictly 120-140 words, no commas
     w_count = len(meta["product_description"].split())
     assert 120 <= w_count <= 140
     assert "," not in meta["product_description"]
-    assert "India Spare" in meta["product_description"]
+    assert "IndiaSpare" in meta["product_description"]
 
 
 def test_main_parts_only_catalog_extraction():
@@ -244,7 +245,7 @@ def test_main_parts_only_catalog_extraction():
     assert len(meta_items) == 2
     assert meta_items[0]["part_name"] == "CYLINDER HEAD"
     assert meta_items[0]["product_title"] == "YAMAHA BGPK CYLINDER HEAD"
-    assert meta_items[0]["meta_title"] == "Yamaha BGPK Cylinder Head | India Spare"
+    assert meta_items[0]["meta_title"] == "Yamaha BGPK Cylinder Head | IndiaSpare"
     assert meta_items[0]["meta_description"] == ""
     assert meta_items[0]["product_description"] == ""
 
@@ -289,7 +290,7 @@ def test_export_metadata_excel_and_csv():
     assert ws.cell(row=2, column=2).value == "CYLINDER HEAD"
     assert ws.cell(row=2, column=7).value == "YAM_BGPK_CYLINDER HEAD.jpeg"
     assert ws.cell(row=2, column=8).value == "YAMAHA BGPK CYLINDER HEAD"
-    assert ws.cell(row=2, column=9).value == "Yamaha BGPK Cylinder Head | India Spare"
+    assert ws.cell(row=2, column=9).value == "Yamaha BGPK Cylinder Head | IndiaSpare"
     assert 151 <= len(ws.cell(row=2, column=10).value) <= 158
     assert 120 <= len(ws.cell(row=2, column=12).value.split()) <= 140
 
@@ -305,8 +306,8 @@ def test_export_metadata_excel_and_csv():
     assert "Meta Description (151-158 Chars)" in csv_content
     assert "Product Description (120-140 Words)" in csv_content
     assert "YAMAHA BGPK CYLINDER HEAD" in csv_content
-    assert "Yamaha BGPK Cylinder Head | India Spare" in csv_content
-    assert "INDIA SPARE" not in csv_content
+    assert "Yamaha BGPK Cylinder Head | IndiaSpare" in csv_content
+    assert "INDIASPARE" not in csv_content
 
 
 def test_export_both_extracted_and_seo_columns():
@@ -379,4 +380,68 @@ def test_export_both_extracted_and_seo_columns():
     assert "B7J-E1102-00" in csv_text
     assert "UR FOR VRC1" in csv_text
     assert "Short Description" in csv_text
+
+
+def test_column_selection_filtering():
+    """Verify selecting specific columns filters exported Excel and CSV to only those columns."""
+    figure = {"fig_no": "1", "fig_name": "CYLINDER HEAD", "first_page": 7}
+    meta_item = generate_main_part_metadata(
+        figure=figure,
+        model_code="BGPK",
+        brand="YAMAHA",
+        model="FZ-S",
+        series="series",
+        blank_descriptions=False,
+    )
+    meta_items = [meta_item]
+
+    # Select only 3 columns
+    selected = ["Fig No.", "Catalog Name", "Meta Title"]
+
+    # Excel export
+    xlsx_buf = export_metadata_excel(meta_items, selected_columns=selected)
+    wb = openpyxl.load_workbook(xlsx_buf)
+    ws = wb["Product Metadata"]
+    exported_headers = [ws.cell(row=1, column=c).value for c in range(1, ws.max_column + 1)]
+    assert exported_headers == ["Fig No.", "Catalog Name", "Meta Title"]
+    assert ws.cell(row=2, column=1).value == "1"
+    assert ws.cell(row=2, column=2).value == "CYLINDER HEAD"
+    assert ws.cell(row=2, column=3).value == "Yamaha Fz-S Series BGPK Cylinder Head | IndiaSpare"
+
+    # CSV export
+    csv_buf = export_metadata_csv(meta_items, selected_columns=selected)
+    csv_text = csv_buf.getvalue().decode("utf-8-sig")
+    lines = [line.strip() for line in csv_text.strip().split("\r\n") if line.strip()]
+    assert lines[0] == "Fig No.,Catalog Name,Meta Title"
+    assert "Yamaha Fz-S Series BGPK Cylinder Head | IndiaSpare" in lines[1]
+    assert "Short Description" not in csv_text
+
+
+def test_model_output_always_in_all_caps():
+    """Verify that even when user inputs lowercase or mixed case model name, output is in ALL CAPS."""
+    figure = {"fig_no": "1", "fig_name": "CYLINDER HEAD", "first_page": 7}
+    meta = generate_main_part_metadata(
+        figure=figure,
+        model_code="bgpk",
+        brand="yamaha",
+        model="ray zr 125 fi",
+        series="street rally",
+        blank_descriptions=True,
+    )
+    assert meta["model"] == "RAY ZR 125 FI"
+    assert meta["product_title"] == "YAMAHA BGPK RAY ZR 125 FI STREET RALLY CYLINDER HEAD"
+
+    # In catalog metadata
+    rows = [{"fig_no": "1", "fig_name": "CYLINDER HEAD", "page": 1}]
+    items = generate_catalog_metadata(
+        rows=rows,
+        model_columns=["BGPK"],
+        brand="yamaha",
+        model="fz-s v3",
+        series="series",
+        model_code="bgpk",
+        main_parts_only=True,
+    )
+    assert items[0]["model"] == "FZ-S V3"
+
 

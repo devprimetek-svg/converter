@@ -255,7 +255,7 @@ def test_metadata_generate_and_export_endpoints():
     assert item["part_name"] == "CYLINDER HEAD"
     assert item["image_filename"] == "YAM_BGPK_CYLINDER HEAD.jpeg"
     assert item["product_title"] == "YAMAHA BGPK CYLINDER HEAD"
-    assert item["meta_title"] == "Yamaha BGPK Cylinder Head | India Spare"
+    assert item["meta_title"] == "Yamaha BGPK Cylinder Head | IndiaSpare"
     assert "meta_short_description" not in item
     # Kept blank during initial scan/generation per user requirement
     assert item["meta_description"] == ""
@@ -279,14 +279,14 @@ def test_metadata_generate_and_export_endpoints():
     assert gen_custom.status_code == 200
     custom_item = gen_custom.json()["items"][0]
     assert custom_item["product_title"] == "YAMAHA BGPK R15 SERIES CYLINDER HEAD"
-    assert custom_item["meta_title"] == "Yamaha R15 Series BGPK Cylinder Head | India Spare"
+    assert custom_item["meta_title"] == "Yamaha R15 Series BGPK Cylinder Head | IndiaSpare"
     assert "meta_short_description" not in custom_item
     assert 151 <= len(custom_item["meta_description"]) <= 158
     assert "," not in custom_item["meta_description"]
-    assert "India Spare" in custom_item["meta_description"]
+    assert "IndiaSpare" in custom_item["meta_description"]
     assert 120 <= len(custom_item["product_description"].split()) <= 140
     assert "," not in custom_item["product_description"]
-    assert "India Spare" in custom_item["product_description"]
+    assert "IndiaSpare" in custom_item["product_description"]
 
     # 2. Test /api/meta/export as xlsx
     export_xlsx = client.post(
@@ -322,7 +322,22 @@ def test_metadata_generate_and_export_endpoints():
     assert "Product Description (120-140 Words)" in csv_txt
     assert "1,CYLINDER HEAD,YAMAHA,BGPK,,series,YAM_BGPK_CYLINDER HEAD.jpeg" in csv_txt
     assert "YAMAHA BGPK CYLINDER HEAD" in csv_txt
-    assert "Yamaha BGPK Cylinder Head | India Spare" in csv_txt
+    assert "Yamaha BGPK Cylinder Head | IndiaSpare" in csv_txt
+
+    # 4. Test /api/meta/export with selected_columns
+    export_sel = client.post(
+        "/api/meta/export",
+        json={
+            "items": gen_data["items"],
+            "format": "csv",
+            "filename": "Test_Meta_Filtered",
+            "selected_columns": ["Fig No.", "Catalog Name", "Meta Title"],
+        },
+    )
+    assert export_sel.status_code == 200
+    sel_csv_txt = export_sel.content.decode("utf-8-sig")
+    assert sel_csv_txt.startswith("Fig No.,Catalog Name,Meta Title")
+    assert "Pic" not in sel_csv_txt
 
 
 from unittest.mock import patch
@@ -332,8 +347,8 @@ def test_metadata_generate_endpoint_with_gemini_ai(mock_call):
     """Verify /api/meta/generate with ai_mode=True produces valid Gemini AI enhanced metadata."""
     mock_call.return_value = {
         "1": {
-            "meta_description": "buy authentic yamaha bgpk ray zr cylinder head genuine oem spare parts diagram from india spare with verified vehicle fitment today.",
-            "product_description": "This authentic Yamaha BGPK Ray ZR cylinder head is engineered to official factory specifications from India Spare. " * 6,
+            "meta_description": "buy authentic yamaha bgpk ray zr cylinder head genuine oem spare parts diagram from indiaspare with verified vehicle fitment today.",
+            "product_description": "This authentic Yamaha BGPK Ray ZR cylinder head is engineered to official factory specifications from IndiaSpare. " * 6,
         }
     }
     rows = [
@@ -369,10 +384,10 @@ def test_metadata_generate_endpoint_with_gemini_ai(mock_call):
     assert item["ai_generated"] is True
     assert 151 <= len(item["meta_description"]) <= 158
     assert "," not in item["meta_description"]
-    assert "India Spare" in item["meta_description"]
+    assert "IndiaSpare" in item["meta_description"]
     assert 120 <= len(item["product_description"].split()) <= 140
     assert "," not in item["product_description"]
-    assert "India Spare" in item["product_description"]
+    assert "IndiaSpare" in item["product_description"]
 
 
 
