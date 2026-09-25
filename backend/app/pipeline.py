@@ -114,7 +114,7 @@ class PipelineJob:
                         "images_count": self.model_data.get(m, {}).get("images_count", 0),
                     }
                     for m in self.model_columns
-                ] if len(self.model_columns) >= 2 else [],
+                ] if len(self.model_columns) >= 1 else [],
             }
             if self.status == "completed":
                 payload["rows"] = self.rows
@@ -207,18 +207,31 @@ def run_pipeline_worker(
         excel_bytes = excel_buf.getvalue()
         excel_filename = f"{base_name}_Parts.xlsx"
 
-        # Check for multiple model codes
-        has_multiple_models = len(job.model_columns) >= 2
-        model_codes = [str(c).strip() for c in job.model_columns if str(c).strip()] if has_multiple_models else []
+        # Resolve all applicable model codes
+        # 1. From detected model columns in table headers
+        model_codes = [str(c).strip() for c in job.model_columns if str(c).strip()]
 
-        # If multiple models, pre-generate individual Excel workbooks for each model
+        # 2. If no model columns were detected from table headers, check filename
+        if not model_codes:
+            m_list = re.findall(r"\b([A-Z0-9]{3,6})\b", job.filename.upper())
+            generic = {"PARTS", "CATALOGUE", "CATALOG", "YAMAHA", "INDIA", "MODEL"}
+            filtered_m = [x for x in m_list if x not in generic]
+            if filtered_m:
+                model_codes = list(dict.fromkeys(filtered_m))
+
+        has_multiple_models = len(model_codes) >= 2
+
+        # Pre-generate individual Excel workbooks for each model code
         model_excel_data: dict[str, dict[str, Any]] = {}
-        if has_multiple_models:
+        if model_codes:
             for m in model_codes:
-                m_rows = [r for r in job.rows if is_valid_quantity(r.get(m))]
+                if m in job.model_columns and has_multiple_models:
+                    m_rows = [r for r in job.rows if is_valid_quantity(r.get(m))]
+                else:
+                    m_rows = job.rows
                 m_excel_buf = generate_excel_workbook(
                     rows=m_rows,
-                    model_columns=[m],
+                    model_columns=[m] if m in job.model_columns else (job.model_columns or [m]),
                     clean_parts=clean_parts,
                     sheet_title=f"Parts_{m}"[:31],
                 )
@@ -430,12 +443,49 @@ def run_pipeline_worker(
                 zf.writestr("PROCESSING_SUMMARY.txt", summary_txt)
 
             else:
-                # Single model: maintain original flat images/ structure
+                # Single model: maintain root Excel and images/, plus dedicated {m}/ folder if model code known
                 zf.writestr(excel_filename, excel_bytes)
                 for fname, proc_bytes, _ in processed_items:
                     clean_name = fname if fname.lower().endswith(".jpeg") else f"{fname}.jpeg"
                     zf.writestr(f"images/{clean_name}", proc_bytes)
 
+                # If a model code was identified (e.g. BGPK), also package into {m}/ and create standalone bundle
+                m_single = model_codes[0] if model_codes else ""
+                if m_single and m_single in model_excel_data:
+                    m_info = model_excel_data[m_single]
+                    zf.writestr(f"{m_single}/{m_info['excel_filename']}", m_info["excel_bytes"])
+
+                    m_image_items: list[tuple[str, bytes]] = []
+                    for fname, proc_bytes, _ in processed_items:
+                        clean_name = fname if fname.lower().endswith(".jpeg") else f"{fname}.jpeg"
+                        zf.writestr(f"{m_single}/images/{clean_name}", proc_bytes)
+                        m_image_items.append((clean_name, proc_bytes))
+
+                    # Standalone individual ZIP bundle for this model code
+                    m_zip_buf = io.BytesIO()
+                    with zipfile.ZipFile(m_zip_buf, "w", zipfile.ZIP_DEFLATED) as m_zf:
+                        m_zf.writestr(m_info["excel_filename"], m_info["excel_bytes"])
+                        for m_img_name, m_bytes in m_image_items:
+                            m_zf.writestr(f"images/{m_img_name}", m_bytes)
+                        m_zf.writestr(
+                            "README.txt",
+                            f"Model: {m_single}\n"
+                            f"Catalogue: {job.filename}\n"
+                            f"Total Parts: {len(m_info['rows'])}\n"
+                            f"Total Diagrams: {len(m_image_items)}\n"
+                            f"Generated At: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n"
+                        )
+
+                    job.model_data[m_single] = {
+                        "excel_bytes": m_info["excel_bytes"],
+                        "excel_filename": m_info["excel_filename"],
+                        "parts_count": len(m_info["rows"]),
+                        "images_count": len(m_image_items),
+                        "zip_bytes": m_zip_buf.getvalue(),
+                        "zip_filename": f"{base_name}_{m_single}_Bundle.zip",
+                    }
+
+                summary_models_str = f"Folder '{m_single}/' & Root Files" if m_single else "Single Model (Flat Structure)"
                 summary_txt = (
                     f"Document & Image Studio - Automated Processing Summary\n"
                     f"====================================================\n"
@@ -444,7 +494,8 @@ def run_pipeline_worker(
                     f"1. Excel Parts Catalogue:\n"
                     f"   - File: {excel_filename}\n"
                     f"   - Total Parts Extracted: {len(job.rows)}\n"
-                    f"   - Model Columns: {', '.join(job.model_columns) if job.model_columns else 'Single Model'}\n\n"
+                    f"   - Model Code: {m_single or 'Single Model'}\n"
+                    f"   - Packaging: {summary_models_str}\n\n"
                     f"2. Processed Images:\n"
                     f"   - Total Images Processed: {len(processed_items)}\n"
                     f"   - Resolution: {resize_config.get('width', 1000)}x{resize_config.get('height', 1200)} px\n"

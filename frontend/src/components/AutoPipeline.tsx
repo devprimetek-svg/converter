@@ -714,8 +714,8 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta }) =
                 <button
                   onClick={downloadMasterZip}
                   title={
-                    status.model_columns && status.model_columns.length >= 2
-                      ? `Master ZIP contains separate folders: ${status.model_columns.join(', ')}`
+                    status.model_columns && status.model_columns.length >= 1
+                      ? `Master ZIP contains folder(s): ${status.model_columns.join(', ')}`
                       : 'Download Master ZIP'
                   }
                   className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-full bg-black hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-zinc-200 dark:text-black font-bold text-sm uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer"
@@ -757,15 +757,21 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta }) =
               </div>
             </div>
 
-            {/* Multiple Models Detected Banner */}
-            {status.model_columns && status.model_columns.length >= 2 && (
+            {/* Detected Model Folder(s) Banner */}
+            {status.model_columns && status.model_columns.length >= 1 && (
               <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-900/50 text-xs space-y-3">
                 <div className="flex items-center gap-2 font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
                   <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                  <span>{status.model_columns.length} Model Codes Detected • Extracted into Separate Folders</span>
+                  <span>
+                    {status.model_columns.length === 1
+                      ? `1 Model Code Detected (${status.model_columns[0]}) • Packaged in ${status.model_columns[0]}/ Folder`
+                      : `${status.model_columns.length} Model Codes Detected • Extracted into Separate Folders`}
+                  </span>
                 </div>
                 <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                  This catalogue covers multiple model codes. The Master ZIP bundle automatically compiles individual standalone folders with dedicated Excel workbooks and diagrams for each model:
+                  {status.model_columns.length === 1
+                    ? `Dedicated standalone folder created for model ${status.model_columns[0]} with individual parts Excel database and diagrams. Download individually or as part of the Master ZIP package:`
+                    : `This catalogue covers multiple model codes. The Master ZIP bundle automatically compiles individual standalone folders with dedicated Excel workbooks and diagrams for each model:`}
                 </p>
                 <div className="flex flex-wrap gap-2.5 pt-1">
                   {status.model_columns.map((m) => {
@@ -924,7 +930,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta }) =
                             {formatBytes(img.size_bytes)}
                           </span>
                         </div>
-                        {img.models && img.models.length > 0 && status.model_columns && status.model_columns.length >= 2 && (
+                        {img.models && img.models.length > 0 && status.model_columns && status.model_columns.length >= 1 && (
                           <div className="flex flex-wrap gap-1 pt-0.5">
                             {img.models.map((m) => (
                               <span
@@ -965,7 +971,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta }) =
                     <Download className="w-3.5 h-3.5" />
                     Master Excel
                   </button>
-                  {status.model_columns && status.model_columns.length >= 2 && status.model_columns.map((m) => (
+                  {status.model_columns && status.model_columns.length >= 1 && status.model_columns.map((m) => (
                     <button
                       key={m}
                       onClick={() => downloadModelExcel(m)}
