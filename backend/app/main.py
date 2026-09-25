@@ -828,6 +828,7 @@ class MetaGenerateRequest(BaseModel):
     ai_prompt: Optional[str] = None
     gemini_api_key: Optional[str] = None
     blank_descriptions: Optional[bool] = None
+    generation_id: Optional[str] = None
 
 
 class MetaExportRequest(BaseModel):
@@ -934,6 +935,7 @@ def generate_metadata_endpoint(req: MetaGenerateRequest):
                 model=req.model,
                 series=req.series,
                 api_key=req.gemini_api_key,
+                generation_id=req.generation_id,
             )
         except Exception as e:
             logger.warning("AI generation error: %s", e)

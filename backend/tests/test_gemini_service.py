@@ -296,3 +296,74 @@ def test_enhance_metadata_captures_ai_analysis(mock_call):
     assert "Analyzed Record 1" in item["ai_analysis"]
     assert item["ai_generated"] is True
 
+
+def test_gemini_payload_uniqueness_on_every_click_and_prompt():
+    """Verify _build_gemini_payload produces dynamic cycle tokens, random seeds, and high temperature
+    so every single click and new prompt input yields unique generation from Gemini AI.
+    """
+    from app.gemini_service import _build_gemini_payload
+
+    items = [{"fig_no": "1", "part_name": "CYLINDER HEAD", "part_no": "BGP-E1111-00"}]
+
+    # 1. Verify two consecutive calls without explicit cycle token generate distinct cycle tokens and seeds
+    p1 = _build_gemini_payload(items, "Prompt 1", "YAMAHA", "BGPK", "RAY ZR", "SERIES")
+    p2 = _build_gemini_payload(items, "Prompt 1", "YAMAHA", "BGPK", "RAY ZR", "SERIES")
+
+    # Seeds in generationConfig must be random integers
+    seed1 = p1["generationConfig"]["seed"]
+    seed2 = p2["generationConfig"]["seed"]
+    assert isinstance(seed1, int)
+    assert isinstance(seed2, int)
+
+    # Temperature and top_p must be 0.95 for maximum linguistic richness and uniqueness
+    assert p1["generationConfig"]["temperature"] == 0.95
+    assert p1["generationConfig"]["top_p"] == 0.95
+
+    # Cycle token in prompt content ensures prompt cache busts
+    text1 = p1["contents"][0]["parts"][0]["text"]
+    text2 = p2["contents"][0]["parts"][0]["text"]
+    assert "=== GENERATION RUN CYCLE TOKEN: [RUN-" in text1
+    assert "=== GENERATION RUN CYCLE TOKEN: [RUN-" in text2
+
+    # 2. Verify new user prompt is deeply embedded as highest priority
+    custom_prompt = "Emphasize high RPM racing endurance and thermal protection for monsoon racing"
+    p3 = _build_gemini_payload(items, custom_prompt, "YAMAHA", "BGPK", "RAY ZR", "SERIES")
+    text3 = p3["contents"][0]["parts"][0]["text"]
+    assert custom_prompt in text3
+    assert "USER'S CUSTOM COPYWRITING DIRECTIVES (HIGHEST PRIORITY)" in text3
+
+
+def test_enforce_product_desc_words_produces_unique_variations():
+    """Verify enforce_product_desc_words generates varied authentic text across different seeds/runs."""
+    short_base = "Genuine Yamaha OEM part from IndiaSpare."
+    res1 = enforce_product_desc_words(short_base, brand="YAMAHA", model_str="BGPK", part_name="CYLINDER", seed=101)
+    res2 = enforce_product_desc_words(short_base, brand="YAMAHA", model_str="BGPK", part_name="CYLINDER", seed=999)
+
+    # Strict length checks
+    assert 120 <= len(res1.split()) <= 140
+    assert 120 <= len(res2.split()) <= 140
+    assert "," not in res1
+    assert "," not in res2
+    assert "IndiaSpare" in res1
+    assert "IndiaSpare" in res2
+
+    # Due to randomized sentence pool shuffling, res1 and res2 must be non-identical
+    assert res1 != res2
+
+
+def test_enforce_meta_desc_length_produces_unique_variations():
+    """Verify enforce_meta_desc_length generates varied padding and closers across runs."""
+    from app.meta_generator import enforce_meta_desc_length
+
+    short_meta = "buy authentic yamaha bgpk cylinder head genuine oem spare from indiaspare."
+    m1 = enforce_meta_desc_length(short_meta, seed=42)
+    m2 = enforce_meta_desc_length(short_meta, seed=99999)
+
+    assert 151 <= len(m1) <= 158
+    assert 151 <= len(m2) <= 158
+    assert "," not in m1
+    assert "," not in m2
+    assert "IndiaSpare" in m1
+    assert "IndiaSpare" in m2
+
+

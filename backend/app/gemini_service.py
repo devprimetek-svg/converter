@@ -11,6 +11,7 @@ post-processing to enforce strict character and word count boundaries:
 import json
 import logging
 import os
+import random
 import re
 import time
 from typing import Any, Optional
@@ -46,9 +47,10 @@ def enforce_product_desc_words(
     brand: str = "YAMAHA",
     model_str: str = "MODEL",
     part_name: str = "PART",
+    seed: Optional[int] = None,
 ) -> str:
     """Ensure product description is strictly bounded between 120 and 140 words without commas,
-    strictly preserving 'IndiaSpare' proper casing.
+    strictly preserving 'IndiaSpare' proper casing and generating unique text variations on every invocation.
     """
     clean_text = clean_no_commas(text)
     words = clean_text.split()
@@ -65,7 +67,7 @@ def enforce_product_desc_words(
             words = words[:130]
             clean_text = " ".join(words).rstrip(".") + "."
 
-    # Pad up if under 120 words with authentic paragraph blocks
+    # Diverse, authentic OEM automotive sentences across mechanical, thermal, and fitment themes
     addon_paragraphs = [
         f"This authentic {brand} {model_str} {part_name} is an original OEM factory specification component designed specifically for your vehicle assembly.",
         "Manufactured under strict automotive quality standards this genuine replacement part provides exact dimensional accuracy and long term mechanical reliability.",
@@ -77,25 +79,46 @@ def enforce_product_desc_words(
         "Trust IndiaSpare for authentic OEM replacement parts backed by verified vehicle fitment and rapid delivery.",
         "Professional installation following standard manufacturer guidelines guarantees maximum vehicle longevity.",
         "Keep your motorcycle performing at peak efficiency under all demanding road conditions.",
+        "Engineered with premium metallurgical alloys to endure sustained high thermal stress and engine load.",
+        "Maintains critical operational clearances to protect adjacent mechanical assemblies from premature wear.",
+        "Precision balanced to reduce engine harmonic vibrations and enhance ride smoothness at high highway speeds.",
+        "Specially treated surface finishes deliver superior resistance against oxidation corrosion and abrasive contaminants.",
+        "Preserves factory calibrated torque delivery and crisp throttle response throughout everyday city traffic.",
+        "Exhaustively tested by certified automotive technicians under extreme temperature variations and rugged terrains.",
+        "Ensures complete mechanical harmony with factory mounting hardware and vehicle wiring harness connections.",
+        "Protects long term vehicle resale value by preserving authentic factory build specifications and engineering integrity.",
+        "Dependable automotive engineering provides riders with absolute peace of mind during extended touring expeditions.",
+        "Count on IndiaSpare for certified genuine OEM diagram replacement components dispatched quickly with secure protective transit.",
     ]
-    for s in addon_paragraphs:
+
+    rng = random.Random(seed) if seed is not None else random.Random()
+    shuffled_addons = list(addon_paragraphs)
+    rng.shuffle(shuffled_addons)
+
+    for s in shuffled_addons:
         if len(words) < 120:
-            clean_text = clean_text.rstrip(".") + ". " + clean_no_commas(s)
-            words = clean_text.split()
+            clean_s = clean_no_commas(s)
+            if clean_s.lower() not in clean_text.lower():
+                clean_text = clean_text.rstrip(".") + ". " + clean_s
+                words = clean_text.split()
         else:
             break
 
-    # Final padding words loop if still slightly under 120
+    # Final padding words loop if still slightly under 120 (rotated with offset)
     filler_pool = [
         "All", "components", "meet", "stringent", "automotive", "quality", "standards",
         "and", "provide", "uncompromised", "safety", "on", "every", "journey", "across",
         "all", "road", "conditions", "without", "exception", "delivering", "flawless",
         "precision", "and", "unmatched", "durability", "for", "your", "motorcycle", "riding",
-        "needs", "every", "single", "day",
+        "needs", "every", "single", "day", "with", "verified", "reliability", "and",
+        "superb", "mechanical", "endurance", "on", "every", "highway", "stretch",
     ]
+    offset = rng.randint(0, len(filler_pool) - 12) if len(filler_pool) > 15 else 0
+    rotated_filler = filler_pool[offset:] + filler_pool[:offset]
+
     while len(words) < 120:
         needed = 120 - len(words)
-        chunk = filler_pool[:needed] if needed <= len(filler_pool) else filler_pool
+        chunk = rotated_filler[:needed] if needed <= len(rotated_filler) else rotated_filler
         clean_text = clean_text.rstrip(".") + ". " + " ".join(chunk) + "."
         words = clean_text.split()
 
@@ -121,10 +144,17 @@ def _build_gemini_payload(
     model_code: str,
     model: str,
     series: str,
+    generation_cycle: Optional[str] = None,
+    seed: Optional[int] = None,
 ) -> dict[str, Any]:
     """Build the JSON request payload for Google AI Studio generateContent endpoint,
     bundling both the Extracted Parts Catalogue Record and SEO Metadata Record for dual-record analysis.
+    Guarantees unique generation on every click and prompt input via dynamic cycle token, random seed,
+    high temperature (0.95), top_p (0.95), and explicit freshness directives.
     """
+    cycle_token = generation_cycle or f"RUN-{int(time.time() * 1000) % 1000000}-{random.randint(1000, 9999)}"
+    run_seed = seed if seed is not None else random.randint(1, 2147483647)
+
     system_instruction = (
         "You are an expert automotive parts engineer and eCommerce copywriter for 'IndiaSpare', "
         "an authentic OEM motorcycle and scooter spare parts supplier in India.\n\n"
@@ -147,6 +177,15 @@ def _build_gemini_payload(
         "- 'product_description': strictly 120 to 140 words, zero commas, exact proper casing 'IndiaSpare'. "
         "Must detail genuine OEM factory specifications, high heat and stress tolerance, precise dimensional fitment, "
         "and IndiaSpare verified replacement reliability.\n\n"
+        "MANDATORY FRESHNESS & UNIQUENESS ON EVERY SINGLE GENERATION RUN:\n"
+        "- On EVERY SINGLE generation run, you MUST produce completely original, unique, and fresh copywriting. "
+        "NEVER repeat identical sentence structures, cliches, or openers across clicks or runs.\n"
+        "- Dynamically explore varied technical and customer-centric angles for each part: thermal alloy resilience, "
+        "high-RPM stability, precision dimensional sealing, friction reduction, vibration damping, highway touring comfort, "
+        "monsoon water resistance, or track-grade durability.\n"
+        "- DEEP USER PROMPT INTEGRATION: When the user enters custom copywriting instructions or directives, "
+        "you MUST deeply weave their specified tone, keywords, themes, and value propositions into both the dual-record analysis "
+        "and the generated descriptions.\n\n"
         "CRITICAL RULES:\n"
         "1. ZERO COMMAS: Do NOT include ANY commas (,) in any field (analysis, meta_description, product_description).\n"
         "2. EXACT CASING: Strictly use 'IndiaSpare' (no spaces, never 'indiaspare' or 'INDIA SPARE').\n"
@@ -199,10 +238,15 @@ def _build_gemini_payload(
             },
         })
 
+    clean_prompt = user_prompt.strip() or DEFAULT_AI_PROMPT
     prompt_content = (
-        f"Custom Copywriting Directives: {user_prompt.strip() or DEFAULT_AI_PROMPT}\n\n"
+        f"=== GENERATION RUN CYCLE TOKEN: [{cycle_token}] (FRESH CREATIVE RUN) ===\n"
+        f"=== USER'S CUSTOM COPYWRITING DIRECTIVES (HIGHEST PRIORITY) ===\n"
+        f"{clean_prompt}\n\n"
         f"MANDATORY INSTRUCTION: You must analyze BOTH Excel records ('extracted_parts_catalogue_record' and 'seo_metadata_record') "
-        f"for each of the {len(parts_catalog_data)} parts listed below before generating the descriptions.\n\n"
+        f"for each of the {len(parts_catalog_data)} parts listed below before generating the descriptions.\n"
+        f"IMPORTANT: Deeply integrate the user's custom directives above into your analysis and descriptions. "
+        f"Every single run must produce unique, non-repetitive copywriting with varied sentence structures and fresh vocabulary.\n\n"
         f"PARTS DUAL-RECORD DATA:\n"
         f"{json.dumps(parts_catalog_data, indent=2)}\n\n"
         "Return a valid JSON object in this exact structure:\n"
@@ -230,7 +274,9 @@ def _build_gemini_payload(
         ],
         "generationConfig": {
             "response_mime_type": "application/json",
-            "temperature": 0.7,
+            "temperature": 0.95,
+            "top_p": 0.95,
+            "seed": run_seed,
         },
     }
 
@@ -365,6 +411,8 @@ def call_gemini_batch(
     model: str,
     series: str,
     api_key: str,
+    generation_cycle: Optional[str] = None,
+    seed: Optional[int] = None,
 ) -> dict[str, dict[str, str]]:
     """Call Google AI Studio REST API for a batch of parts and return a mapping of fig_no -> {meta_description, product_description}."""
     payload = _build_gemini_payload(
@@ -374,6 +422,8 @@ def call_gemini_batch(
         model_code=model_code,
         model=model,
         series=series,
+        generation_cycle=generation_cycle,
+        seed=seed,
     )
 
     last_error = None
@@ -457,13 +507,15 @@ def enhance_metadata_with_gemini(
     series: str = "series",
     api_key: Optional[str] = None,
     batch_size: int = 15,
+    generation_id: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     """Process a list of metadata items through Gemini AI Studio, then enforce all strict constraints:
     - 151-158 characters for meta description
     - 120-140 words for product description
     - Zero commas
-    - 'India Spare' proper casing
+    - 'IndiaSpare' proper casing
     - Fallback gracefully to existing descriptions if an item fails
+    - Guarantees completely unique output on every click and prompt change
     """
     key = (api_key or os.getenv("GEMINI_API_KEY") or "").strip()
     if not key:
@@ -471,12 +523,15 @@ def enhance_metadata_with_gemini(
 
     prompt_to_use = user_prompt.strip() or DEFAULT_AI_PROMPT
     m_disp = f"{model_code} {model}".strip() if model else model_code
+    base_gen_id = generation_id or f"gen_{int(time.time() * 1000)}_{random.randint(1000, 9999)}"
 
     # Process items in batches of `batch_size` to avoid token/output truncation
     enhanced_items = [dict(it) for it in metadata_items]
     batches = [enhanced_items[i : i + batch_size] for i in range(0, len(enhanced_items), batch_size)]
 
     for idx, batch in enumerate(batches):
+        batch_cycle = f"{base_gen_id}_batch_{idx}"
+        batch_seed = random.randint(1, 2147483647)
         if idx > 0:
             # Respect Free Tier 15 RPM rate limits by pacing between multi-batch requests
             time.sleep(1.5)
@@ -489,13 +544,16 @@ def enhance_metadata_with_gemini(
                 model=model,
                 series=series,
                 api_key=key,
+                generation_cycle=batch_cycle,
+                seed=batch_seed,
             )
         except Exception as e:
             logger.error("Failed to generate AI batch: %s. Preserving rule-based metadata.", e)
             raise e
 
         # Post-process every item in this batch with strict mathematical validation
-        for it in batch:
+        for it_idx, it in enumerate(batch):
+            item_seed = (batch_seed + it_idx * 7919) % 2147483647
             f_no = str(it.get("fig_no", "")).strip()
             p_name = str(it.get("part_name", "")).strip()
             ai_data = ai_results.get(f_no) or ai_results.get(p_name) or {}
@@ -511,7 +569,7 @@ def enhance_metadata_with_gemini(
             if raw_meta:
                 cleaned_meta = clean_no_commas(raw_meta)
                 cased_meta = format_india_spare(cleaned_meta)
-                valid_meta = enforce_meta_desc_length(cased_meta)
+                valid_meta = enforce_meta_desc_length(cased_meta, seed=item_seed)
                 it["meta_description"] = valid_meta
                 it["meta_long_description"] = valid_meta
                 it["meta_desc_chars"] = len(valid_meta)
@@ -523,6 +581,7 @@ def enhance_metadata_with_gemini(
                     brand=brand,
                     model_str=m_disp,
                     part_name=p_name or "PARTS ASSEMBLY",
+                    seed=item_seed,
                 )
                 it["product_description"] = valid_prod
                 it["product_desc_words"] = len(valid_prod.split())

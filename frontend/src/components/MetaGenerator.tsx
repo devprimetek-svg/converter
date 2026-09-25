@@ -147,6 +147,11 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
   );
   const [aiError, setAiError] = useState<string | null>(null);
 
+  // Generation tracking for uniqueness & user feedback on every click/prompt
+  const [generationCount, setGenerationCount] = useState<number>(0);
+  const [lastGeneratedPrompt, setLastGeneratedPrompt] = useState<string>('');
+  const [generationNotice, setGenerationNotice] = useState<string | null>(null);
+
   // Column Selection State for Custom Export
   const [showColumnSelector, setShowColumnSelector] = useState<boolean>(false);
 
@@ -249,6 +254,12 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
     const isAi = overrideAiMode !== undefined ? overrideAiMode : aiMode;
     setIsGenerating(true);
     setAiError(null);
+    if (isAi) {
+      setGenerationNotice(null);
+    }
+    const nextGenCount = isAi ? generationCount + 1 : generationCount;
+    const runId = isAi ? `run_${Date.now()}_${Math.random().toString(36).substring(2, 8)}` : undefined;
+
     try {
       const payload: any = {
         job_id: jobId || undefined,
@@ -264,6 +275,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
         ai_prompt: isAi ? aiPrompt.trim() : undefined,
         gemini_api_key: isAi && geminiApiKey.trim() ? geminiApiKey.trim() : undefined,
         blank_descriptions: !isAi,
+        generation_id: runId,
       };
 
       const res = await fetch('/api/meta/generate', {
@@ -279,6 +291,11 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
       const data = await res.json();
       setMetadataItems(data.items || []);
+      if (isAi) {
+        setGenerationCount(nextGenCount);
+        setLastGeneratedPrompt(aiPrompt.trim());
+        setGenerationNotice(`Run #${nextGenCount} Complete: Fresh unique AI descriptions generated for ${data.items?.length || 0} parts with your prompt directives applied.`);
+      }
     } catch (err: any) {
       console.error('Metadata generation error:', err);
       setAiError(err.message || 'Generation failed');
@@ -848,9 +865,17 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
             {/* Custom Prompt Textarea */}
             <div>
-              <label className="block text-xs font-mono uppercase text-zinc-600 dark:text-zinc-400 font-semibold mb-1.5">
-                Custom Prompt / Copywriting Directives
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-mono uppercase text-zinc-600 dark:text-zinc-400 font-semibold">
+                  Custom Prompt / Copywriting Directives
+                </label>
+                {lastGeneratedPrompt && aiPrompt.trim() !== lastGeneratedPrompt && (
+                  <span className="text-[11px] font-mono text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1 animate-in fade-in">
+                    <Sparkles className="w-3 h-3 text-purple-500" />
+                    New prompt directives entered
+                  </span>
+                )}
+              </div>
               <textarea
                 rows={2}
                 value={aiPrompt}
@@ -858,32 +883,65 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                 placeholder="Enter custom prompt for tone, USPs, fitment guarantees, or target audience..."
                 className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:border-purple-500 placeholder:text-zinc-400 font-sans"
               />
+              {lastGeneratedPrompt && aiPrompt.trim() !== lastGeneratedPrompt && (
+                <p className="text-[11px] text-purple-600 dark:text-purple-400 font-mono mt-1 flex items-center gap-1">
+                  <span>&bull; Ready to generate fresh descriptions tailored to your updated prompt. Click below to run.</span>
+                </p>
+              )}
             </div>
 
-            {/* Generate with AI Button */}
+            {/* Generate with AI Button & Run Status */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-              <div className="text-[11px] text-zinc-500 font-mono">
-                Two-Step AI Protocol: Analyzes Extracted Catalogue &amp; SEO Excel records first • Enforces 151–158 chars (Meta Desc) • 120–140 words (Prod Desc) • zero commas • IndiaSpare.
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="text-[11px] text-zinc-500 font-mono">
+                  Two-Step AI Protocol: Analyzes Extracted Catalogue &amp; SEO Excel records first • Enforces 151–158 chars (Meta Desc) • 120–140 words (Prod Desc) • zero commas • IndiaSpare.
+                </div>
+                {generationCount > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/80 border border-purple-300 dark:border-purple-800 text-[11px] font-mono text-purple-700 dark:text-purple-300 font-bold shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Run #{generationCount} Active
+                  </span>
+                )}
               </div>
               <button
                 type="button"
                 onClick={() => generateMetadata(true)}
                 disabled={isGenerating}
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
               >
                 {isGenerating ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Generating with Gemini...
+                    Generating Run #{generationCount + 1}...
                   </>
                 ) : (
                   <>
                     <Sparkles className="w-3.5 h-3.5" />
-                    Generate with Gemini AI
+                    {generationCount === 0
+                      ? 'Generate with Gemini AI'
+                      : `Generate Unique AI Copy (Run #${generationCount + 1})`}
                   </>
                 )}
               </button>
             </div>
+
+            {/* Success Notice Banner */}
+            {generationNotice && !aiError && (
+              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-200 flex items-center justify-between gap-2 shadow-xs animate-in fade-in duration-200">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span><strong>{generationNotice}</strong></span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setGenerationNotice(null)}
+                  className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-xs font-mono px-1.5 py-0.5 rounded cursor-pointer"
+                  title="Dismiss"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             {/* Error Banner */}
             {aiError && (
@@ -1161,7 +1219,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                 <span>{item.part_name || item.description}</span>
                                 {item.ai_generated && (
                                   <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                                    <Sparkles className="w-2.5 h-2.5" /> AI
+                                    <Sparkles className="w-2.5 h-2.5" /> {generationCount > 0 ? `AI Run #${generationCount}` : 'AI'}
                                   </span>
                                 )}
                                 {item.ai_analysis && (
@@ -1495,7 +1553,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                 </span>
                                 {item.ai_generated && (
                                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                                    <Sparkles className="w-2.5 h-2.5" /> AI
+                                    <Sparkles className="w-2.5 h-2.5" /> {generationCount > 0 ? `AI Run #${generationCount}` : 'AI'}
                                   </span>
                                 )}
                                 {item.ai_analysis && (

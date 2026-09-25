@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import csv
 import io
+import random
 import re
 from typing import Any, Optional
 
@@ -139,11 +140,13 @@ def build_meta_short_description(
     return format_india_spare(clean_no_commas(desc))
 
 
-def enforce_meta_desc_length(text: str) -> str:
+def enforce_meta_desc_length(text: str, seed: Optional[int] = None) -> str:
     """Enforce strictly 151 to 158 characters without commas, preserving 'IndiaSpare'."""
     text = clean_no_commas(text).lower()
     if 151 <= len(text) <= 158:
         return format_india_spare(text)
+
+    rng = random.Random(seed) if seed is not None else random.Random()
 
     pad_pool = [
         "with verified vehicle fit.",
@@ -152,12 +155,25 @@ def enforce_meta_desc_length(text: str) -> str:
         "from indiaspare today.",
         "genuine oem spare.",
         "genuine oem factory diagram assembly.",
+        "with direct factory fitment.",
+        "verified oem motorcycle spare.",
+        "engineered for exact fitment.",
+        "restoring factory performance.",
+        "certified genuine oem part.",
+        "with guaranteed fit and durability.",
     ]
+    shuffled_pad = list(pad_pool)
+    rng.shuffle(shuffled_pad)
+
     while len(text) < 151:
-        for phrase in pad_pool:
+        candidates_matching = []
+        for phrase in shuffled_pad:
             cand = clean_no_commas(text.rstrip(".") + " " + phrase).lower()
             if 151 <= len(cand) <= 158:
-                return format_india_spare(cand)
+                candidates_matching.append(cand)
+        if candidates_matching:
+            return format_india_spare(rng.choice(candidates_matching))
+
         text = clean_no_commas(text.rstrip(".") + " genuine factory replacement.").lower()
         if 151 <= len(text) <= 158:
             return format_india_spare(text)
@@ -182,11 +198,19 @@ def enforce_meta_desc_length(text: str) -> str:
         "with fit.", "exact fit.", "direct fit.",
         "with verified fit.", "with guaranteed fit.",
         "for your motorcycle.", "from indiaspare.",
+        "with durable fit.", "factory direct.",
     ]
-    for c in sorted(closers, key=len):
+    shuffled_closers = list(closers)
+    rng.shuffle(shuffled_closers)
+
+    valid_closers = []
+    for c in shuffled_closers:
         cand = clean_no_commas(built.rstrip(".") + " " + c).lower()
         if 151 <= len(cand) <= 158:
-            return format_india_spare(cand)
+            valid_closers.append(cand)
+
+    if valid_closers:
+        return format_india_spare(rng.choice(valid_closers))
 
     while len(built) < 151:
         built = (built.rstrip(".") + " genuine").strip()
@@ -207,6 +231,7 @@ def build_meta_description(
     part_name: str,
     model: str = "",
     series: str = "series",
+    seed: Optional[int] = None,
 ) -> str:
     """Build meta description strictly bounded between 151 and 158 characters without caps except 'IndiaSpare' and without commas."""
     b = (brand or "yamaha").strip().lower()
@@ -215,6 +240,8 @@ def build_meta_description(
     ser = (series or "series").strip().lower()
     p = clean_no_commas((part_name or "part").strip().lower())
     m_disp = f"{mc} {mn}".strip() if mn else mc
+
+    rng = random.Random(seed) if seed is not None else random.Random()
 
     # Ordered candidate sentences designed for various part name lengths (without caps)
     candidates = [
@@ -233,10 +260,9 @@ def build_meta_description(
         f"buy genuine {b} {m_disp} {p} spare parts from indiaspare. authentic oem diagram assembly with guaranteed durable vehicle fitment and satisfaction.",
     ]
 
-    for c in candidates:
-        c = clean_no_commas(c).lower()
-        if 151 <= len(c) <= 158:
-            return format_india_spare(c)
+    valid_cands = [clean_no_commas(c).lower() for c in candidates if 151 <= len(clean_no_commas(c)) <= 158]
+    if valid_cands:
+        return format_india_spare(rng.choice(valid_cands))
 
     # Algorithmic prefix + suffix combinations
     prefix = clean_no_commas(f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from indiaspare.").lower()
@@ -259,10 +285,14 @@ def build_meta_description(
         "premium factory replacement with guaranteed fitment.",
     ]
 
+    valid_combos = []
     for s in suffix_bank:
         cand = clean_no_commas(f"{prefix} {s}").lower()
         if 151 <= len(cand) <= 158:
-            return format_india_spare(cand)
+            valid_combos.append(cand)
+
+    if valid_combos:
+        return format_india_spare(rng.choice(valid_combos))
 
     base = clean_no_commas(
         f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from indiaspare. "
@@ -283,12 +313,14 @@ def build_meta_description(
         " from indiaspare.",
         " today.",
     ]
-    for cp in closing_phrases:
+    shuffled_cp = list(closing_phrases)
+    rng.shuffle(shuffled_cp)
+    for cp in shuffled_cp:
         test = clean_no_commas(cand.rstrip(".") + cp).lower()
         if 151 <= len(test) <= 158:
             return format_india_spare(test)
 
-    return format_india_spare(enforce_meta_desc_length(cand or base))
+    return format_india_spare(enforce_meta_desc_length(cand or base, seed=seed))
 
 
 # Backwards compatibility alias
