@@ -46,6 +46,23 @@ class ExtractionResult(TypedDict):
     figures: list[dict]
 
 
+def build_catalogue_code(model_code: str, fig_name: str, fig_no: str = "") -> str:
+    """Build standardized catalogue code for a figure/assembly parent cell.
+    Format: YAM_{MODEL_CODE}_{CLEAN_PARTS_NAME}, e.g. YAM_BGPK_CYLINDER
+    """
+    mc = re.sub(r'[^A-Za-z0-9]+', '_', (model_code or "").strip()).strip('_').upper()
+    if not mc:
+        mc = "MODEL"
+    fn = re.sub(r'[^A-Za-z0-9]+', '_', (fig_name or "").strip()).strip('_').upper()
+    if not fn:
+        if fig_no:
+            padded = str(fig_no).zfill(2) if str(fig_no).isdigit() else str(fig_no)
+            fn = f"FIG_{padded}"
+        else:
+            fn = "PARTS"
+    return f"YAM_{mc}_{fn}"
+
+
 def clean_part_number(part_no: str) -> str:
     """Clean a Yamaha part number according to catalog rules:
     - Remove dashes (hyphens, en-dashes, em-dashes) and spaces.
@@ -299,6 +316,7 @@ def extract_parts_from_pdf(
     document_model_columns: list[str] = []
     figures_seen: list[dict] = []
     seen_fig_set: set[str] = set()
+    seen_fig_row_keys: set[str] = set()
 
     # Track state across pages (for continuation pages)
     current_fig_no: str = ""
@@ -559,11 +577,31 @@ def extract_parts_from_pdf(
 
                 remarks_str = " ".join(remarks_words).strip()
 
+                fig_key = f"{current_fig_no}_{current_fig_name}"
+                is_parent = fig_key not in seen_fig_row_keys
+                if is_parent:
+                    seen_fig_row_keys.add(fig_key)
+
+                primary_model = (
+                    model_columns[0]["name"]
+                    if model_columns
+                    else (document_model_columns[0] if document_model_columns else "MODEL")
+                )
+                cat_code = (
+                    build_catalogue_code(primary_model, current_fig_name, current_fig_no)
+                    if is_parent
+                    else ""
+                )
+
                 # Construct row
                 row_dict: dict = {
                     "page": page_num,
                     "fig_no": current_fig_no,
                     "fig_name": current_fig_name,
+                    "parent_fig_no": current_fig_no,
+                    "parent_fig_name": current_fig_name,
+                    "is_parent": is_parent,
+                    "catalogue_code": cat_code,
                     "ref_no": ref_no,
                     "part_no": part_no,
                     "description": description,

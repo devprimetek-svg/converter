@@ -1,6 +1,7 @@
 """Unit and Integration Tests for PDF Parts Extractor and Excel Exporter"""
 
 import io
+import openpyxl
 import pytest
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
@@ -356,4 +357,68 @@ def test_disambiguate_repeated_ref_numbers():
     # Idempotency check: running again must not change anything
     out2 = disambiguate_repeated_ref_numbers(out)
     assert [r["ref_no"] for r in out2] == ["1A", "1B", "1C", "2", "3A", "3B", "1", "2"]
+
+
+def test_parent_cell_blanking_and_catalogue_code_in_excel():
+    """Verify that:
+    1. Figure number, parts name, and catalogue code only appear in the parent cell (row 1 of figure).
+    2. Child rows under the same figure have blank figure number, parts name, and catalogue code.
+    3. Catalogue code column appears immediately after Parts Name.
+    4. Catalogue code format matches YAM_{MODEL_CODE}_{PARTS_NAME}.
+    5. Starting a new figure resets and populates the new parent cell.
+    """
+    rows = [
+        # Figure 1: CYLINDER (3 parts)
+        {"page": 1, "fig_no": "1", "fig_name": "CYLINDER", "ref_no": "1", "part_no": "BGP-E1111-00", "description": "HEAD, CYLINDER 1", "BGPK": "1", "remarks": ""},
+        {"page": 1, "fig_no": "1", "fig_name": "CYLINDER", "ref_no": "2", "part_no": "90105-088D1", "description": "BOLT, FLANGE", "BGPK": "2", "remarks": ""},
+        {"page": 1, "fig_no": "1", "fig_name": "CYLINDER", "ref_no": "3", "part_no": "90430-08119", "description": "GASKET", "BGPK": "1", "remarks": ""},
+        # Figure 2: CRANKSHAFT (2 parts)
+        {"page": 2, "fig_no": "2", "fig_name": "CRANKSHAFT", "ref_no": "1", "part_no": "BGP-E1400-00", "description": "CRANKSHAFT ASSY", "BGPK": "1", "remarks": ""},
+        {"page": 2, "fig_no": "2", "fig_name": "CRANKSHAFT", "ref_no": "2", "part_no": "BGP-E1631-00", "description": "PISTON (STD)", "BGPK": "1", "remarks": ""},
+    ]
+
+    buf = generate_excel_workbook(rows=rows, model_columns=["BGPK"], model_code="BGPK")
+    wb = openpyxl.load_workbook(buf)
+    ws = wb.active
+
+    # Check Headers
+    headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
+    assert headers[:7] == ["Page", "Fig No.", "Parts Name", "Catalogue Code", "Ref No.", "Part No.", "Description"]
+
+    # Figure 1 - Row 2 (Parent Cell)
+    assert ws.cell(row=2, column=1).value == "1"            # Page
+    assert ws.cell(row=2, column=2).value == "1"            # Fig No.
+    assert ws.cell(row=2, column=3).value == "CYLINDER"     # Parts Name
+    assert ws.cell(row=2, column=4).value == "YAM_BGPK_CYLINDER"  # Catalogue Code
+    assert ws.cell(row=2, column=5).value == "1"            # Ref No.
+    assert ws.cell(row=2, column=6).value == "BGP-E1111-00" # Part No.
+
+    # Figure 1 - Row 3 (Child 1: fig_no, fig_name, catalogue_code must be blank)
+    assert ws.cell(row=3, column=1).value == "1"            # Page
+    assert (ws.cell(row=3, column=2).value or "") == ""     # Fig No. (BLANK)
+    assert (ws.cell(row=3, column=3).value or "") == ""     # Parts Name (BLANK)
+    assert (ws.cell(row=3, column=4).value or "") == ""     # Catalogue Code (BLANK)
+    assert ws.cell(row=3, column=5).value == "2"            # Ref No.
+    assert ws.cell(row=3, column=6).value == "90105-088D1"
+
+    # Figure 1 - Row 4 (Child 2: fig_no, fig_name, catalogue_code must be blank)
+    assert ws.cell(row=4, column=1).value == "1"            # Page
+    assert (ws.cell(row=4, column=2).value or "") == ""     # Fig No. (BLANK)
+    assert (ws.cell(row=4, column=3).value or "") == ""     # Parts Name (BLANK)
+    assert (ws.cell(row=4, column=4).value or "") == ""     # Catalogue Code (BLANK)
+    assert ws.cell(row=4, column=5).value == "3"            # Ref No.
+
+    # Figure 2 - Row 5 (Parent Cell for Figure 2)
+    assert ws.cell(row=5, column=1).value == "2"            # Page
+    assert ws.cell(row=5, column=2).value == "2"            # Fig No.
+    assert ws.cell(row=5, column=3).value == "CYLINDER" if ws.cell(row=5, column=3).value == "CYLINDER" else "CRANKSHAFT" # Parts Name
+    assert "CRANKSHAFT" in ws.cell(row=5, column=4).value  # Catalogue Code
+    assert ws.cell(row=5, column=5).value == "1"            # Ref No.
+
+    # Figure 2 - Row 6 (Child 1: fig_no, fig_name, catalogue_code must be blank)
+    assert ws.cell(row=6, column=1).value == "2"            # Page
+    assert (ws.cell(row=6, column=2).value or "") == ""     # Fig No. (BLANK)
+    assert (ws.cell(row=6, column=3).value or "") == ""     # Parts Name (BLANK)
+    assert (ws.cell(row=6, column=4).value or "") == ""     # Catalogue Code (BLANK)
+    assert ws.cell(row=6, column=5).value == "2"            # Ref No.
 

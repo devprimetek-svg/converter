@@ -198,15 +198,6 @@ def run_pipeline_worker(
             job.progress_pct = 45
             job.details = f"Building Excel with {job.total_rows} parts..."
 
-        # Step 2: Excel workbook generation
-        excel_buf = generate_excel_workbook(
-            rows=job.rows,
-            model_columns=job.model_columns,
-            clean_parts=clean_parts,
-        )
-        excel_bytes = excel_buf.getvalue()
-        excel_filename = f"{base_name}_Parts.xlsx"
-
         # Resolve all applicable model codes
         # 1. From detected model columns in table headers
         model_codes = [str(c).strip() for c in job.model_columns if str(c).strip()]
@@ -221,6 +212,27 @@ def run_pipeline_worker(
 
         has_multiple_models = len(model_codes) >= 2
 
+        # Resolve model code from detected model columns or PDF filename
+        pipeline_model_code = ""
+        if job.model_columns:
+            pipeline_model_code = "_".join(str(c).strip() for c in job.model_columns if str(c).strip())
+        if not pipeline_model_code:
+            m = re.search(r"\b([A-Z0-9]{3,6})\b", job.filename.upper())
+            if m:
+                pipeline_model_code = m.group(1)
+            else:
+                pipeline_model_code = "MODEL"
+
+        # Step 2: Excel workbook generation
+        excel_buf = generate_excel_workbook(
+            rows=job.rows,
+            model_columns=job.model_columns,
+            clean_parts=clean_parts,
+            model_code=pipeline_model_code,
+        )
+        excel_bytes = excel_buf.getvalue()
+        excel_filename = f"{base_name}_Parts.xlsx"
+
         # Pre-generate individual Excel workbooks for each model code
         model_excel_data: dict[str, dict[str, Any]] = {}
         if model_codes:
@@ -234,6 +246,7 @@ def run_pipeline_worker(
                     model_columns=[m] if m in job.model_columns else (job.model_columns or [m]),
                     clean_parts=clean_parts,
                     sheet_title=f"Parts_{m}"[:31],
+                    model_code=m,
                 )
                 m_excel_bytes = m_excel_buf.getvalue()
                 m_excel_fname = f"{base_name}_{m}_Parts.xlsx"
@@ -243,17 +256,6 @@ def run_pipeline_worker(
                     "rows": m_rows,
                     "parts_count": len(m_rows),
                 }
-
-        # Resolve model code from detected model columns or PDF filename
-        pipeline_model_code = ""
-        if job.model_columns:
-            pipeline_model_code = "_".join(str(c).strip() for c in job.model_columns if str(c).strip())
-        if not pipeline_model_code:
-            m = re.search(r"\b([A-Z0-9]{3,6})\b", job.filename.upper())
-            if m:
-                pipeline_model_code = m.group(1)
-            else:
-                pipeline_model_code = "MODEL"
 
         with job.lock:
             job.excel_bytes = excel_bytes

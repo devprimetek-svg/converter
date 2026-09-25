@@ -1056,6 +1056,8 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta, onJ
                   <thead className="bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 font-semibold border-b border-zinc-200 dark:border-zinc-800">
                     <tr>
                       <th className="p-2.5">Fig</th>
+                      <th className="p-2.5">Parts Name</th>
+                      <th className="p-2.5">Catalogue Code</th>
                       <th className="p-2.5">Ref</th>
                       <th className="p-2.5">Part No.</th>
                       <th className="p-2.5">Description</th>
@@ -1066,20 +1068,29 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta, onJ
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
-                    {status.rows_sample?.map((r, i) => (
-                      <tr key={i} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
-                        <td className="p-2.5 font-semibold text-zinc-500">{r.fig_no}</td>
-                        <td className="p-2.5 font-mono text-zinc-500">{r.ref_no}</td>
-                        <td className="p-2.5 font-mono font-bold text-zinc-900 dark:text-white">{r.part_no}</td>
-                        <td className="p-2.5 text-zinc-800 dark:text-zinc-200">{r.description}</td>
-                        {status.model_columns?.map((m) => (
-                          <td key={m} className="p-2.5 font-mono text-center font-bold text-zinc-800 dark:text-zinc-200">
-                            {r[m] || '-'}
-                          </td>
-                        ))}
-                        <td className="p-2.5 text-zinc-500">{r.remarks || '-'}</td>
-                      </tr>
-                    ))}
+                    {status.rows_sample?.map((r, i) => {
+                      const isFirstOfFig = i === 0 || (status.rows_sample![i - 1].fig_no !== r.fig_no) || (status.rows_sample![i - 1].fig_name !== r.fig_name);
+                      const cleanFig = (r.fig_name || 'PARTS').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase();
+                      const mc = status.model_columns && status.model_columns.length > 0 ? status.model_columns[0] : 'MODEL';
+                      const catCode = (r as any).catalogue_code || `YAM_${mc}_${cleanFig}`;
+
+                      return (
+                        <tr key={i} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
+                          <td className="p-2.5 font-semibold text-zinc-500">{isFirstOfFig ? r.fig_no : ''}</td>
+                          <td className="p-2.5 text-zinc-700 dark:text-zinc-300 font-medium">{isFirstOfFig ? (r.fig_name || '-') : ''}</td>
+                          <td className="p-2.5 font-mono font-bold text-zinc-700 dark:text-zinc-300">{isFirstOfFig ? catCode : ''}</td>
+                          <td className="p-2.5 font-mono text-zinc-500">{r.ref_no}</td>
+                          <td className="p-2.5 font-mono font-bold text-zinc-900 dark:text-white">{r.part_no}</td>
+                          <td className="p-2.5 text-zinc-800 dark:text-zinc-200">{r.description}</td>
+                          {status.model_columns?.map((m) => (
+                            <td key={m} className="p-2.5 font-mono text-center font-bold text-zinc-800 dark:text-zinc-200">
+                              {r[m] || '-'}
+                            </td>
+                          ))}
+                          <td className="p-2.5 text-zinc-500">{r.remarks || '-'}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -318,6 +318,7 @@ def export_excel(req: ExportRequest):
         rows=rows,
         model_columns=model_columns,
         clean_parts=req.clean_part_numbers,
+        model_code=model_target if (model_target and model_target.upper() != "ALL") else None,
     )
 
     return StreamingResponse(

@@ -285,22 +285,24 @@ def test_export_metadata_excel_and_csv():
     assert ws.cell(row=1, column=1).value == "Page"
     assert ws.cell(row=1, column=2).value == "Fig No."
     assert ws.cell(row=1, column=3).value == "Catalog Name"
-    assert ws.cell(row=1, column=4).value == "Ref No."
-    assert ws.cell(row=1, column=5).value == "Part No."
-    assert ws.cell(row=1, column=6).value == "Clean Part No."
-    assert ws.cell(row=1, column=7).value == "Remarks"
-    assert ws.cell(row=1, column=8).value == "Brand"
-    assert ws.cell(row=1, column=12).value == "Pic"
-    assert ws.cell(row=1, column=13).value == "Short Description"
-    assert ws.cell(row=1, column=14).value == "Meta Title"
+    assert ws.cell(row=1, column=4).value == "Catalogue Code"
+    assert ws.cell(row=1, column=5).value == "Ref No."
+    assert ws.cell(row=1, column=6).value == "Part No."
+    assert ws.cell(row=1, column=7).value == "Clean Part No."
+    assert ws.cell(row=1, column=8).value == "Remarks"
+    assert ws.cell(row=1, column=9).value == "Brand"
+    assert ws.cell(row=1, column=13).value == "Pic"
+    assert ws.cell(row=1, column=14).value == "Short Description"
+    assert ws.cell(row=1, column=15).value == "Meta Title"
     assert ws.cell(row=2, column=1).value == "7"
     assert ws.cell(row=2, column=2).value == "1"
     assert ws.cell(row=2, column=3).value == "CYLINDER HEAD"
-    assert ws.cell(row=2, column=12).value == "YAM_BGPK_CYLINDER HEAD.jpeg"
-    assert ws.cell(row=2, column=13).value == "YAMAHA BGPK CYLINDER HEAD"
-    assert ws.cell(row=2, column=14).value == "Yamaha BGPK Cylinder Head | IndiaSpare"
-    assert 151 <= len(ws.cell(row=2, column=15).value) <= 158
-    assert 120 <= len(ws.cell(row=2, column=17).value.split()) <= 140
+    assert ws.cell(row=2, column=4).value == "YAM_BGPK_CYLINDER_HEAD"
+    assert ws.cell(row=2, column=13).value == "YAM_BGPK_CYLINDER HEAD.jpeg"
+    assert ws.cell(row=2, column=14).value == "YAMAHA BGPK CYLINDER HEAD"
+    assert ws.cell(row=2, column=15).value == "Yamaha BGPK Cylinder Head | IndiaSpare"
+    assert 151 <= len(ws.cell(row=2, column=16).value) <= 158
+    assert 120 <= len(ws.cell(row=2, column=18).value.split()) <= 140
 
     # Test CSV generation
     csv_buf = export_metadata_csv(meta_items)
@@ -495,6 +497,7 @@ def test_catalogue_columns_arranged_on_left_before_metadata_columns():
         "Page",
         "Fig No.",
         "Catalog Name",
+        "Catalogue Code",
         "Ref No.",
         "Part No.",
         "Clean Part No.",

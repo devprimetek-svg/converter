@@ -161,6 +161,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
       'Page',
       'Fig No.',
       'Catalog Name',
+      'Catalogue Code',
       'Ref No.',
       'Part No.',
       'Clean Part No.',
@@ -1161,6 +1162,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                       <th className="p-2.5 w-12 text-center">Ref</th>
                       <th className="p-2.5">Part No.</th>
                       <th className="p-2.5">Description</th>
+                      <th className="p-2.5">Catalogue Code</th>
                       {models.map((m) => (
                         <th key={m} className="p-2.5 font-mono text-center text-zinc-900 dark:text-white">
                           Qty ({m})
@@ -1235,6 +1237,13 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                   </button>
                                 )}
                               </div>
+                            </td>
+
+                            {/* Catalogue Code */}
+                            <td className="p-2.5">
+                              <span className="font-mono text-[10px] font-bold text-zinc-700 dark:text-zinc-300">
+                                {item.catalogue_code || `YAM_${activeModelCode}_${(item.part_name || item.description || 'PARTS').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase()}`}
+                              </span>
                             </td>
 
                             {/* Model Quantities */}
@@ -1454,6 +1463,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                     <tr>
                       <th className="p-2.5 w-14 text-center">Fig No.</th>
                       <th className="p-2.5">Fig Name</th>
+                      <th className="p-2.5">Catalogue Code</th>
                       <th className="p-2.5 w-14 text-center">Ref No.</th>
                       <th className="p-2.5 font-mono">Part No.</th>
                       <th className="p-2.5 font-mono">Clean Part No.</th>
@@ -1468,39 +1478,48 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
-                    {filteredRows.map((r, idx) => (
-                      <tr key={idx} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
-                        <td className="p-2.5 text-center font-bold text-zinc-600 dark:text-zinc-400 font-mono">
-                          {r.fig_no || '-'}
-                        </td>
-                        <td className="p-2.5 font-medium text-zinc-800 dark:text-zinc-200">
-                          {r.fig_name || '-'}
-                        </td>
-                        <td className="p-2.5 text-center font-mono text-zinc-500 font-semibold">
-                          {r.ref_no || '-'}
-                        </td>
-                        <td className="p-2.5 font-mono font-bold text-zinc-900 dark:text-white">
-                          {r.part_no || '-'}
-                        </td>
-                        <td className="p-2.5 font-mono text-zinc-500">
-                          {cleanPartNo(r.part_no) || '-'}
-                        </td>
-                        <td className="p-2.5 font-medium text-zinc-800 dark:text-zinc-200">
-                          {r.description || '-'}
-                        </td>
-                        {models.map((m) => (
-                          <td key={m} className="p-2.5 font-mono text-center font-bold text-zinc-900 dark:text-white">
-                            {r[m] || '-'}
+                    {filteredRows.map((r, idx) => {
+                      const isFirstOfFig = idx === 0 || (filteredRows[idx - 1].fig_no !== r.fig_no) || (filteredRows[idx - 1].fig_name !== r.fig_name);
+                      const cleanFig = (r.fig_name || 'PARTS').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase();
+                      const catCode = r.catalogue_code || `YAM_${activeModelCode}_${cleanFig}`;
+
+                      return (
+                        <tr key={idx} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
+                          <td className="p-2.5 text-center font-bold text-zinc-600 dark:text-zinc-400 font-mono">
+                            {isFirstOfFig ? (r.fig_no || '-') : ''}
                           </td>
-                        ))}
-                        <td className="p-2.5 text-zinc-500">
-                          {r.remarks || '-'}
-                        </td>
-                        <td className="p-2.5 text-center font-mono text-zinc-400">
-                          {r.page || 1}
-                        </td>
-                      </tr>
-                    ))}
+                          <td className="p-2.5 font-medium text-zinc-800 dark:text-zinc-200">
+                            {isFirstOfFig ? (r.fig_name || '-') : ''}
+                          </td>
+                          <td className="p-2.5 font-mono font-bold text-zinc-700 dark:text-zinc-300">
+                            {isFirstOfFig ? catCode : ''}
+                          </td>
+                          <td className="p-2.5 text-center font-mono text-zinc-500 font-semibold">
+                            {r.ref_no || '-'}
+                          </td>
+                          <td className="p-2.5 font-mono font-bold text-zinc-900 dark:text-white">
+                            {r.part_no || '-'}
+                          </td>
+                          <td className="p-2.5 font-mono text-zinc-500">
+                            {cleanPartNo(r.part_no) || '-'}
+                          </td>
+                          <td className="p-2.5 font-medium text-zinc-800 dark:text-zinc-200">
+                            {r.description || '-'}
+                          </td>
+                          {models.map((m) => (
+                            <td key={m} className="p-2.5 font-mono text-center font-bold text-zinc-900 dark:text-white">
+                              {r[m] || '-'}
+                            </td>
+                          ))}
+                          <td className="p-2.5 text-zinc-500">
+                            {r.remarks || '-'}
+                          </td>
+                          <td className="p-2.5 text-center font-mono text-zinc-400">
+                            {r.page || 1}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -120,6 +120,12 @@ export const PartsTable: React.FC<PartsTableProps> = ({ rows, modelColumns, clea
               </th>
 
               <th
+                className="px-3 py-3 font-bold whitespace-nowrap min-w-[150px] text-slate-700 dark:text-slate-200"
+              >
+                <span>Catalogue Code</span>
+              </th>
+
+              <th
                 onClick={() => handleSort('ref_no')}
                 className="group px-3 py-3 font-bold cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors whitespace-nowrap text-center w-16"
               >
@@ -179,7 +185,7 @@ export const PartsTable: React.FC<PartsTableProps> = ({ rows, modelColumns, clea
             {displayedRows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7 + modelColumns.length}
+                  colSpan={8 + modelColumns.length}
                   className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 font-sans"
                 >
                   No parts match the current filter or search criteria.
@@ -189,6 +195,10 @@ export const PartsTable: React.FC<PartsTableProps> = ({ rows, modelColumns, clea
               displayedRows.map((row, idx) => {
                 const displayPartNo = cleanParts ? cleanPartNumber(row.part_no) : row.part_no;
                 const isContinuation = idx > 0 && displayedRows[idx - 1].ref_no === row.ref_no && displayedRows[idx - 1].fig_no === row.fig_no;
+                const isFirstOfFig = idx === 0 || (displayedRows[idx - 1].fig_no !== row.fig_no) || (displayedRows[idx - 1].fig_name !== row.fig_name);
+                const cleanFig = (row.fig_name || 'PARTS').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase();
+                const primaryModel = modelColumns && modelColumns.length > 0 ? modelColumns[0] : 'MODEL';
+                const catCode = (row as any).catalogue_code || `YAM_${primaryModel}_${cleanFig}`;
 
                 return (
                   <tr
@@ -202,11 +212,15 @@ export const PartsTable: React.FC<PartsTableProps> = ({ rows, modelColumns, clea
                     </td>
 
                     <td className="px-3 py-2 text-center font-semibold text-slate-700 dark:text-slate-300">
-                      {row.fig_no}
+                      {isFirstOfFig ? row.fig_no : ''}
                     </td>
 
                     <td className="px-3 py-2 font-sans text-slate-800 dark:text-slate-200 truncate max-w-[200px]" title={row.fig_name}>
-                      {row.fig_name}
+                      {isFirstOfFig ? row.fig_name : ''}
+                    </td>
+
+                    <td className="px-3 py-2 font-mono font-bold text-slate-700 dark:text-slate-300 truncate max-w-[200px]" title={catCode}>
+                      {isFirstOfFig ? catCode : ''}
                     </td>
 
                     <td className="px-3 py-2 text-center">

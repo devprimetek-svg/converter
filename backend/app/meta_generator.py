@@ -25,6 +25,7 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from app.excel_export import build_catalogue_code
 from app.parts_extractor import clean_part_number
 
 
@@ -452,6 +453,7 @@ def generate_main_part_metadata(
     record = {
         "fig_no": fig_no,
         "part_name": part_name,
+        "catalogue_code": build_catalogue_code(mc, part_name, fig_no),
         "description": part_name,
         "part_no": f"FIG.{fig_no}" if fig_no else part_name,
         "clean_part_no": f"{mc}-FIG{fig_no}" if fig_no else part_name,
@@ -525,6 +527,7 @@ def generate_child_part_metadata(
     record = {
         "fig_no": fig_no,
         "part_name": desc,
+        "catalogue_code": build_catalogue_code(mc, fig_name, fig_no),
         "description": desc,
         "part_no": part_no,
         "clean_part_no": clean_no,
@@ -679,6 +682,7 @@ def export_metadata_excel(
         ("Page", "page", center_align, 8),
         ("Fig No.", "fig_no", center_align, 10),
         ("Catalog Name", "part_name", left_align, 28),
+        ("Catalogue Code", "catalogue_code", left_align, 26),
         ("Ref No.", "ref_no", center_align, 10),
         ("Part No.", "part_no", left_align, 20),
         ("Clean Part No.", "clean_part_no", left_align, 20),
@@ -693,7 +697,7 @@ def export_metadata_excel(
         for r in (meta_rows + (raw_rows or [])):
             for k in r.keys():
                 if k not in {
-                    "fig_no", "fig_name", "part_name", "description", "part_no",
+                    "fig_no", "fig_name", "part_name", "catalogue_code", "description", "part_no",
                     "clean_part_no", "ref_no", "brand", "model_code", "model",
                     "series", "compatible_models", "image_filename", "product_title",
                     "meta_title", "meta_description", "meta_long_description",
@@ -751,11 +755,31 @@ def export_metadata_excel(
         col_letter = get_column_letter(col_idx)
         ws.column_dimensions[col_letter].width = col_width
 
+    last_fig_key = None
     for row_idx, r in enumerate(meta_rows, start=2):
         ws.row_dimensions[row_idx].height = 24.0
+
+        raw_fno = str(r.get("parent_fig_no") or r.get("fig_no") or "").strip()
+        raw_pname = str(r.get("part_name", "") or r.get("fig_name", "") or r.get("description", "")).strip()
+        fig_key = (raw_fno, raw_pname) if (raw_fno or raw_pname) else ("row", str(row_idx))
+        is_parent = (fig_key != last_fig_key)
+        if is_parent:
+            last_fig_key = fig_key
+            curr_fno = raw_fno
+            curr_pname = raw_pname
+            curr_cat_code = r.get("catalogue_code") or build_catalogue_code(r.get("model_code", ""), raw_pname, raw_fno)
+        else:
+            curr_fno = ""
+            curr_pname = ""
+            curr_cat_code = ""
+
         for col_idx, (_, field_key, align, _) in enumerate(headers, start=1):
-            if field_key == "part_name":
-                val = r.get("part_name", "") or r.get("fig_name", "") or r.get("description", "")
+            if field_key == "fig_no":
+                val = curr_fno
+            elif field_key == "part_name":
+                val = curr_pname
+            elif field_key == "catalogue_code":
+                val = curr_cat_code
             elif field_key == "clean_part_no":
                 val = r.get("clean_part_no", "") or clean_part_number(str(r.get("part_no", "") or ""))
             elif field_key == "meta_desc_chars":
@@ -786,6 +810,7 @@ def export_metadata_excel(
             ("Page", "page", center_align, 8),
             ("Fig No.", "fig_no", center_align, 10),
             ("Fig Name", "fig_name", left_align, 28),
+            ("Catalogue Code", "catalogue_code", left_align, 26),
             ("Ref No.", "ref_no", center_align, 10),
             ("Part No.", "part_no", left_align, 20),
             ("Description", "description", left_align, 32),
@@ -804,10 +829,37 @@ def export_metadata_excel(
             col_letter = get_column_letter(col_idx)
             ws2.column_dimensions[col_letter].width = col_width
 
+        last_raw_fig_key = None
         for row_idx, r in enumerate(raw_rows, start=2):
             ws2.row_dimensions[row_idx].height = 20.0
+
+            raw_fno = str(r.get("parent_fig_no") or r.get("fig_no") or "").strip()
+            raw_fname = str(r.get("parent_fig_name") or r.get("fig_name") or "").strip()
+            raw_fig_key = (raw_fno, raw_fname) if (raw_fno or raw_fname) else ("page", str(r.get("page", "")))
+            is_parent = (raw_fig_key != last_raw_fig_key)
+            if is_parent:
+                last_raw_fig_key = raw_fig_key
+                curr_fno = raw_fno
+                curr_fname = raw_fname
+                curr_cat_code = r.get("catalogue_code") or build_catalogue_code(
+                    (resolved_model_cols[0] if resolved_model_cols else "MODEL"),
+                    raw_fname,
+                    raw_fno,
+                )
+            else:
+                curr_fno = ""
+                curr_fname = ""
+                curr_cat_code = ""
+
             for col_idx, (_, field_key, align, _) in enumerate(raw_headers, start=1):
-                val = r.get(field_key, "")
+                if field_key == "fig_no":
+                    val = curr_fno
+                elif field_key == "fig_name":
+                    val = curr_fname
+                elif field_key == "catalogue_code":
+                    val = curr_cat_code
+                else:
+                    val = r.get(field_key, "")
                 cell = ws2.cell(row=row_idx, column=col_idx, value=str(val) if val is not None else "")
                 cell.font = data_font
                 cell.alignment = align
@@ -840,6 +892,7 @@ def export_metadata_csv(
         ("Page", "page"),
         ("Fig No.", "fig_no"),
         ("Catalog Name", "part_name"),
+        ("Catalogue Code", "catalogue_code"),
         ("Ref No.", "ref_no"),
         ("Part No.", "part_no"),
         ("Clean Part No.", "clean_part_no"),
@@ -853,7 +906,7 @@ def export_metadata_csv(
         for r in meta_rows:
             for k in r.keys():
                 if k not in {
-                    "fig_no", "fig_name", "part_name", "description", "part_no",
+                    "fig_no", "fig_name", "part_name", "catalogue_code", "description", "part_no",
                     "clean_part_no", "ref_no", "brand", "model_code", "model",
                     "series", "compatible_models", "image_filename", "product_title",
                     "meta_title", "meta_description", "meta_long_description",
@@ -902,15 +955,34 @@ def export_metadata_csv(
 
     writer.writerow([c[0] for c in col_defs])
 
-    for r in meta_rows:
+    last_fig_key = None
+    for row_idx, r in enumerate(meta_rows):
+        raw_fno = str(r.get("parent_fig_no") or r.get("fig_no") or "").strip()
+        raw_pname = str(r.get("part_name", "") or r.get("fig_name", "") or r.get("description", "")).strip()
+        fig_key = (raw_fno, raw_pname) if (raw_fno or raw_pname) else ("row", str(row_idx))
+        is_parent = (fig_key != last_fig_key)
+        if is_parent:
+            last_fig_key = fig_key
+            curr_fno = raw_fno
+            curr_pname = raw_pname
+            curr_cat_code = r.get("catalogue_code") or build_catalogue_code(r.get("model_code", ""), raw_pname, raw_fno)
+        else:
+            curr_fno = ""
+            curr_pname = ""
+            curr_cat_code = ""
+
         row_vals = []
         for label, field_key in col_defs:
-            if field_key == "meta_desc_chars":
+            if field_key == "fig_no":
+                v = curr_fno
+            elif field_key == "part_name":
+                v = curr_pname
+            elif field_key == "catalogue_code":
+                v = curr_cat_code
+            elif field_key == "meta_desc_chars":
                 v = r.get("meta_desc_chars", len(str(r.get("meta_description") or "")))
             elif field_key == "product_desc_words":
                 v = r.get("product_desc_words", len(str(r.get("product_description") or "").split()))
-            elif field_key == "part_name":
-                v = r.get("part_name", "") or r.get("fig_name", "") or r.get("description", "")
             elif field_key == "clean_part_no":
                 v = r.get("clean_part_no", "") or clean_part_number(str(r.get("part_no", "") or ""))
             else:

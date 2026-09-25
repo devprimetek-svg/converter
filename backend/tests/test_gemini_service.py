@@ -33,7 +33,7 @@ def test_enforce_product_desc_words_length_and_commas():
 def test_enhance_metadata_missing_api_key():
     """Verify ValueError is raised if no API key is provided."""
     items = [{"fig_no": "1", "part_name": "CYLINDER HEAD"}]
-    with patch.dict("os.environ", {}, clear=True):
+    with patch.dict("os.environ", {"GEMINI_API_KEY": ""}):
         with pytest.raises(ValueError, match="Google AI Studio API key not found"):
             enhance_metadata_with_gemini(items, api_key="")
 
