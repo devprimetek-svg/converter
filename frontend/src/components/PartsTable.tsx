@@ -196,7 +196,7 @@ export const PartsTable: React.FC<PartsTableProps> = ({ rows, modelColumns, clea
                 const displayPartNo = cleanParts ? cleanPartNumber(row.part_no) : row.part_no;
                 const isContinuation = idx > 0 && displayedRows[idx - 1].ref_no === row.ref_no && displayedRows[idx - 1].fig_no === row.fig_no;
                 const isFirstOfFig = idx === 0 || (displayedRows[idx - 1].fig_no !== row.fig_no) || (displayedRows[idx - 1].fig_name !== row.fig_name);
-                const cleanFig = (row.fig_name || 'PARTS').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase();
+                const cleanFig = (row.fig_name || 'PARTS').replace(/[^A-Za-z0-9]+/g, ' ').trim().toUpperCase();
                 const primaryModel = modelColumns && modelColumns.length > 0 ? modelColumns[0] : 'MODEL';
                 const catCode = (row as any).catalogue_code || `YAM_${primaryModel}_${cleanFig}`;
 

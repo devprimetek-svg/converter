@@ -1263,15 +1263,28 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                             {/* Description / Part Name */}
                             <td className="p-2.5 font-semibold text-zinc-800 dark:text-zinc-200">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span>{item.is_parent !== false ? (item.part_name || item.catalog_name || item.description) : item.description}</span>
                                 {item.is_parent !== false ? (
-                                  <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
-                                    Parent
-                                  </span>
+                                  <>
+                                    <span>{item.part_name || item.catalog_name || item.description}</span>
+                                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+                                      Parent
+                                    </span>
+                                  </>
                                 ) : (
-                                  <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-mono font-normal bg-zinc-100 dark:bg-zinc-900 text-zinc-400">
-                                    Child
-                                  </span>
+                                  <>
+                                    {partsScope === 'child' ? (
+                                      <>
+                                        <span>{item.raw_description || item.component_description || item.description || 'Child Part'}</span>
+                                        <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-mono font-normal bg-zinc-100 dark:bg-zinc-900 text-zinc-400">
+                                          Child
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <span className="text-[10px] text-zinc-400 font-mono italic" title="Child cell of Description column kept blank per rule. Select Children filter to view.">
+                                        Blank (Child)
+                                      </span>
+                                    )}
+                                  </>
                                 )}
                                 {item.ai_generated && (
                                   <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
@@ -1297,7 +1310,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                             <td className="p-2.5">
                               {item.is_parent !== false ? (
                                 <span className="font-mono text-[10px] font-bold text-zinc-700 dark:text-zinc-300">
-                                  {item.catalogue_code || `YAM_${activeModelCode}_${(item.part_name || item.catalog_name || item.description || 'PARTS').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase()}`}
+                                  {item.catalogue_code || `YAM_${activeModelCode}_${(item.part_name || item.catalog_name || item.description || 'PARTS').replace(/[^A-Za-z0-9]+/g, ' ').trim().toUpperCase()}`}
                                 </span>
                               ) : (
                                 <span className="text-zinc-300 dark:text-zinc-700 font-mono text-[10px]">-</span>
@@ -1554,7 +1567,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                   <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
                     {filteredRows.map((r, idx) => {
                       const isFirstOfFig = idx === 0 || (filteredRows[idx - 1].fig_no !== r.fig_no) || (filteredRows[idx - 1].fig_name !== r.fig_name);
-                      const cleanFig = (r.fig_name || 'PARTS').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase();
+                      const cleanFig = (r.fig_name || 'PARTS').replace(/[^A-Za-z0-9]+/g, ' ').trim().toUpperCase();
                       const catCode = r.catalogue_code || `YAM_${activeModelCode}_${cleanFig}`;
 
                       return (

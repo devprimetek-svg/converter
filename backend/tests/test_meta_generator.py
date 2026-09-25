@@ -42,7 +42,7 @@ def test_product_title_in_caps_separate_from_meta_title_and_no_commas():
     assert pt.isupper()
 
     mt = build_meta_title("YAMAHA", "BGPK", "cylinder head", model="ray zr", series="series")
-    assert mt == "Yamaha Ray Zr Series BGPK Cylinder Head | IndiaSpare"
+    assert mt == "Yamaha RAY ZR Series BGPK Cylinder Head | IndiaSpare"
     assert "," not in mt
     assert mt != pt  # Separate from product title
 
@@ -94,7 +94,10 @@ def test_meta_description_character_length_151_to_158_without_caps_no_commas():
             assert "indiaspare" not in desc, f"Lowercase 'indiaspare' found in meta description: '{desc}'"
             assert "INDIASPARE" not in desc, f"Uppercase 'INDIASPARE' found in meta description: '{desc}'"
             rest = desc.replace("IndiaSpare", "")
-            assert rest.islower(), f"Meta description outside 'IndiaSpare' must be without caps: '{desc}'"
+            if m:
+                assert m in desc, f"Model '{m}' must be in ALL CAPS in meta description: '{desc}'"
+                rest = rest.replace(m, "")
+            assert rest.islower(), f"Meta description outside 'IndiaSpare' and model must be without caps: '{desc}'"
 
 
 def test_product_description_words_120_to_140_no_commas():
@@ -201,18 +204,19 @@ def test_generate_main_part_with_custom_model_and_series():
     assert "," not in meta["product_title"]
 
     # Separate Meta Title (series visible after model, model before model code)
-    assert meta["meta_title"] == "Yamaha Ray Zr Street Rally BGPK Crankshaft & Piston | IndiaSpare"
+    assert meta["meta_title"] == "Yamaha RAY ZR Street Rally BGPK Crankshaft & Piston | IndiaSpare"
     assert "," not in meta["meta_title"]
 
     # Short desc removed from entire app
     assert "meta_short_description" not in meta
 
-    # Meta desc strictly 151-158 chars without caps except 'IndiaSpare', no commas
+    # Meta desc strictly 151-158 chars without caps except 'IndiaSpare' and model in ALL CAPS, no commas
     assert 151 <= len(meta["meta_description"]) <= 158
     assert "," not in meta["meta_description"]
     assert "IndiaSpare" in meta["meta_description"]
     assert "indiaspare" not in meta["meta_description"]
-    assert meta["meta_description"].replace("IndiaSpare", "").islower()
+    assert "RAY ZR" in meta["meta_description"]
+    assert meta["meta_description"].replace("IndiaSpare", "").replace("RAY ZR", "").islower()
 
     # Product desc strictly 120-140 words, no commas
     w_count = len(meta["product_description"].split())
@@ -298,7 +302,7 @@ def test_export_metadata_excel_and_csv():
     assert ws.cell(row=2, column=1).value == "7"
     assert ws.cell(row=2, column=2).value == "1"
     assert ws.cell(row=2, column=3).value == "CYLINDER HEAD"
-    assert ws.cell(row=2, column=4).value == "YAM_BGPK_CYLINDER_HEAD"
+    assert ws.cell(row=2, column=4).value == "YAM_BGPK_CYLINDER HEAD"
     assert ws.cell(row=2, column=14).value == "YAM_BGPK_CYLINDER HEAD.jpeg"
     assert ws.cell(row=2, column=15).value == "YAMAHA BGPK CYLINDER HEAD"
     assert ws.cell(row=2, column=16).value == "Yamaha BGPK Cylinder Head | IndiaSpare"
@@ -417,14 +421,14 @@ def test_column_selection_filtering():
     assert exported_headers == ["Fig No.", "Catalog Name", "Meta Title"]
     assert ws.cell(row=2, column=1).value == "1"
     assert ws.cell(row=2, column=2).value == "CYLINDER HEAD"
-    assert ws.cell(row=2, column=3).value == "Yamaha Fz-S Series BGPK Cylinder Head | IndiaSpare"
+    assert ws.cell(row=2, column=3).value == "Yamaha FZ-S Series BGPK Cylinder Head | IndiaSpare"
 
     # CSV export
     csv_buf = export_metadata_csv(meta_items, selected_columns=selected)
     csv_text = csv_buf.getvalue().decode("utf-8-sig")
     lines = [line.strip() for line in csv_text.strip().split("\r\n") if line.strip()]
     assert lines[0] == "Fig No.,Catalog Name,Meta Title"
-    assert "Yamaha Fz-S Series BGPK Cylinder Head | IndiaSpare" in lines[1]
+    assert "Yamaha FZ-S Series BGPK Cylinder Head | IndiaSpare" in lines[1]
     assert "Short Description" not in csv_text
 
 
@@ -587,10 +591,10 @@ def test_child_cells_descriptions_blank_by_default_and_populated_when_prompted()
     assert p["cell_type"] == "Parent"
     assert p["fig_no"] == "1"
     assert p["part_name"] == "CYLINDER HEAD"
-    assert p["catalogue_code"] == "YAM_BGPK_CYLINDER_HEAD"
+    assert p["catalogue_code"] == "YAM_BGPK_CYLINDER HEAD"
     # Parent includes only parent cell's parts name in short description and meta title
     assert p["product_title"] == "YAMAHA BGPK FZ-S SERIES CYLINDER HEAD"
-    assert p["meta_title"] == "Yamaha Fz-S Series BGPK Cylinder Head | IndiaSpare"
+    assert p["meta_title"] == "Yamaha FZ-S Series BGPK Cylinder Head | IndiaSpare"
     assert len(p["meta_description"]) >= 151
     assert len(p["product_description"].split()) >= 120
 
@@ -601,7 +605,8 @@ def test_child_cells_descriptions_blank_by_default_and_populated_when_prompted()
     assert c1["fig_no"] == ""  # Blank per user rule
     assert c1["part_name"] == ""  # Blank per user rule
     assert c1["catalogue_code"] == ""  # Blank per user rule
-    assert c1["description"] == "BOLT FLANGE"
+    assert c1["description"] == ""  # Blank per user rule
+    assert c1["raw_description"] == "BOLT FLANGE"
     assert c1["ref_no"] == "2"
     assert c1["part_no"] == "90105-06836"
     assert c1["product_title"] == ""  # Strictly blank per user rule!
@@ -615,6 +620,7 @@ def test_child_cells_descriptions_blank_by_default_and_populated_when_prompted()
     assert c2["fig_no"] == ""
     assert c2["part_name"] == ""
     assert c2["catalogue_code"] == ""
+    assert c2["description"] == ""  # Blank per user rule
     assert c2["product_title"] == ""  # Strictly blank per user rule!
     assert c2["meta_title"] == ""  # Strictly blank per user rule!
     assert c2["meta_description"] == ""
@@ -638,7 +644,7 @@ def test_child_cells_descriptions_blank_by_default_and_populated_when_prompted()
     p_prompt = items_with_child_prompt[0]
     assert p_prompt["is_parent"] is True
     assert p_prompt["product_title"] == "YAMAHA BGPK FZ-S SERIES CYLINDER HEAD"
-    assert p_prompt["meta_title"] == "Yamaha Fz-S Series BGPK Cylinder Head | IndiaSpare"
+    assert p_prompt["meta_title"] == "Yamaha FZ-S Series BGPK Cylinder Head | IndiaSpare"
     assert len(p_prompt["meta_description"]) >= 151
 
     # Child item 1 NOW has generated descriptions, but short description & meta title remain blank!
@@ -690,19 +696,78 @@ def test_export_single_sheet_with_autofilter_for_child_cells():
     # Row 2 (Parent) has Fig No, Catalogue Code, Short Description & Meta Title populated
     assert ws.cell(row=2, column=2).value == "1"
     assert ws.cell(row=2, column=3).value == "CYLINDER HEAD"
-    assert ws.cell(row=2, column=4).value == "YAM_BGPK_CYLINDER_HEAD"
+    assert ws.cell(row=2, column=4).value == "YAM_BGPK_CYLINDER HEAD"
     assert ws.cell(row=2, column=16).value == "YAMAHA BGPK RAY ZR SERIES CYLINDER HEAD"
-    assert ws.cell(row=2, column=17).value == "Yamaha Ray Zr Series BGPK Cylinder Head | IndiaSpare"
+    assert ws.cell(row=2, column=17).value == "Yamaha RAY ZR Series BGPK Cylinder Head | IndiaSpare"
 
-    # Row 3 (Child) has Fig No, Catalog Name, Catalogue Code, Short Description & Meta Title BLANK
+    # Row 3 (Child) has Fig No, Catalog Name, Catalogue Code, Description, Short Description & Meta Title BLANK
     assert (ws.cell(row=3, column=2).value or "") == ""
     assert (ws.cell(row=3, column=3).value or "") == ""
     assert (ws.cell(row=3, column=4).value or "") == ""
     assert str(ws.cell(row=3, column=5).value) == "2"  # Ref No
     assert str(ws.cell(row=3, column=6).value) == "90105-06836"  # Part No
-    assert str(ws.cell(row=3, column=8).value) == "BOLT FLANGE"  # Description
+    assert (ws.cell(row=3, column=8).value or "") == ""  # Description is BLANK for child per user rule
     assert (ws.cell(row=3, column=16).value or "") == ""  # Short Description is BLANK for child
     assert (ws.cell(row=3, column=17).value or "") == ""  # Meta Title is BLANK for child
+
+
+def test_catalogue_code_spaces_model_caps_everywhere_and_description_child_blanking():
+    """Verify that:
+    1. Catalogue code uses spaces between words of parts name: YAM_BGPK_CYLINDER HEAD.
+    2. Model output is ALWAYS in ALL CAPS in Meta Title, Meta Description, and Product Description.
+    3. Description column child cells are strictly blank in default/combined view and single-sheet Excel export,
+       and accessible when filtered to child scope.
+    """
+    from app.excel_export import build_catalogue_code
+
+    # 1. Catalogue code with multi-word parts names
+    assert build_catalogue_code("BGPK", "CYLINDER HEAD") == "YAM_BGPK_CYLINDER HEAD"
+    assert build_catalogue_code("BGPK", "CRANKSHAFT & PISTON") == "YAM_BGPK_CRANKSHAFT PISTON"
+    assert build_catalogue_code("BGPK", "OIL PUMP") == "YAM_BGPK_OIL PUMP"
+
+    # 2. Model in ALL CAPS everywhere even when user inputs lowercase
+    # Meta Title
+    mt = build_meta_title("YAMAHA", "BGPK", "CYLINDER HEAD", model="fz-s", series="series")
+    assert "FZ-S" in mt
+    assert "Fz-S" not in mt
+    assert mt == "Yamaha FZ-S Series BGPK Cylinder Head | IndiaSpare"
+
+    mt_ray = build_meta_title("YAMAHA", "BGPK", "CYLINDER HEAD", model="ray zr", series="series")
+    assert "RAY ZR" in mt_ray
+    assert "Ray Zr" not in mt_ray
+    assert mt_ray == "Yamaha RAY ZR Series BGPK Cylinder Head | IndiaSpare"
+
+    # Meta Description
+    md = build_meta_description("YAMAHA", "BGPK", "CYLINDER HEAD", model="fz-s", series="series", seed=42)
+    assert 151 <= len(md) <= 158
+    assert "FZ-S" in md
+    assert "fz-s" not in md
+    assert "IndiaSpare" in md
+
+    # Product Description
+    pd = build_product_description("YAMAHA", "BGPK", "CYLINDER HEAD", model="ray zr", series="series")
+    assert 120 <= len(pd.split()) <= 140
+    assert "RAY ZR" in pd
+    assert "ray zr" not in pd
+    assert "IndiaSpare" in pd
+
+    # 3. Description column child cells blank in combined view, populated in child scope
+    rows = [
+        {"fig_no": "1", "fig_name": "CYLINDER HEAD", "ref_no": "1", "part_no": "B7J-E1102-00", "description": "CYLINDER HEAD ASSY", "BGPK": "1", "page": 1},
+        {"fig_no": "1", "fig_name": "CYLINDER HEAD", "ref_no": "2", "part_no": "90105-06836", "description": "BOLT FLANGE", "BGPK": "4", "page": 1},
+    ]
+
+    all_items = generate_catalog_metadata(rows=rows, model_columns=["BGPK"], model="fz-s", model_code="BGPK", parts_scope="all")
+    assert len(all_items) == 2
+    assert all_items[0]["description"] == "CYLINDER HEAD ASSY"
+    assert all_items[0]["catalogue_code"] == "YAM_BGPK_CYLINDER HEAD"
+    assert all_items[1]["description"] == ""  # Child cell blank per user rule!
+    assert all_items[1]["raw_description"] == "BOLT FLANGE"  # Stored for filter
+
+    # When filtered to child scope
+    child_items = generate_catalog_metadata(rows=rows, model_columns=["BGPK"], model="fz-s", model_code="BGPK", parts_scope="child")
+    assert len(child_items) == 1
+    assert child_items[0]["description"] == "BOLT FLANGE"
 
 
 

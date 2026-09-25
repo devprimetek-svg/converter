@@ -1070,7 +1070,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta, onJ
                   <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
                     {status.rows_sample?.map((r, i) => {
                       const isFirstOfFig = i === 0 || (status.rows_sample![i - 1].fig_no !== r.fig_no) || (status.rows_sample![i - 1].fig_name !== r.fig_name);
-                      const cleanFig = (r.fig_name || 'PARTS').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').toUpperCase();
+                      const cleanFig = (r.fig_name || 'PARTS').replace(/[^A-Za-z0-9]+/g, ' ').trim().toUpperCase();
                       const mc = status.model_columns && status.model_columns.length > 0 ? status.model_columns[0] : 'MODEL';
                       const catCode = (r as any).catalogue_code || `YAM_${mc}_${cleanFig}`;
 

@@ -48,16 +48,18 @@ class ExtractionResult(TypedDict):
 
 def build_catalogue_code(model_code: str, fig_name: str, fig_no: str = "") -> str:
     """Build standardized catalogue code for a figure/assembly parent cell.
-    Format: YAM_{MODEL_CODE}_{CLEAN_PARTS_NAME}, e.g. YAM_BGPK_CYLINDER
+    Format: YAM_{MODEL_CODE}_{PARTS NAME} with space between words of parts name.
+    e.g. YAM_BGPK_CYLINDER HEAD
     """
     mc = re.sub(r'[^A-Za-z0-9]+', '_', (model_code or "").strip()).strip('_').upper()
     if not mc:
         mc = "MODEL"
-    fn = re.sub(r'[^A-Za-z0-9]+', '_', (fig_name or "").strip()).strip('_').upper()
+    # User rule: between words of parts name inside catalogue code, use space instead of underscore
+    fn = re.sub(r'[^A-Za-z0-9]+', ' ', (fig_name or "").strip()).strip().upper()
     if not fn:
         if fig_no:
             padded = str(fig_no).zfill(2) if str(fig_no).isdigit() else str(fig_no)
-            fn = f"FIG_{padded}"
+            fn = f"FIG {padded}"
         else:
             fn = "PARTS"
     return f"YAM_{mc}_{fn}"

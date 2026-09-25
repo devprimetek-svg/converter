@@ -62,6 +62,24 @@ def format_india_spare(text: str) -> str:
     return re.sub(r"(?i)\bindia\s*spare\b|\bindiaspare\b", "IndiaSpare", text)
 
 
+def preserve_caps(text: str, model: str = "", model_code: str = "") -> str:
+    """Ensure 'IndiaSpare' and model name in ALL CAPS from model text box are preserved."""
+    if not text:
+        return ""
+    formatted = format_india_spare(text)
+    if model:
+        m_clean = model.strip().upper()
+        if m_clean:
+            # Word boundary regex with case-insensitivity
+            pattern = re.compile(rf"(?i)\b{re.escape(m_clean)}\b")
+            formatted = pattern.sub(m_clean, formatted)
+            if "-" in m_clean:
+                parts = [re.escape(p.strip()) for p in m_clean.split("-") if p.strip()]
+                dash_pattern = re.compile(rf"(?i)\b{r'\s*-\s*'.join(parts)}\b")
+                formatted = dash_pattern.sub(m_clean, formatted)
+    return formatted
+
+
 def prompt_references_child_cells(prompt: Optional[str]) -> bool:
     """Return True if prompt explicitly references child cells, child parts, child rows, or all parts."""
     if not prompt:
@@ -97,7 +115,7 @@ def build_product_title(
     parts.append(p)
 
     title = clean_no_commas(" ".join(parts)).upper()
-    return format_india_spare(title) if ("india spare" in title.lower() or "indiaspare" in title.lower()) else title
+    return preserve_caps(title, model=mn, model_code=mc)
 
 
 def build_meta_title(
@@ -108,12 +126,13 @@ def build_meta_title(
     series: str = "",
 ) -> str:
     """Build meta title separate from product title (Title Case, no commas between words).
-    Model is typed before model code, and Series is visible after Model:
-    BRAND (MODEL if present) (SERIES if present after MODEL) MODEL_CODE PARTS_NAME | IndiaSpare.
+    Model is typed before model code and output is in ALL CAPS per user mandate.
+    Series is visible after Model:
+    BRAND (MODEL in ALL CAPS) (SERIES if present after MODEL) MODEL_CODE PARTS_NAME | IndiaSpare.
     """
     b = (brand or "Yamaha").strip().title()
     mc = (model_code or "Model").strip().upper()
-    mn = (model or "").strip().title()
+    mn = (model or "").strip().upper()  # User rule: model output should ALWAYS be in ALL CAPS even in meta title
     ser = (series or "").strip().title()
     p = (part_name or "Parts").strip().title()
 
@@ -128,7 +147,7 @@ def build_meta_title(
     parts.append(p)
 
     title = clean_no_commas(" ".join(parts)) + " | IndiaSpare"
-    return format_india_spare(title)
+    return preserve_caps(title, model=mn, model_code=mc)
 
 
 def build_meta_short_description(
@@ -150,11 +169,16 @@ def build_meta_short_description(
     return format_india_spare(clean_no_commas(desc))
 
 
-def enforce_meta_desc_length(text: str, seed: Optional[int] = None) -> str:
-    """Enforce strictly 151 to 158 characters without commas, preserving 'IndiaSpare'."""
+def enforce_meta_desc_length(
+    text: str,
+    seed: Optional[int] = None,
+    model: str = "",
+    model_code: str = "",
+) -> str:
+    """Enforce strictly 151 to 158 characters without commas, preserving 'IndiaSpare' and model in ALL CAPS."""
     text = clean_no_commas(text).lower()
     if 151 <= len(text) <= 158:
-        return format_india_spare(text)
+        return preserve_caps(text, model=model, model_code=model_code)
 
     rng = random.Random(seed) if seed is not None else random.Random()
 
@@ -182,11 +206,11 @@ def enforce_meta_desc_length(text: str, seed: Optional[int] = None) -> str:
             if 151 <= len(cand) <= 158:
                 candidates_matching.append(cand)
         if candidates_matching:
-            return format_india_spare(rng.choice(candidates_matching))
+            return preserve_caps(rng.choice(candidates_matching), model=model, model_code=model_code)
 
         text = clean_no_commas(text.rstrip(".") + " genuine factory replacement.").lower()
         if 151 <= len(text) <= 158:
-            return format_india_spare(text)
+            return preserve_caps(text, model=model, model_code=model_code)
 
     words = text.split()
     built = ""
@@ -201,7 +225,7 @@ def enforce_meta_desc_length(text: str, seed: Optional[int] = None) -> str:
             if len(built) + 1 <= 158:
                 built += "."
         if 151 <= len(built) <= 158:
-            return format_india_spare(built.lower())
+            return preserve_caps(built.lower(), model=model, model_code=model_code)
 
     closers = [
         "fit.", "now.", "part.", "today.", "spare.", "parts.",
@@ -220,19 +244,19 @@ def enforce_meta_desc_length(text: str, seed: Optional[int] = None) -> str:
             valid_closers.append(cand)
 
     if valid_closers:
-        return format_india_spare(rng.choice(valid_closers))
+        return preserve_caps(rng.choice(valid_closers), model=model, model_code=model_code)
 
     while len(built) < 151:
         built = (built.rstrip(".") + " genuine").strip()
     if 151 <= len(built) <= 158:
         res = built.rstrip(".") + "." if len(built) + 1 <= 158 else built
-        return format_india_spare(res.lower())
+        return preserve_caps(res.lower(), model=model, model_code=model_code)
     if len(built) > 158:
         last_space = built[:157].rfind(" ")
         if last_space >= 150:
-            return format_india_spare((built[:last_space] + ".").lower())
-        return format_india_spare((built[:157] + ".").lower())
-    return format_india_spare(built.lower())
+            return preserve_caps((built[:last_space] + ".").lower(), model=model, model_code=model_code)
+        return preserve_caps((built[:157] + ".").lower(), model=model, model_code=model_code)
+    return preserve_caps(built.lower(), model=model, model_code=model_code)
 
 
 def build_meta_description(
@@ -243,17 +267,19 @@ def build_meta_description(
     series: str = "series",
     seed: Optional[int] = None,
 ) -> str:
-    """Build meta description strictly bounded between 151 and 158 characters without caps except 'IndiaSpare' and without commas."""
+    """Build meta description strictly bounded between 151 and 158 characters without commas,
+    preserving 'IndiaSpare', model in ALL CAPS, and model_code in ALL CAPS per user mandate.
+    """
     b = (brand or "yamaha").strip().lower()
     mc = (model_code or "model").strip().lower()
-    mn = (model or "").strip().lower()
+    mn = (model or "").strip().upper()
     ser = (series or "series").strip().lower()
     p = clean_no_commas((part_name or "part").strip().lower())
     m_disp = f"{mc} {mn}".strip() if mn else mc
 
     rng = random.Random(seed) if seed is not None else random.Random()
 
-    # Ordered candidate sentences designed for various part name lengths (without caps)
+    # Ordered candidate sentences designed for various part name lengths
     candidates = [
         f"buy authentic {b} {m_disp} {ser} {p} genuine oem spare parts diagram from indiaspare. high quality factory replacement parts with verified vehicle fit.",
         f"buy genuine {b} {m_disp} {ser} {p} original oem spare parts diagram from indiaspare. factory direct replacement component with verified vehicle fit.",
@@ -270,12 +296,12 @@ def build_meta_description(
         f"buy genuine {b} {m_disp} {p} spare parts from indiaspare. authentic oem diagram assembly with guaranteed durable vehicle fitment and satisfaction.",
     ]
 
-    valid_cands = [clean_no_commas(c).lower() for c in candidates if 151 <= len(clean_no_commas(c)) <= 158]
+    valid_cands = [clean_no_commas(c) for c in candidates if 151 <= len(clean_no_commas(c)) <= 158]
     if valid_cands:
-        return format_india_spare(rng.choice(valid_cands))
+        return preserve_caps(rng.choice(valid_cands), model=mn, model_code=mc)
 
     # Algorithmic prefix + suffix combinations
-    prefix = clean_no_commas(f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from indiaspare.").lower()
+    prefix = clean_no_commas(f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from indiaspare.")
 
     suffix_bank = [
         "high quality factory replacement parts with verified vehicle fit.",
@@ -297,17 +323,17 @@ def build_meta_description(
 
     valid_combos = []
     for s in suffix_bank:
-        cand = clean_no_commas(f"{prefix} {s}").lower()
+        cand = clean_no_commas(f"{prefix} {s}")
         if 151 <= len(cand) <= 158:
             valid_combos.append(cand)
 
     if valid_combos:
-        return format_india_spare(rng.choice(valid_combos))
+        return preserve_caps(rng.choice(valid_combos), model=mn, model_code=mc)
 
     base = clean_no_commas(
         f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from indiaspare. "
         f"factory replacement with verified fitment and durable performance guarantee."
-    ).lower()
+    )
     words = base.split()
     cand = ""
     for w in words:
@@ -326,11 +352,11 @@ def build_meta_description(
     shuffled_cp = list(closing_phrases)
     rng.shuffle(shuffled_cp)
     for cp in shuffled_cp:
-        test = clean_no_commas(cand.rstrip(".") + cp).lower()
+        test = clean_no_commas(cand.rstrip(".") + cp)
         if 151 <= len(test) <= 158:
-            return format_india_spare(test)
+            return preserve_caps(test, model=mn, model_code=mc)
 
-    return format_india_spare(enforce_meta_desc_length(cand or base, seed=seed))
+    return preserve_caps(enforce_meta_desc_length(cand or base, seed=seed, model=mn, model_code=mc), model=mn, model_code=mc)
 
 
 # Backwards compatibility alias
@@ -413,7 +439,7 @@ def build_product_description(
         words = words[:135]
         full_text = " ".join(words).rstrip(".") + "."
 
-    return format_india_spare(full_text)
+    return preserve_caps(full_text, model=mn, model_code=mc)
 
 
 def generate_main_part_metadata(
@@ -538,7 +564,9 @@ def generate_child_part_metadata(
         "fig_no": fig_no,
         "part_name": desc,
         "catalogue_code": build_catalogue_code(mc, fig_name, fig_no),
-        "description": desc,
+        "description": "",  # Blank per user rule for child cells
+        "raw_description": desc,
+        "component_description": desc,
         "part_no": part_no,
         "clean_part_no": clean_no,
         "ref_no": ref_no,
@@ -662,8 +690,10 @@ def generate_catalog_metadata(
                 else:
                     meta_desc = build_meta_description(brand=b, model_code=mc, part_name=display_name, model=mn, series=ser)
                     prod_desc = build_product_description(brand=b, model_code=mc, part_name=display_name, model=mn, series=ser)
+                display_desc = desc or display_name
             else:
                 # Per user rule: child rows of short description and meta title must be strictly blank!
+                # Per user rule: description column child cell must ALSO be blank in default/combined view!
                 prod_title = ""
                 meta_title = ""
                 if allow_child_desc and not blank_descriptions:
@@ -673,6 +703,7 @@ def generate_catalog_metadata(
                 else:
                     meta_desc = ""
                     prod_desc = ""
+                display_desc = desc if parts_scope == "child" else ""
 
             item: dict[str, Any] = {
                 "fig_no": curr_fno,
@@ -686,7 +717,9 @@ def generate_catalog_metadata(
                 "ref_no": ref_no,
                 "part_no": part_no,
                 "clean_part_no": clean_no,
-                "description": desc,
+                "description": display_desc,
+                "raw_description": desc,
+                "component_description": desc,
                 "brand": b,
                 "model_code": mc,
                 "model": mn,
@@ -880,7 +913,9 @@ def export_metadata_excel(
             merged_item["catalog_name"] = fname if is_parent else ""
             merged_item["catalogue_code"] = build_catalogue_code(mc_val, fname, fno) if is_parent else ""
             merged_item["clean_part_no"] = clean_no
-            merged_item["description"] = desc
+            merged_item["description"] = (desc or fname) if is_parent else ""
+            merged_item["raw_description"] = desc
+            merged_item["component_description"] = desc
             merged_item["brand"] = b_val
             merged_item["model_code"] = mc_val
             merged_item["model"] = m_val
@@ -908,6 +943,7 @@ def export_metadata_excel(
         col_letter = get_column_letter(col_idx)
         ws.column_dimensions[col_letter].width = col_width
 
+    only_children = bool(export_rows) and all(not bool(it.get("is_parent")) for it in export_rows)
     last_fig_key = None
     for row_idx, r in enumerate(export_rows, start=2):
         ws.row_dimensions[row_idx].height = 24.0
@@ -941,6 +977,9 @@ def export_metadata_excel(
                 val = curr_cat_code
             elif field_key == "clean_part_no":
                 val = r.get("clean_part_no", "") or clean_part_number(str(r.get("part_no", "") or ""))
+            elif field_key == "description":
+                # User rule: child cells of Description column must be blank!
+                val = (r.get("description", "") or curr_pname) if is_parent else (r.get("raw_description", "") if only_children else "")
             elif field_key == "product_title":
                 val = r.get("product_title", "") if is_parent else ""
             elif field_key == "meta_title":
@@ -1060,6 +1099,7 @@ def export_metadata_csv(
 
     writer.writerow([c[0] for c in col_defs])
 
+    only_children = bool(meta_rows) and all(not bool(it.get("is_parent")) for it in meta_rows)
     last_fig_key = None
     for row_idx, r in enumerate(meta_rows):
         raw_fno = str(r.get("parent_fig_no") or r.get("fig_no") or "").strip()
@@ -1092,6 +1132,9 @@ def export_metadata_csv(
                 v = curr_cat_code
             elif field_key == "clean_part_no":
                 v = r.get("clean_part_no", "") or clean_part_number(str(r.get("part_no", "") or ""))
+            elif field_key == "description":
+                # User rule: child cells of Description column must be blank!
+                v = (r.get("description", "") or curr_pname) if is_parent else (r.get("raw_description", "") if only_children else "")
             elif field_key == "product_title":
                 v = r.get("product_title", "") if is_parent else ""
             elif field_key == "meta_title":

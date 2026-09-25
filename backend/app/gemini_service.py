@@ -22,6 +22,7 @@ from app.meta_generator import (
     clean_no_commas,
     enforce_meta_desc_length,
     format_india_spare,
+    preserve_caps,
     prompt_references_child_cells,
 )
 from app.parts_extractor import clean_part_number
@@ -49,9 +50,11 @@ def enforce_product_desc_words(
     model_str: str = "MODEL",
     part_name: str = "PART",
     seed: Optional[int] = None,
+    model: str = "",
+    model_code: str = "",
 ) -> str:
     """Ensure product description is strictly bounded between 120 and 140 words without commas,
-    strictly preserving 'IndiaSpare' proper casing and generating unique text variations on every invocation.
+    strictly preserving 'IndiaSpare' proper casing and model in ALL CAPS per user mandate.
     """
     clean_text = clean_no_commas(text)
     words = clean_text.split()
@@ -135,7 +138,7 @@ def enforce_product_desc_words(
         words = words[:135]
         clean_text = " ".join(words).rstrip(".") + "."
 
-    return format_india_spare(clean_text)
+    return preserve_caps(clean_text, model=model, model_code=model_code)
 
 
 def _build_gemini_payload(
@@ -602,12 +605,12 @@ def enhance_metadata_with_gemini(
 
             if raw_analysis:
                 cleaned_analysis = clean_no_commas(str(raw_analysis))
-                it["ai_analysis"] = format_india_spare(cleaned_analysis)
+                it["ai_analysis"] = preserve_caps(cleaned_analysis, model=model, model_code=model_code)
 
             if raw_meta:
                 cleaned_meta = clean_no_commas(raw_meta)
                 cased_meta = format_india_spare(cleaned_meta)
-                valid_meta = enforce_meta_desc_length(cased_meta, seed=item_seed)
+                valid_meta = enforce_meta_desc_length(cased_meta, seed=item_seed, model=model, model_code=model_code)
                 it["meta_description"] = valid_meta
                 it["meta_long_description"] = valid_meta
                 it["meta_desc_chars"] = len(valid_meta)
@@ -620,6 +623,8 @@ def enhance_metadata_with_gemini(
                     model_str=m_disp,
                     part_name=p_name or "PARTS ASSEMBLY",
                     seed=item_seed,
+                    model=model,
+                    model_code=model_code,
                 )
                 it["product_description"] = valid_prod
                 it["product_desc_words"] = len(valid_prod.split())
