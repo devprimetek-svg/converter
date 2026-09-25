@@ -169,6 +169,16 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta, onJ
     formData.append('clean_part_numbers', String(cleanParts));
 
     try {
+      if (onJobCompleted) {
+        onJobCompleted({
+          jobId: '',
+          rows: [],
+          figures: [],
+          modelColumns: [],
+          filename: pdfFile.name.replace(/\.pdf$/i, ''),
+        });
+      }
+
       const res = await fetch('/api/pipeline/start', {
         method: 'POST',
         body: formData,
@@ -180,6 +190,15 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta, onJ
       }
 
       const { job_id } = await res.json();
+      if (onJobCompleted) {
+        onJobCompleted({
+          jobId: job_id,
+          rows: [],
+          figures: [],
+          modelColumns: [],
+          filename: pdfFile.name.replace(/\.pdf$/i, ''),
+        });
+      }
       subscribeToProgress(job_id);
     } catch (err: any) {
       setIsProcessing(false);
@@ -196,6 +215,17 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta, onJ
         try {
           const data: PipelineStatus = JSON.parse(event.data);
           setStatus(data);
+
+          // As soon as catalogue rows are extracted, sync immediately to SEO & Metadata module
+          if (data.rows && data.rows.length > 0 && onJobCompleted) {
+            onJobCompleted({
+              jobId: data.job_id,
+              rows: data.rows,
+              figures: data.figures || [],
+              modelColumns: data.model_columns || [],
+              filename: data.filename?.replace(/\.pdf$/i, '') || 'catalogue',
+            });
+          }
 
           if (data.status === 'completed') {
             setIsProcessing(false);
@@ -237,6 +267,17 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta, onJ
         if (!res.ok) throw new Error('Status failed');
         const data: PipelineStatus = await res.json();
         setStatus(data);
+
+        // Sync catalogue rows immediately once extracted
+        if (data.rows && data.rows.length > 0 && onJobCompleted) {
+          onJobCompleted({
+            jobId: data.job_id,
+            rows: data.rows,
+            figures: data.figures || [],
+            modelColumns: data.model_columns || [],
+            filename: data.filename?.replace(/\.pdf$/i, '') || 'catalogue',
+          });
+        }
 
         if (data.status === 'completed') {
           setIsProcessing(false);

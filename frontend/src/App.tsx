@@ -53,14 +53,16 @@ export function App() {
     filename: string;
   } | null) => {
     setPipelineMetaContext(data);
-    if (data) {
+    if (data && data.rows && data.rows.length > 0) {
       try {
         sessionStorage.setItem('converter_active_catalog', JSON.stringify(data));
       } catch (e) {
         console.warn('Failed to save catalogue to sessionStorage:', e);
       }
     } else {
-      sessionStorage.removeItem('converter_active_catalog');
+      try {
+        sessionStorage.removeItem('converter_active_catalog');
+      } catch {}
     }
   };
 
@@ -379,11 +381,20 @@ export function App() {
         {activeTab === 'meta-generator' && (
           <div className="animate-in fade-in duration-200">
             <MetaGenerator
+              key={
+                pipelineMetaContext?.jobId
+                  ? `${pipelineMetaContext.jobId}_${pipelineMetaContext.rows?.length || 0}`
+                  : status?.job_id
+                  ? `${status.job_id}_${status.rows?.length || 0}`
+                  : pipelineMetaContext?.filename
+                  ? `${pipelineMetaContext.filename}_${pipelineMetaContext.rows?.length || 0}`
+                  : 'sample-meta'
+              }
               initialRows={pipelineMetaContext?.rows || status?.rows || []}
               initialFigures={pipelineMetaContext?.figures || status?.figures || []}
               modelColumns={pipelineMetaContext?.modelColumns || status?.model_columns || []}
               initialFilename={pipelineMetaContext?.filename || status?.filename?.replace(/\.pdf$/i, '') || 'Catalogue'}
-              jobId={pipelineMetaContext?.jobId}
+              jobId={pipelineMetaContext?.jobId || status?.job_id}
             />
           </div>
         )}

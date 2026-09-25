@@ -282,17 +282,25 @@ def test_export_metadata_excel_and_csv():
     wb = openpyxl.load_workbook(xlsx_buf)
     ws = wb.active
     assert ws.title == "Product Metadata"
-    assert ws.cell(row=1, column=1).value == "Fig No."
-    assert ws.cell(row=1, column=2).value == "Catalog Name"
-    assert ws.cell(row=1, column=7).value == "Pic"
-    assert ws.cell(row=1, column=8).value == "Short Description"
-    assert ws.cell(row=2, column=1).value == "1"
-    assert ws.cell(row=2, column=2).value == "CYLINDER HEAD"
-    assert ws.cell(row=2, column=7).value == "YAM_BGPK_CYLINDER HEAD.jpeg"
-    assert ws.cell(row=2, column=8).value == "YAMAHA BGPK CYLINDER HEAD"
-    assert ws.cell(row=2, column=9).value == "Yamaha BGPK Cylinder Head | IndiaSpare"
-    assert 151 <= len(ws.cell(row=2, column=10).value) <= 158
-    assert 120 <= len(ws.cell(row=2, column=12).value.split()) <= 140
+    assert ws.cell(row=1, column=1).value == "Page"
+    assert ws.cell(row=1, column=2).value == "Fig No."
+    assert ws.cell(row=1, column=3).value == "Catalog Name"
+    assert ws.cell(row=1, column=4).value == "Ref No."
+    assert ws.cell(row=1, column=5).value == "Part No."
+    assert ws.cell(row=1, column=6).value == "Clean Part No."
+    assert ws.cell(row=1, column=7).value == "Remarks"
+    assert ws.cell(row=1, column=8).value == "Brand"
+    assert ws.cell(row=1, column=12).value == "Pic"
+    assert ws.cell(row=1, column=13).value == "Short Description"
+    assert ws.cell(row=1, column=14).value == "Meta Title"
+    assert ws.cell(row=2, column=1).value == "7"
+    assert ws.cell(row=2, column=2).value == "1"
+    assert ws.cell(row=2, column=3).value == "CYLINDER HEAD"
+    assert ws.cell(row=2, column=12).value == "YAM_BGPK_CYLINDER HEAD.jpeg"
+    assert ws.cell(row=2, column=13).value == "YAMAHA BGPK CYLINDER HEAD"
+    assert ws.cell(row=2, column=14).value == "Yamaha BGPK Cylinder Head | IndiaSpare"
+    assert 151 <= len(ws.cell(row=2, column=15).value) <= 158
+    assert 120 <= len(ws.cell(row=2, column=17).value.split()) <= 140
 
     # Test CSV generation
     csv_buf = export_metadata_csv(meta_items)
@@ -443,5 +451,79 @@ def test_model_output_always_in_all_caps():
         main_parts_only=True,
     )
     assert items[0]["model"] == "FZ-S V3"
+
+
+def test_catalogue_columns_arranged_on_left_before_metadata_columns():
+    """Verify extracted catalogue columns appear strictly on the left followed by SEO & metadata columns."""
+    rows = [
+        {
+            "fig_no": "1",
+            "fig_name": "CYLINDER HEAD",
+            "ref_no": "1",
+            "part_no": "B7J-E1102-00",
+            "description": "CYLINDER HEAD ASSY",
+            "BGPK": "1",
+            "BGPL": "2",
+            "remarks": "UR FOR VRC1",
+            "page": 7,
+        }
+    ]
+    meta_items = generate_catalog_metadata(
+        rows=rows,
+        model_columns=["BGPK", "BGPL"],
+        brand="YAMAHA",
+        model="FZ-S",
+        series="series",
+        model_code="BGPK_BGPL",
+        main_parts_only=False,
+        blank_descriptions=False,
+    )
+
+    # 1. Excel Export
+    xlsx_buf = export_metadata_excel(
+        meta_items,
+        brand="YAMAHA",
+        model_columns=["BGPK", "BGPL"],
+        raw_rows=rows,
+    )
+    wb = openpyxl.load_workbook(xlsx_buf)
+    ws = wb["Product Metadata"]
+    excel_headers = [ws.cell(row=1, column=c).value for c in range(1, ws.max_column + 1)]
+
+    # Expected order: Extracted parts catalogue columns on LEFT
+    expected_left_catalogue = [
+        "Page",
+        "Fig No.",
+        "Catalog Name",
+        "Ref No.",
+        "Part No.",
+        "Clean Part No.",
+        "Qty (BGPK)",
+        "Qty (BGPL)",
+        "Remarks",
+    ]
+    # Expected order: SEO & Metadata columns on RIGHT
+    expected_right_metadata = [
+        "Brand",
+        "Model Code",
+        "Model",
+        "Series",
+        "Pic",
+        "Short Description",
+        "Meta Title",
+        "Meta Description (151-158 Chars)",
+        "Meta Desc Chars",
+        "Product Description (120-140 Words)",
+        "Product Desc Words",
+    ]
+
+    assert excel_headers == expected_left_catalogue + expected_right_metadata
+
+    # 2. CSV Export
+    csv_buf = export_metadata_csv(meta_items, model_columns=["BGPK", "BGPL"])
+    csv_lines = csv_buf.getvalue().decode("utf-8-sig").splitlines()
+    csv_headers = csv_lines[0].split(",")
+
+    assert csv_headers == expected_left_catalogue + expected_right_metadata
 
 

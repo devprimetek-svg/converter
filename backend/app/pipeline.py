@@ -116,7 +116,7 @@ class PipelineJob:
                     for m in self.model_columns
                 ] if len(self.model_columns) >= 1 else [],
             }
-            if self.status == "completed":
+            if self.status == "completed" or self.step_index >= 2:
                 payload["rows"] = self.rows
                 payload["figures"] = self.figures
             return payload

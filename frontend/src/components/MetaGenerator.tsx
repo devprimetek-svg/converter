@@ -61,7 +61,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
   const [models, setModels] = useState<string[]>(modelColumns);
   const [filename, setFilename] = useState<string>(initialFilename);
 
-  // Sync state if incoming props change (e.g. navigated from AutoPipeline)
+  // Sync state if incoming props change (e.g. navigated from AutoPipeline or new PDF uploaded)
   useEffect(() => {
     if (initialRows && initialRows.length > 0) {
       setRows(initialRows);
@@ -77,8 +77,15 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
   useEffect(() => {
     if (modelColumns && modelColumns.length > 0) {
       setModels(modelColumns);
+      setModelCode(modelColumns[0] || '');
     }
   }, [modelColumns]);
+
+  useEffect(() => {
+    if (initialFilename) {
+      setFilename(initialFilename);
+    }
+  }, [initialFilename]);
 
   const [isLoadingSample, setIsLoadingSample] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'combined' | 'extracted' | 'seo'>('combined');
@@ -101,7 +108,10 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
           if (data.rows && data.rows.length > 0) {
             setRows(data.rows);
             if (data.figures) setFigures(data.figures);
-            if (data.model_columns) setModels(data.model_columns);
+            if (data.model_columns) {
+              setModels(data.model_columns);
+              setModelCode(data.model_columns[0] || '');
+            }
             if (data.filename) setFilename(data.filename.replace(/\.pdf$/i, ''));
           }
         })
@@ -140,11 +150,25 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
   // Column Selection State for Custom Export
   const [showColumnSelector, setShowColumnSelector] = useState<boolean>(false);
 
-  // Base and dynamic model export columns
+  // Base and dynamic model export columns: Extracted Catalogue Columns on LEFT, then SEO Metadata Columns on RIGHT
   const allAvailableColumns = useMemo(() => {
-    const base = [
+    const catalogueCols = [
+      'Page',
       'Fig No.',
       'Catalog Name',
+      'Ref No.',
+      'Part No.',
+      'Clean Part No.',
+    ];
+    if (models && models.length > 0) {
+      models.forEach((m) => {
+        const qCol = `Qty (${m})`;
+        if (!catalogueCols.includes(qCol)) catalogueCols.push(qCol);
+      });
+    }
+    if (!catalogueCols.includes('Remarks')) catalogueCols.push('Remarks');
+
+    const metaCols = [
       'Brand',
       'Model Code',
       'Model',
@@ -156,31 +180,19 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
       'Meta Desc Chars',
       'Product Description (120-140 Words)',
       'Product Desc Words',
-      'Page',
-      'Ref No.',
-      'Part No.',
-      'Clean Part No.',
     ];
-    if (models && models.length > 0) {
-      models.forEach((m) => {
-        const qCol = `Qty (${m})`;
-        if (!base.includes(qCol)) base.push(qCol);
-      });
-    }
-    if (!base.includes('Remarks')) base.push('Remarks');
-    return base;
+
+    return [...catalogueCols, ...metaCols];
   }, [models]);
 
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
 
-  // Initialize and sync selectedColumns with available columns
+  // Initialize and sync selectedColumns with available columns in exact order
   useEffect(() => {
     setSelectedColumns((prev) => {
       if (prev.length === 0) return allAvailableColumns;
-      const valid = prev.filter((c) => allAvailableColumns.includes(c));
-      allAvailableColumns.forEach((c) => {
-        if (!valid.includes(c)) valid.push(c);
-      });
+      const prevSet = new Set(prev);
+      const valid = allAvailableColumns.filter((c) => prevSet.has(c));
       return valid.length > 0 ? valid : allAvailableColumns;
     });
   }, [allAvailableColumns]);

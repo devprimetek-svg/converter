@@ -390,7 +390,7 @@ def generate_main_part_metadata(
     mc = (model_code or "MODEL").strip().upper()
     mn = (model or "").strip().upper()
     ser = (series or "series").strip()
-    p = page or int(figure.get("first_page") or figure.get("page") or 1)
+    p = int(figure.get("first_page") or figure.get("page") or page or 1)
 
     parts_model_str = [mc]
     if mn:
@@ -641,23 +641,12 @@ def export_metadata_excel(
         bottom=thin_border_side,
     )
 
-    # Base columns (preserving 1-14 for exact backward compatibility)
+    # Headers: Extracted Parts Catalogue Columns arranged on the LEFT, then SEO & Metadata Columns on the RIGHT
     headers: list[tuple[str, str, Any, int]] = [
+        # --- Extracted Parts Catalogue Columns (Left) ---
+        ("Page", "page", center_align, 8),
         ("Fig No.", "fig_no", center_align, 10),
         ("Catalog Name", "part_name", left_align, 28),
-        ("Brand", "brand", center_align, 14),
-        ("Model Code", "model_code", center_align, 14),
-        ("Model", "model", center_align, 14),
-        ("Series", "series", center_align, 14),
-        ("Pic", "image_filename", left_align, 32),
-        ("Short Description", "product_title", wrap_left_align, 36),
-        ("Meta Title", "meta_title", wrap_left_align, 36),
-        ("Meta Description (151-158 Chars)", "meta_description", wrap_left_align, 60),
-        ("Meta Desc Chars", "meta_desc_chars", center_align, 15),
-        ("Product Description (120-140 Words)", "product_description", wrap_left_align, 75),
-        ("Product Desc Words", "product_desc_words", center_align, 16),
-        ("Page", "page", center_align, 8),
-        # Extracted Catalogue Columns (Both extracted columns exported together)
         ("Ref No.", "ref_no", center_align, 10),
         ("Part No.", "part_no", left_align, 20),
         ("Clean Part No.", "clean_part_no", left_align, 20),
@@ -688,6 +677,21 @@ def export_metadata_excel(
 
     headers.append(("Remarks", "remarks", left_align, 24))
 
+    # --- SEO & Metadata Columns (Right) ---
+    headers.extend([
+        ("Brand", "brand", center_align, 14),
+        ("Model Code", "model_code", center_align, 14),
+        ("Model", "model", center_align, 14),
+        ("Series", "series", center_align, 14),
+        ("Pic", "image_filename", left_align, 32),
+        ("Short Description", "product_title", wrap_left_align, 36),
+        ("Meta Title", "meta_title", wrap_left_align, 36),
+        ("Meta Description (151-158 Chars)", "meta_description", wrap_left_align, 60),
+        ("Meta Desc Chars", "meta_desc_chars", center_align, 15),
+        ("Product Description (120-140 Words)", "product_description", wrap_left_align, 75),
+        ("Product Desc Words", "product_desc_words", center_align, 16),
+    ])
+
     # Column Selection Filter: if provided and not empty, filter headers
     if selected_columns and len(selected_columns) > 0:
         sel_set = set(selected_columns)
@@ -712,7 +716,16 @@ def export_metadata_excel(
     for row_idx, r in enumerate(meta_rows, start=2):
         ws.row_dimensions[row_idx].height = 24.0
         for col_idx, (_, field_key, align, _) in enumerate(headers, start=1):
-            val = r.get(field_key, "")
+            if field_key == "part_name":
+                val = r.get("part_name", "") or r.get("fig_name", "") or r.get("description", "")
+            elif field_key == "clean_part_no":
+                val = r.get("clean_part_no", "") or clean_part_number(str(r.get("part_no", "") or ""))
+            elif field_key == "meta_desc_chars":
+                val = r.get("meta_desc_chars", len(str(r.get("meta_description") or "")))
+            elif field_key == "product_desc_words":
+                val = r.get("product_desc_words", len(str(r.get("product_description") or "").split()))
+            else:
+                val = r.get(field_key, "")
             val_str = str(val) if val is not None else ""
             if "india spare" in val_str.lower() or "indiaspare" in val_str.lower():
                 val_str = format_india_spare(val_str)
@@ -732,6 +745,7 @@ def export_metadata_excel(
         ws2 = wb.create_sheet(title="Extracted Parts Catalogue")
         ws2_header_fill = PatternFill(start_color="333333", end_color="333333", fill_type="solid")
         raw_headers = [
+            ("Page", "page", center_align, 8),
             ("Fig No.", "fig_no", center_align, 10),
             ("Fig Name", "fig_name", left_align, 28),
             ("Ref No.", "ref_no", center_align, 10),
@@ -741,7 +755,6 @@ def export_metadata_excel(
         for m in resolved_model_cols:
             raw_headers.append((m, m, center_align, 12))
         raw_headers.append(("Remarks", "remarks", left_align, 24))
-        raw_headers.append(("Page", "page", center_align, 8))
 
         ws2.row_dimensions[1].height = 26.0
         for col_idx, (label, _, _, col_width) in enumerate(raw_headers, start=1):
@@ -785,20 +798,10 @@ def export_metadata_csv(
     writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL)
 
     col_defs: list[tuple[str, str]] = [
+        # --- Extracted Parts Catalogue Columns (Left) ---
+        ("Page", "page"),
         ("Fig No.", "fig_no"),
         ("Catalog Name", "part_name"),
-        ("Brand", "brand"),
-        ("Model Code", "model_code"),
-        ("Model", "model"),
-        ("Series", "series"),
-        ("Pic", "image_filename"),
-        ("Short Description", "product_title"),
-        ("Meta Title", "meta_title"),
-        ("Meta Description (151-158 Chars)", "meta_description"),
-        ("Meta Desc Chars", "meta_desc_chars"),
-        ("Product Description (120-140 Words)", "product_description"),
-        ("Product Desc Words", "product_desc_words"),
-        ("Page", "page"),
         ("Ref No.", "ref_no"),
         ("Part No.", "part_no"),
         ("Clean Part No.", "clean_part_no"),
@@ -808,7 +811,7 @@ def export_metadata_csv(
     if model_columns:
         resolved_model_cols = [str(m).strip() for m in model_columns if str(m).strip()]
     else:
-        seen_cols: set[str] = set()
+        seen_cols = set()
         for r in meta_rows:
             for k in r.keys():
                 if k not in {
@@ -826,6 +829,21 @@ def export_metadata_csv(
     for m in resolved_model_cols:
         col_defs.append((f"Qty ({m})", m))
     col_defs.append(("Remarks", "remarks"))
+
+    # --- SEO & Metadata Columns (Right) ---
+    col_defs.extend([
+        ("Brand", "brand"),
+        ("Model Code", "model_code"),
+        ("Model", "model"),
+        ("Series", "series"),
+        ("Pic", "image_filename"),
+        ("Short Description", "product_title"),
+        ("Meta Title", "meta_title"),
+        ("Meta Description (151-158 Chars)", "meta_description"),
+        ("Meta Desc Chars", "meta_desc_chars"),
+        ("Product Description (120-140 Words)", "product_description"),
+        ("Product Desc Words", "product_desc_words"),
+    ])
 
     # Column Selection Filter: if provided and not empty, filter col_defs
     if selected_columns and len(selected_columns) > 0:
@@ -848,7 +866,9 @@ def export_metadata_csv(
             elif field_key == "product_desc_words":
                 v = r.get("product_desc_words", len(str(r.get("product_description") or "").split()))
             elif field_key == "part_name":
-                v = r.get("part_name", "") or r.get("description", "")
+                v = r.get("part_name", "") or r.get("fig_name", "") or r.get("description", "")
+            elif field_key == "clean_part_no":
+                v = r.get("clean_part_no", "") or clean_part_number(str(r.get("part_no", "") or ""))
             else:
                 v = r.get(field_key, "")
             val_str = str(v) if v is not None else ""

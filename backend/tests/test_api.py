@@ -319,8 +319,8 @@ def test_metadata_generate_and_export_endpoints():
     assert "Meta Title" in csv_txt
     assert "Meta Short Description" not in csv_txt
     assert "Meta Description (151-158 Chars)" in csv_txt
-    assert "Product Description (120-140 Words)" in csv_txt
-    assert "1,CYLINDER HEAD,YAMAHA,BGPK,,series,YAM_BGPK_CYLINDER HEAD.jpeg" in csv_txt
+    assert "7,1,CYLINDER HEAD" in csv_txt
+    assert "YAM_BGPK_CYLINDER HEAD.jpeg" in csv_txt
     assert "YAMAHA BGPK CYLINDER HEAD" in csv_txt
     assert "Yamaha BGPK Cylinder Head | IndiaSpare" in csv_txt
 
