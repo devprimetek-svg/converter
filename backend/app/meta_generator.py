@@ -75,7 +75,9 @@ def preserve_caps(text: str, model: str = "", model_code: str = "") -> str:
             formatted = pattern.sub(m_clean, formatted)
             if "-" in m_clean:
                 parts = [re.escape(p.strip()) for p in m_clean.split("-") if p.strip()]
-                dash_pattern = re.compile(rf"(?i)\b{r'\s*-\s*'.join(parts)}\b")
+                dash_sep = r"\s*-\s*"
+                dash_joined = dash_sep.join(parts)
+                dash_pattern = re.compile(r"(?i)\b" + dash_joined + r"\b")
                 formatted = dash_pattern.sub(m_clean, formatted)
     return formatted
 
