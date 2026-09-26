@@ -309,26 +309,26 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
     }
   }, [rows, figures, brand, modelCode, model, series, partsScope, resolvedModelCode, jobId]);
 
-  const generateMetadata = async (overrideAiMode?: boolean) => {
+  const generateMetadata = async (isGenerateClick: boolean = false, overrideAiMode?: boolean) => {
     if ((!rows || rows.length === 0) && (!figures || figures.length === 0) && !jobId) return;
     const isAi = overrideAiMode !== undefined ? overrideAiMode : aiMode;
     setIsGenerating(true);
     setAiError(null);
-    if (isAi) {
+    if (isGenerateClick) {
       setGenerationNotice(null);
     }
 
-    // Pre-flight check: if using AI mode and no API key is entered
-    if (isAi && !geminiApiKey.trim()) {
+    // Pre-flight check: if using AI mode on user click and no API key is entered
+    if (isGenerateClick && isAi && !geminiApiKey.trim()) {
       setIsGenerating(false);
       setAiError(
-        "Google AI Studio API key not found. Please enter your API key in the 'Google AI Studio API Key' box below (free at aistudio.google.com), or click 'Generate with Rule-Based Mode Instead' for instant generation."
+        "Google AI Studio API key not found. Please enter your API key in the 'Google AI Studio API Key' box below (free at aistudio.google.com), or click '⚡ Generate with Rule-Based Mode Instead' for instant generation with your prompt."
       );
       return;
     }
 
-    const nextGenCount = isAi ? generationCount + 1 : generationCount;
-    const runId = isAi ? `run_${Date.now()}_${Math.random().toString(36).substring(2, 8)}` : undefined;
+    const nextGenCount = isGenerateClick ? generationCount + 1 : generationCount;
+    const runId = isAi && isGenerateClick ? `run_${Date.now()}_${Math.random().toString(36).substring(2, 8)}` : undefined;
 
     try {
       const payload: any = {
@@ -342,10 +342,10 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
         model_code: activeModelCode,
         parts_scope: 'all',
         main_parts_only: false,
-        ai_mode: isAi,
-        ai_prompt: isAi ? aiPrompt.trim() : undefined,
+        ai_mode: isGenerateClick ? isAi : false,
+        ai_prompt: isGenerateClick ? aiPrompt.trim() : undefined,
         gemini_api_key: isAi && geminiApiKey.trim() ? geminiApiKey.trim() : undefined,
-        blank_descriptions: !isAi,
+        blank_descriptions: !isGenerateClick,
         generation_id: runId,
         fallback_to_rules: true,
       };
@@ -389,10 +389,14 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
       if (data.ai_fallback && data.notice) {
         setAiError(data.notice);
-      } else if (isAi) {
+      } else if (isGenerateClick) {
         setGenerationCount(nextGenCount);
         setLastGeneratedPrompt(aiPrompt.trim());
-        setGenerationNotice(`Run #${nextGenCount} Complete: Fresh unique AI descriptions generated for ${data.items?.length || 0} parts with your prompt directives applied.`);
+        if (isAi) {
+          setGenerationNotice(`Run #${nextGenCount} Complete: Fresh unique AI descriptions generated with Gemini for ${data.items?.length || 0} parts with your prompt directives applied.`);
+        } else {
+          setGenerationNotice(`Run #${nextGenCount} Complete: Storytelling descriptions generated with Rule-Based Engine for ${data.items?.length || 0} parts with your prompt directives applied.`);
+        }
       }
     } catch (err: any) {
       console.error('Metadata generation error:', err);
@@ -942,18 +946,22 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
           </div>
         </div>
 
-        {/* Google AI Studio Configuration Panel */}
-        {aiMode && (
-          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-b from-purple-50/60 to-white dark:from-purple-950/20 dark:to-zinc-900/60 border border-purple-200 dark:border-purple-800/60 space-y-4 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="p-1 rounded-lg bg-purple-600 text-white">
-                  <Sparkles className="w-3.5 h-3.5" />
-                </span>
-                <span className="text-xs font-bold uppercase tracking-wider text-purple-900 dark:text-purple-300 font-mono">
-                  Google AI Studio (Gemini 2.5 Flash) Prompt & Settings
-                </span>
-              </div>
+        {/* Storytelling & Prompt Configuration Panel (Active for both Gemini AI and Rule-Based Engine) */}
+        <div className={`p-4 sm:p-5 rounded-2xl border space-y-4 shadow-xs transition-all ${
+          aiMode
+            ? 'bg-gradient-to-b from-purple-50/60 to-white dark:from-purple-950/20 dark:to-zinc-900/60 border-purple-200 dark:border-purple-800/60'
+            : 'bg-gradient-to-b from-blue-50/60 to-white dark:from-blue-950/20 dark:to-zinc-900/60 border-blue-200 dark:border-blue-800/60'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className={`p-1 rounded-lg ${aiMode ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white'}`}>
+                {aiMode ? <Sparkles className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
+              </span>
+              <span className={`text-xs font-bold uppercase tracking-wider font-mono ${aiMode ? 'text-purple-900 dark:text-purple-300' : 'text-blue-900 dark:text-blue-300'}`}>
+                {aiMode ? 'Google AI Studio (Gemini 2.5 Flash) Prompt & Settings' : 'Rule-Based Storytelling Engine (Instant & 100% Free — No Key Required)'}
+              </span>
+            </div>
+            {aiMode ? (
               <a
                 href="https://aistudio.google.com/app/apikey"
                 target="_blank"
@@ -962,10 +970,16 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
               >
                 Get API Key at aistudio.google.com &rarr;
               </a>
-            </div>
+            ) : (
+              <span className="text-[11px] font-mono text-blue-600 dark:text-blue-400 font-semibold">
+                ⚡ 100% Free • Unlimited • Zero Latency
+              </span>
+            )}
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* API Key Box */}
+          <div className={`grid grid-cols-1 ${aiMode ? 'md:grid-cols-2' : ''} gap-4`}>
+            {/* API Key Box (Only shown in Gemini mode) */}
+            {aiMode && (
               <div>
                 <label className="block text-xs font-mono uppercase text-zinc-600 dark:text-zinc-400 font-semibold mb-1.5 flex items-center justify-between">
                   <span>Google AI Studio API Key</span>
@@ -1026,7 +1040,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                             type="button"
                             onClick={() => {
                               setAiMode(false);
-                              generateMetadata(false);
+                              generateMetadata(true, false);
                             }}
                             className="underline hover:text-rose-900 dark:hover:text-rose-100 font-bold cursor-pointer"
                           >
@@ -1047,158 +1061,162 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                   </div>
                 )}
               </div>
+            )}
 
-              {/* Quick Presets */}
-              <div>
-                <label className="block text-xs font-mono uppercase text-zinc-600 dark:text-zinc-400 font-semibold mb-1.5">
-                  Prompt Presets
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {PROMPT_PRESETS.map((p) => (
-                    <button
-                      key={p.label}
-                      type="button"
-                      onClick={() => setAiPrompt(p.prompt)}
-                      className="px-2.5 py-1.5 rounded-lg text-[10px] font-semibold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-purple-400 hover:text-purple-600 dark:hover:text-purple-300 transition-colors cursor-pointer"
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Custom Prompt / Whole PDF Input Textarea */}
+            {/* Quick Presets */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-mono uppercase text-zinc-600 dark:text-zinc-400 font-semibold">
-                  Custom Prompt / Whole PDF Text / Storytelling Directives
-                </label>
-                <div className="flex items-center gap-2">
-                  {aiPrompt.length > 0 && (
-                    <span className="text-[10px] font-mono text-zinc-400">
-                      {aiPrompt.length.toLocaleString()} chars
-                    </span>
-                  )}
-                  {lastGeneratedPrompt && aiPrompt.trim() !== lastGeneratedPrompt && (
-                    <span className="text-[11px] font-mono text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1 animate-in fade-in">
-                      <Sparkles className="w-3 h-3 text-purple-500" />
-                      New prompt directives entered
-                    </span>
-                  )}
-                </div>
+              <label className="block text-xs font-mono uppercase text-zinc-600 dark:text-zinc-400 font-semibold mb-1.5">
+                Storytelling Presets
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {PROMPT_PRESETS.map((p) => (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => setAiPrompt(p.prompt)}
+                    className="px-2.5 py-1.5 rounded-lg text-[10px] font-semibold bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:border-purple-400 hover:text-purple-600 dark:hover:text-purple-300 transition-colors cursor-pointer"
+                  >
+                    {p.label}
+                  </button>
+                ))}
               </div>
-              <textarea
-                rows={4}
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                placeholder="Enter custom prompt, storytelling tone, or paste copied input from an entire PDF catalogue... Every prompt shift produces 100% fresh, non-repeating copywriting across all parent and child parts!"
-                className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:border-purple-500 placeholder:text-zinc-400 font-sans resize-y"
-              />
-              {lastGeneratedPrompt && aiPrompt.trim() !== lastGeneratedPrompt && (
-                <p className="text-[11px] text-purple-600 dark:text-purple-400 font-mono mt-1 flex items-center gap-1">
-                  <span>&bull; Ready to generate fresh, unique storytelling descriptions for all parent &amp; child records tailored to your new prompt. Click below to run.</span>
-                </p>
-              )}
             </div>
+          </div>
 
-            {/* Generate with AI Button & Run Status */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="text-[11px] text-zinc-500 font-mono space-y-0.5">
-                  <div>Universal Parent &amp; Child Storytelling: Generates grounded, engaging descriptions for every parent assembly and child part • Simple, easy-to-read English • 151–158 chars (Meta Desc) • 120–140 words (Prod Desc) • 0 commas • IndiaSpare.</div>
-                  <div className="text-purple-700 dark:text-purple-300 font-medium">✨ Dynamic Prompt Freshness: Every new prompt or click shifts narrative angles and produces completely unique copywriting across all records.</div>
-                </div>
-                {generationCount > 0 && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/80 border border-purple-300 dark:border-purple-800 text-[11px] font-mono text-purple-700 dark:text-purple-300 font-bold shrink-0">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Run #{generationCount} Active
+          {/* Custom Prompt / Whole PDF Input Textarea */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-mono uppercase text-zinc-600 dark:text-zinc-400 font-semibold">
+                Custom Prompt / Whole PDF Text / Storytelling Directives
+              </label>
+              <div className="flex items-center gap-2">
+                {aiPrompt.length > 0 && (
+                  <span className="text-[10px] font-mono text-zinc-400">
+                    {aiPrompt.length.toLocaleString()} chars
+                  </span>
+                )}
+                {lastGeneratedPrompt && aiPrompt.trim() !== lastGeneratedPrompt && (
+                  <span className="text-[11px] font-mono text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1 animate-in fade-in">
+                    <Sparkles className="w-3 h-3 text-purple-500" />
+                    New prompt directives entered
                   </span>
                 )}
               </div>
+            </div>
+            <textarea
+              rows={4}
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              placeholder="Enter custom prompt, storytelling tone, or paste copied input from an entire PDF catalogue... Every prompt shift produces 100% fresh, non-repeating copywriting across all parent and child parts!"
+              className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:border-purple-500 placeholder:text-zinc-400 font-sans resize-y"
+            />
+            {lastGeneratedPrompt && aiPrompt.trim() !== lastGeneratedPrompt && (
+              <p className="text-[11px] text-purple-600 dark:text-purple-400 font-mono mt-1 flex items-center gap-1">
+                <span>&bull; Ready to generate fresh, unique storytelling descriptions for all parent &amp; child records tailored to your new prompt. Click below to run.</span>
+              </p>
+            )}
+          </div>
+
+          {/* Generate Button & Run Status */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="text-[11px] text-zinc-500 font-mono space-y-0.5">
+                <div>Universal Parent &amp; Child Storytelling: Generates grounded, engaging descriptions for every parent assembly and child part • Simple, easy-to-read English • 151–158 chars (Meta Desc) • 120–140 words (Prod Desc) • 0 commas • IndiaSpare.</div>
+                <div className="text-purple-700 dark:text-purple-300 font-medium">✨ Dynamic Prompt Freshness: Every new prompt or click shifts narrative angles and produces completely unique copywriting across all records.</div>
+              </div>
+              {generationCount > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/80 border border-purple-300 dark:border-purple-800 text-[11px] font-mono text-purple-700 dark:text-purple-300 font-bold shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Run #{generationCount} Active
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => generateMetadata(true, aiMode)}
+              disabled={isGenerating}
+              className={`inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0 ${
+                aiMode
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white'
+                  : 'bg-black text-white hover:bg-zinc-800 dark:bg-white dark:text-black dark:hover:bg-zinc-200'
+              }`}
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Generating Run #{generationCount + 1}...
+                </>
+              ) : (
+                <>
+                  {aiMode ? <Sparkles className="w-3.5 h-3.5" /> : <Zap className="w-3.5 h-3.5" />}
+                  {generationCount === 0
+                    ? aiMode ? 'Generate with Gemini AI' : '⚡ Generate (Rule-Based Mode)'
+                    : aiMode ? `Generate Unique AI Copy (Run #${generationCount + 1})` : `⚡ Generate Unique Copy (Run #${generationCount + 1})`}
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Success Notice Banner */}
+          {generationNotice && !aiError && (
+            <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-200 flex items-center justify-between gap-2 shadow-xs animate-in fade-in duration-200">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span><strong>{generationNotice}</strong></span>
+              </div>
               <button
                 type="button"
-                onClick={() => generateMetadata(true)}
-                disabled={isGenerating}
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs uppercase tracking-wider shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-50 shrink-0"
+                onClick={() => setGenerationNotice(null)}
+                className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-xs font-mono px-1.5 py-0.5 rounded cursor-pointer"
+                title="Dismiss"
               >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Generating Run #{generationCount + 1}...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5" />
-                    {generationCount === 0
-                      ? 'Generate with Gemini AI'
-                      : `Generate Unique AI Copy (Run #${generationCount + 1})`}
-                  </>
-                )}
+                ✕
               </button>
             </div>
+          )}
 
-            {/* Success Notice Banner */}
-            {generationNotice && !aiError && (
-              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-200 flex items-center justify-between gap-2 shadow-xs animate-in fade-in duration-200">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span><strong>{generationNotice}</strong></span>
+          {/* Error Banner with 1-Click Fallback Recovery */}
+          {aiError && (
+            <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300 space-y-2.5 shadow-xs animate-in fade-in duration-150">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
+                <div className="flex-1">
+                  <span className="font-bold">Google AI Studio Notice: </span>
+                  <span>{aiError}</span>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setGenerationNotice(null)}
-                  className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-xs font-mono px-1.5 py-0.5 rounded cursor-pointer"
+                  onClick={() => setAiError(null)}
+                  className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-xs font-mono px-1 rounded cursor-pointer"
                   title="Dismiss"
                 >
                   ✕
                 </button>
               </div>
-            )}
-
-            {/* Error Banner with 1-Click Fallback Recovery */}
-            {aiError && (
-              <div className="p-4 rounded-2xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300 space-y-2.5 shadow-xs animate-in fade-in duration-150">
-                <div className="flex items-start gap-2.5">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600 dark:text-red-400" />
-                  <div className="flex-1">
-                    <span className="font-bold">Google AI Studio Notice: </span>
-                    <span>{aiError}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setAiError(null)}
-                    className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-xs font-mono px-1 rounded cursor-pointer"
-                    title="Dismiss"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-red-200/60 dark:border-red-800/60">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAiMode(false);
-                      generateMetadata(false);
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black text-white dark:bg-white dark:text-black font-bold text-[11px] uppercase tracking-wider hover:opacity-90 transition-opacity cursor-pointer shadow-xs"
-                  >
-                    <Zap className="w-3.5 h-3.5" />
-                    ⚡ Generate with Rule-Based Mode Instead (Instant &amp; Free)
-                  </button>
-                  <a
-                    href="https://aistudio.google.com/app/apikey"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 dark:bg-red-900/40 dark:hover:bg-red-900/60 text-red-800 dark:text-red-200 font-semibold text-[11px] transition-colors"
-                  >
-                    Get Free Gemini API Key &rarr;
-                  </a>
-                </div>
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-red-200/60 dark:border-red-800/60">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAiMode(false);
+                    generateMetadata(true, false);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black text-white dark:bg-white dark:text-black font-bold text-[11px] uppercase tracking-wider hover:opacity-90 transition-opacity cursor-pointer shadow-xs"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  ⚡ Generate with Rule-Based Mode Instead (Instant &amp; Free)
+                </button>
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 dark:bg-red-900/40 dark:hover:bg-red-900/60 text-red-800 dark:text-red-200 font-semibold text-[11px] transition-colors"
+                >
+                  Get Free Gemini API Key &rarr;
+                </a>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
 
         {/* Live Rules Legend (per user prompt) */}
         <div className="p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-[11px] font-mono grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
