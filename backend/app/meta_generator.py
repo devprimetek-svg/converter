@@ -628,7 +628,7 @@ def generate_child_part_metadata(
         "fig_no": fig_no,
         "part_name": desc,
         "catalogue_code": build_catalogue_code(mc, fig_name, fig_no),
-        "description": "",  # Blank per user rule for child cells
+        "description": desc,  # Visible child description per user rule
         "raw_description": desc,
         "component_description": desc,
         "part_no": part_no,
@@ -639,7 +639,7 @@ def generate_child_part_metadata(
         "model": mn,
         "series": ser,
         "compatible_models": model_str,
-        "image_filename": img_filename,
+        "image_filename": "",  # Pic hidden for child records per user rule
         "product_title": prod_title,
         "meta_title": meta_title,
         "meta_description": meta_desc,
@@ -827,7 +827,10 @@ def generate_catalog_metadata(
                 else:
                     meta_desc = ""
                     prod_desc = ""
-                display_desc = desc if parts_scope == "child" else ""
+                # User rule: Description column child record should be visible!
+                display_desc = desc
+                # User rule: Pic column child record should be hidden/blank!
+                img_filename = ""
 
             item: dict[str, Any] = {
                 "fig_no": curr_fno,
@@ -1038,14 +1041,14 @@ def export_metadata_excel(
             merged_item["catalog_name"] = fname if is_parent else ""
             merged_item["catalogue_code"] = build_catalogue_code(mc_val, fname, fno) if is_parent else ""
             merged_item["clean_part_no"] = clean_no
-            merged_item["description"] = (desc or fname) if is_parent else ""
+            merged_item["description"] = (desc or fname) if is_parent else desc
             merged_item["raw_description"] = desc
             merged_item["component_description"] = desc
             merged_item["brand"] = b_val
             merged_item["model_code"] = mc_val
             merged_item["model"] = m_val
             merged_item["series"] = ser_val
-            merged_item["image_filename"] = parent_meta.get("image_filename") or resolve_image_filename(fname, model_code=mc_val)
+            merged_item["image_filename"] = (parent_meta.get("image_filename") or resolve_image_filename(fname, model_code=mc_val)) if is_parent else ""
             merged_item["product_title"] = parent_meta.get("product_title", "") if is_parent else ""
             merged_item["meta_title"] = parent_meta.get("meta_title", "") if is_parent else ""
             merged_item["meta_description"] = parent_meta.get("meta_description") if is_parent else ""
@@ -1103,8 +1106,11 @@ def export_metadata_excel(
             elif field_key == "clean_part_no":
                 val = r.get("clean_part_no", "") or clean_part_number(str(r.get("part_no", "") or ""))
             elif field_key == "description":
-                # User rule: child cells of Description column must be blank!
-                val = (r.get("description", "") or curr_pname) if is_parent else (r.get("raw_description", "") if only_children else "")
+                # User rule: Description column child record should be visible!
+                val = (r.get("description", "") or curr_pname) if is_parent else (r.get("raw_description", "") or r.get("description", "") or r.get("component_description", ""))
+            elif field_key == "image_filename":
+                # User rule: Pic column child record should be hidden/blank!
+                val = r.get("image_filename", "") if is_parent else ""
             elif field_key == "product_title":
                 val = r.get("product_title", "") if is_parent else ""
             elif field_key == "meta_title":
@@ -1258,8 +1264,11 @@ def export_metadata_csv(
             elif field_key == "clean_part_no":
                 v = r.get("clean_part_no", "") or clean_part_number(str(r.get("part_no", "") or ""))
             elif field_key == "description":
-                # User rule: child cells of Description column must be blank!
-                v = (r.get("description", "") or curr_pname) if is_parent else (r.get("raw_description", "") if only_children else "")
+                # User rule: Description column child record should be visible!
+                v = (r.get("description", "") or curr_pname) if is_parent else (r.get("raw_description", "") or r.get("description", "") or r.get("component_description", ""))
+            elif field_key == "image_filename":
+                # User rule: Pic column child record should be hidden/blank!
+                v = r.get("image_filename", "") if is_parent else ""
             elif field_key == "product_title":
                 v = r.get("product_title", "") if is_parent else ""
             elif field_key == "meta_title":

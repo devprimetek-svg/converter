@@ -1465,18 +1465,10 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                   </>
                                 ) : (
                                   <>
-                                    {partsScope === 'child' ? (
-                                      <>
-                                        <span>{item.raw_description || item.component_description || item.description || 'Child Part'}</span>
-                                        <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-mono font-normal bg-zinc-100 dark:bg-zinc-900 text-zinc-400">
-                                          Child
-                                        </span>
-                                      </>
-                                    ) : (
-                                      <span className="text-[10px] text-zinc-400 font-mono italic" title="Child cell of Description column kept blank per rule. Select Children filter to view.">
-                                        Blank (Child)
-                                      </span>
-                                    )}
+                                    <span>{item.raw_description || item.component_description || item.description || 'Child Part'}</span>
+                                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-mono font-normal bg-zinc-100 dark:bg-zinc-900 text-zinc-400">
+                                      Child
+                                    </span>
                                   </>
                                 )}
                                 {item.ai_generated && (
@@ -1524,12 +1516,16 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
                             {/* Diagram Image Pic */}
                             <td className="p-2.5">
-                              <div className="flex items-center gap-1">
-                                <ImageIcon className="w-3 h-3 text-zinc-400 shrink-0" />
-                                <span className="font-mono text-[10px] font-semibold text-zinc-700 dark:text-zinc-300 truncate max-w-[120px]" title={item.image_filename}>
-                                  {item.image_filename}
-                                </span>
-                              </div>
+                              {item.is_parent !== false && item.image_filename ? (
+                                <div className="flex items-center gap-1">
+                                  <ImageIcon className="w-3 h-3 text-zinc-400 shrink-0" />
+                                  <span className="font-mono text-[10px] font-semibold text-zinc-700 dark:text-zinc-300 truncate max-w-[120px]" title={item.image_filename}>
+                                    {item.image_filename}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-zinc-300 dark:text-zinc-700 font-mono text-[10px]">-</span>
+                              )}
                             </td>
 
                             {/* Short Description */}
@@ -1899,12 +1895,16 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
                             {/* Diagram Image */}
                             <td className="p-3">
-                              <div className="flex items-center gap-1.5">
-                                <ImageIcon className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                                <span className="font-mono text-[11px] font-semibold text-zinc-800 dark:text-zinc-200 truncate max-w-[160px]" title={item.image_filename}>
-                                  {item.image_filename}
-                                </span>
-                              </div>
+                              {item.is_parent !== false && item.image_filename ? (
+                                <div className="flex items-center gap-1.5">
+                                  <ImageIcon className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                  <span className="font-mono text-[11px] font-semibold text-zinc-800 dark:text-zinc-200 truncate max-w-[160px]" title={item.image_filename}>
+                                    {item.image_filename}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-zinc-300 dark:text-zinc-700 font-mono text-[11px]">-</span>
+                              )}
                             </td>
 
                             {/* Product Title (IN ALL CAPS, no commas) */}
