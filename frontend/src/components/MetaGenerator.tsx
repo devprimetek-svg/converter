@@ -22,24 +22,28 @@ import type { PartRow, PartMetadataItem } from '../types';
 
 const PROMPT_PRESETS = [
   {
-    label: '🌟 OEM Durability',
-    prompt: 'Emphasize genuine factory OEM specifications, strict automotive quality testing, high heat resistance, and IndiaSpare verified fitment.',
+    label: '🛵 Daily Commute & City Riding',
+    prompt: 'Write in simple, engaging storytelling language. Focus on effortless morning starts, smooth daily city commutes, stress-free traffic riding, and peace of mind with genuine IndiaSpare fitment. Avoid complex engineering jargon and keep wording easy to read.',
   },
   {
-    label: '🚀 Performance & Longevity',
-    prompt: 'Highlight optimum engine efficiency, zero vibration, seamless mechanical compatibility, long-term road reliability, and IndiaSpare authenticity.',
+    label: '🛣️ Highway Touring & Freedom',
+    prompt: 'Highlight confident open highway cruising, steady long-distance travel, rider endurance, and smooth acceleration with authentic IndiaSpare parts. Keep wording engaging, simple, and easy to read without complex words.',
   },
   {
-    label: '🛡️ Warranty & Safe Packaging',
-    prompt: 'Focus on 100% genuine replacement guarantee, damage-free protective packaging, verified vehicle fitment, and IndiaSpare customer support.',
+    label: '🌧️ All-Weather & Rough Roads',
+    prompt: 'Emphasize dependable performance across bumpy roads, heavy monsoon showers, and scorching summer heat. Reliable, easy-to-read storytelling with zero complex English and IndiaSpare verified quality.',
   },
   {
-    label: '🛒 eCommerce Conversion',
-    prompt: 'Write in an energetic, persuasive, high-converting eCommerce style encouraging two-wheeler riders to upgrade with genuine parts from IndiaSpare.',
+    label: '🏍️ Showroom Restoration',
+    prompt: 'Tell the inspiring story of bringing an iconic ride back to factory-fresh showroom perfection. Easy-to-read narrative celebrating pride of ownership, crisp throttle response, and genuine IndiaSpare authenticity.',
   },
   {
-    label: '🧩 Include Child Cells',
-    prompt: 'Generate authentic descriptions for all parts including child cells and components with guaranteed IndiaSpare OEM fitment.',
+    label: '🛡️ Rider Safety & Peace of Mind',
+    prompt: 'Focus on rider safety, dependable control, family peace of mind, and trusted IndiaSpare genuine parts. Easy to read and understand without technical jargon or complex English.',
+  },
+  {
+    label: '📋 Whole PDF Copy & Child Parts',
+    prompt: 'Craft unique storytelling descriptions for every parent assembly and child component based on the catalogue details. Clear, friendly, and easy-to-understand language with IndiaSpare fitment.',
   },
 ];
 
@@ -1064,29 +1068,36 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
               </div>
             </div>
 
-            {/* Custom Prompt Textarea */}
+            {/* Custom Prompt / Whole PDF Input Textarea */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-mono uppercase text-zinc-600 dark:text-zinc-400 font-semibold">
-                  Custom Prompt / Copywriting Directives
+                  Custom Prompt / Whole PDF Text / Storytelling Directives
                 </label>
-                {lastGeneratedPrompt && aiPrompt.trim() !== lastGeneratedPrompt && (
-                  <span className="text-[11px] font-mono text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1 animate-in fade-in">
-                    <Sparkles className="w-3 h-3 text-purple-500" />
-                    New prompt directives entered
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {aiPrompt.length > 0 && (
+                    <span className="text-[10px] font-mono text-zinc-400">
+                      {aiPrompt.length.toLocaleString()} chars
+                    </span>
+                  )}
+                  {lastGeneratedPrompt && aiPrompt.trim() !== lastGeneratedPrompt && (
+                    <span className="text-[11px] font-mono text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-1 animate-in fade-in">
+                      <Sparkles className="w-3 h-3 text-purple-500" />
+                      New prompt directives entered
+                    </span>
+                  )}
+                </div>
               </div>
               <textarea
-                rows={2}
+                rows={4}
                 value={aiPrompt}
                 onChange={(e) => setAiPrompt(e.target.value)}
-                placeholder="Enter custom prompt for tone, USPs, fitment guarantees, or target audience..."
-                className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:border-purple-500 placeholder:text-zinc-400 font-sans"
+                placeholder="Enter custom prompt, storytelling tone, or paste copied input from an entire PDF catalogue... Every prompt shift produces 100% fresh, non-repeating copywriting across all parent and child parts!"
+                className="w-full px-3.5 py-2.5 rounded-xl text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:border-purple-500 placeholder:text-zinc-400 font-sans resize-y"
               />
               {lastGeneratedPrompt && aiPrompt.trim() !== lastGeneratedPrompt && (
                 <p className="text-[11px] text-purple-600 dark:text-purple-400 font-mono mt-1 flex items-center gap-1">
-                  <span>&bull; Ready to generate fresh descriptions tailored to your updated prompt. Click below to run.</span>
+                  <span>&bull; Ready to generate fresh, unique storytelling descriptions for all parent &amp; child records tailored to your new prompt. Click below to run.</span>
                 </p>
               )}
             </div>
@@ -1095,8 +1106,8 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="text-[11px] text-zinc-500 font-mono space-y-0.5">
-                  <div>Two-Step AI Protocol: Analyzes Extracted Catalogue &amp; SEO Excel records first • Enforces 151–158 chars (Meta Desc) • 120–140 words (Prod Desc) • zero commas • IndiaSpare.</div>
-                  <div className="text-purple-700 dark:text-purple-300 font-medium">💡 Child Cells Rule: Child cell descriptions remain blank unless your prompt references child cells (use &quot;🧩 Include Child Cells&quot; preset).</div>
+                  <div>Universal Parent &amp; Child Storytelling: Generates grounded, engaging descriptions for every parent assembly and child part • Simple, easy-to-read English • 151–158 chars (Meta Desc) • 120–140 words (Prod Desc) • 0 commas • IndiaSpare.</div>
+                  <div className="text-purple-700 dark:text-purple-300 font-medium">✨ Dynamic Prompt Freshness: Every new prompt or click shifts narrative angles and produces completely unique copywriting across all records.</div>
                 </div>
                 {generationCount > 0 && (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/80 border border-purple-300 dark:border-purple-800 text-[11px] font-mono text-purple-700 dark:text-purple-300 font-bold shrink-0">
@@ -1597,8 +1608,8 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                   </div>
                                 </div>
                               ) : (
-                                <span className="text-[10px] text-zinc-400 font-mono italic" title={item.is_parent === false ? "Child cell descriptions left blank unless prompt references child cells" : undefined}>
-                                  {item.is_parent === false ? 'Blank (Child)' : 'Blank'}
+                                <span className="text-[10px] text-zinc-400 font-mono italic" title="Not yet generated (click Generate above)">
+                                  Blank
                                 </span>
                               )}
                             </td>
@@ -1620,8 +1631,8 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                                   </div>
                                 </div>
                               ) : (
-                                <span className="text-[10px] text-zinc-400 font-mono italic" title={item.is_parent === false ? "Child cell descriptions left blank unless prompt references child cells" : undefined}>
-                                  {item.is_parent === false ? 'Blank (Child)' : 'Blank'}
+                                <span className="text-[10px] text-zinc-400 font-mono italic" title="Not yet generated (click Generate above)">
+                                  Blank
                                 </span>
                               )}
                             </td>

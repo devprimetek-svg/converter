@@ -171,6 +171,20 @@ def build_meta_short_description(
     return format_india_spare(clean_no_commas(desc))
 
 
+def compute_prompt_seed(user_prompt: str, part_identifier: str = "", index: int = 0) -> int:
+    """Generate a deterministic seed based on user prompt, part identifier, and row index.
+    Changing the prompt immediately shifts the seed and produces distinct storytelling copy.
+    """
+    clean_p = clean_no_commas(user_prompt or "").strip().lower()
+    h = 5381
+    for char in clean_p:
+        h = ((h << 5) + h + ord(char)) & 0x7FFFFFFF
+    for char in str(part_identifier).lower():
+        h = ((h << 5) + h + ord(char)) & 0x7FFFFFFF
+    h = (h ^ (index * 7919)) & 0x7FFFFFFF
+    return h or 1
+
+
 def enforce_meta_desc_length(
     text: str,
     seed: Optional[int] = None,
@@ -186,17 +200,21 @@ def enforce_meta_desc_length(
 
     pad_pool = [
         "with verified vehicle fit.",
-        "with guaranteed vehicle fitment.",
-        "factory replacement parts.",
+        "with verified direct fit.",
+        "for smooth daily rides.",
+        "for a safe smooth ride.",
         "from indiaspare today.",
-        "genuine oem spare.",
-        "genuine oem factory diagram assembly.",
-        "with direct factory fitment.",
-        "verified oem motorcycle spare.",
-        "engineered for exact fitment.",
-        "restoring factory performance.",
-        "certified genuine oem part.",
-        "with guaranteed fit and durability.",
+        "genuine factory spare.",
+        "for total peace of mind.",
+        "ride with confidence.",
+        "with verified fitment.",
+        "for smooth journeys.",
+        "with direct factory fit.",
+        "for dependable riding.",
+        "with verified fit today.",
+        "with guaranteed fitment.",
+        "factory replacement parts.",
+        "restoring smooth rides.",
     ]
     shuffled_pad = list(pad_pool)
     rng.shuffle(shuffled_pad)
@@ -233,8 +251,8 @@ def enforce_meta_desc_length(
         "fit.", "now.", "part.", "today.", "spare.", "parts.",
         "with fit.", "exact fit.", "direct fit.",
         "with verified fit.", "with guaranteed fit.",
-        "for your motorcycle.", "from indiaspare.",
-        "with durable fit.", "factory direct.",
+        "for your ride.", "from indiaspare.",
+        "for smooth rides.", "factory direct.",
     ]
     shuffled_closers = list(closers)
     rng.shuffle(shuffled_closers)
@@ -269,22 +287,37 @@ def build_meta_description(
     series: str = "series",
     seed: Optional[int] = None,
     user_prompt: str = "",
+    parent_assembly: str = "",
 ) -> str:
     """Build meta description strictly bounded between 151 and 158 characters without commas,
     preserving 'IndiaSpare', model in ALL CAPS, and model_code in ALL CAPS per user mandate.
-    Infuses user_prompt keywords and directives when provided.
+    Infuses user_prompt keywords and storytelling themes when provided.
+    Outputs lowercase outside 'IndiaSpare' and model.
     """
     b = (brand or "yamaha").strip().lower()
     mc = (model_code or "model").strip().lower()
     mn = (model or "").strip().upper()
     ser = (series or "series").strip().lower()
     p = clean_no_commas((part_name or "part").strip().lower())
+    parent_p = clean_no_commas((parent_assembly or "").strip().lower())
     m_disp = f"{mc} {mn}".strip() if mn else mc
 
-    rng = random.Random(seed) if seed is not None else random.Random()
+    effective_seed = seed if seed is not None else compute_prompt_seed(user_prompt, f"{p}_{parent_p}")
+    rng = random.Random(effective_seed)
 
-    # Ordered candidate sentences designed for various part name lengths
-    candidates = [
+    # Candidate storytelling sentences
+    candidates = []
+
+    # If child part with distinct parent assembly
+    if parent_p and parent_p != p:
+        candidates.extend([
+            f"buy authentic {b} {m_disp} {p} for {parent_p} from indiaspare. enjoy smooth rides and daily reliability with verified direct factory vehicle fitment today.",
+            f"genuine {b} {m_disp} {p} for {parent_p} oem spare from indiaspare. keep your motorcycle running smoothly and safely with verified factory vehicle fitment.",
+            f"order genuine {b} {m_disp} {p} for {parent_p} from indiaspare. restore smooth performance and rider safety with verified authentic factory vehicle fitment.",
+            f"authentic {b} {m_disp} {p} for {parent_p} spare part from indiaspare. enjoy peaceful daily riding and exact factory fitment with verified oem durability.",
+        ])
+
+    candidates.extend([
         f"buy authentic {b} {m_disp} {ser} {p} genuine oem spare parts diagram from indiaspare. high quality factory replacement parts with verified vehicle fit.",
         f"buy genuine {b} {m_disp} {ser} {p} original oem spare parts diagram from indiaspare. factory direct replacement component with verified vehicle fit.",
         f"authentic {b} {m_disp} {ser} {p} oem spare parts diagram illustration by indiaspare. factory standard direct replacement parts with verified vehicle fit.",
@@ -298,7 +331,12 @@ def build_meta_description(
         f"authentic {b} {m_disp} {p} diagram spare part from indiaspare. high quality factory replacement component with guaranteed vehicle fit and durability.",
         f"genuine {b} {m_disp} {p} spare parts from indiaspare. authentic oem factory specification diagram assembly with guaranteed durable vehicle fitment.",
         f"buy genuine {b} {m_disp} {p} spare parts from indiaspare. authentic oem diagram assembly with guaranteed durable vehicle fitment and satisfaction.",
-    ]
+        f"buy authentic {b} {m_disp} {p} genuine oem spare from indiaspare. enjoy smooth rides and peaceful daily journeys with verified direct vehicle fitment today.",
+        f"order genuine {b} {m_disp} {p} factory oem spare from indiaspare. restore showroom smoothness and rider confidence with verified direct vehicle fitment.",
+        f"shop authentic {b} {m_disp} {p} genuine oem parts at indiaspare. experience smooth journeys and daily reliability with verified direct vehicle fitment.",
+        f"authentic {b} {m_disp} {p} genuine factory replacement from indiaspare. ride with total peace of mind and smooth performance with verified vehicle fit.",
+        f"genuine {b} {m_disp} {p} factory oem replacement part from indiaspare. experience peaceful riding and smooth handling with verified direct vehicle fitment.",
+    ])
 
     # Incorporate user prompt themes when available
     prompt_clean = clean_no_commas(user_prompt or "").strip().lower()
@@ -343,6 +381,8 @@ def build_meta_description(
         "genuine oem factory replacement with verified vehicle fit.",
         "direct factory replacement parts with verified fit.",
         "premium factory replacement with guaranteed fitment.",
+        "enjoy smooth rides and safety with verified vehicle fit.",
+        "restore smooth daily riding with verified vehicle fit.",
     ]
 
     valid_combos = []
@@ -380,7 +420,7 @@ def build_meta_description(
         if 151 <= len(test) <= 158:
             return preserve_caps(test, model=mn, model_code=mc)
 
-    return preserve_caps(enforce_meta_desc_length(cand or base, seed=seed, model=mn, model_code=mc), model=mn, model_code=mc)
+    return preserve_caps(enforce_meta_desc_length(cand or base, seed=effective_seed, model=mn, model_code=mc), model=mn, model_code=mc)
 
 
 # Backwards compatibility alias
@@ -395,16 +435,20 @@ def build_product_description(
     series: str = "series",
     user_prompt: str = "",
     assembly_components: Optional[list[dict[str, Any]]] = None,
+    parent_assembly: str = "",
     seed: Optional[int] = None,
 ) -> str:
-    """Build rich product description strictly bounded between 120 and 140 words without commas,
-    weaving user_prompt directives and extracted assembly components when available.
+    """Build rich, storytelling product description strictly bounded between 120 and 140 words without commas,
+    avoiding complex jargon in favor of easy-to-read, engaging narrative for riders,
+    weaving user_prompt directives, extracted assembly components, and parent assembly context.
+    Produces fresh unique narrative angles across different prompts.
     """
     b = (brand or "YAMAHA").strip().upper()
     mc = (model_code or "MODEL").strip().upper()
     mn = (model or "").strip().upper()
     ser = (series or "").strip().upper()
     p = clean_no_commas((part_name or "PARTS ASSEMBLY").strip().upper())
+    parent_clean = clean_no_commas((parent_assembly or "").strip().upper())
     parts_model = [mc]
     if mn:
         parts_model.append(mn)
@@ -414,7 +458,11 @@ def build_product_description(
         parts_model.append(ser)
     m_disp = " ".join(parts_model).strip()
 
-    # Extract component mention from genuine extracted PDF/Excel assembly data
+    effective_seed = seed if seed is not None else compute_prompt_seed(user_prompt, f"{p}_{parent_clean}")
+    rng = random.Random(effective_seed)
+
+    parent_ctx = f" for your {parent_clean} assembly" if parent_clean and parent_clean != p else ""
+
     comp_mention = ""
     if assembly_components:
         c_names = []
@@ -425,9 +473,8 @@ def build_product_description(
             if len(c_names) >= 2:
                 break
         if c_names:
-            comp_mention = f" This assembly includes authentic factory components such as {' and '.join(c_names)} engineered to exact dimensional tolerances."
+            comp_mention = f" It functions seamlessly alongside factory components like {' and '.join(c_names)} to keep your two wheeler in perfect balance."
 
-    # Extract user prompt directives to weave into description
     prompt_snippet = ""
     clean_p = clean_no_commas(user_prompt or "").strip()
     if clean_p:
@@ -439,58 +486,126 @@ def build_product_description(
         meaningful = [w for w in clean_p.split() if w.lower() not in skip_words and len(w) > 2]
         if len(meaningful) >= 3:
             theme = " ".join(meaningful[:6])
-            prompt_snippet = f" Designed to deliver {theme} under demanding riding conditions."
+            prompt_snippet = f" Designed to deliver {theme} across every road you travel."
 
-    p1 = (
-        f"This authentic {b} {m_disp} {p} is an original OEM factory specification component "
-        f"designed specifically for your vehicle assembly.{comp_mention} Manufactured under strict quality standards "
-        f"this genuine replacement part provides exact dimensional accuracy and long term mechanical reliability. "
-        f"It directly replaces worn or damaged factory components to restore optimum operating performance."
-    )
-    p2 = (
-        f"Every genuine {b} spare part is engineered using premium grade materials capable of withstanding severe "
-        f"operating conditions high heat and mechanical stress.{prompt_snippet} The precision manufacturing ensures seamless compatibility "
-        f"with adjacent assembly parts preventing premature wear and maintaining factory efficiency across all riding conditions."
-    )
-    p3 = (
-        f"Order your authentic {b} {m_disp} {p} diagram spare from IndiaSpare today. "
-        f"We provide verified authentic OEM components with guaranteed fitment secure protective packaging and dependable delivery. "
-        f"Upgrade your motorcycle with confidence using certified factory parts built for durability and road safety."
-    )
+    # 6 Distinct Storytelling Narrative Angles (easy to read, rider-focused, 0 commas)
+    story_angles = [
+        # Angle 0: Daily Commuting & Smooth Riding
+        (
+            f"Starting your two wheeler effortlessly every morning brings pure confidence to your day. "
+            f"Navigating crowded city streets and sudden traffic junctions requires dependable precision from your {b} {m_disp} {p}{parent_ctx}. "
+            f"This genuine OEM replacement part restores the original balance and smooth response your ride had on day one.{comp_mention} "
+            f"Crafted strictly according to factory blueprints it fits seamlessly and eliminates unwanted vibration excess friction and sudden breakdowns.{prompt_snippet} "
+            f"Every journey feels calm responsive and enjoyable. "
+            f"Order your authentic {b} {m_disp} {p} spare parts from IndiaSpare today. "
+            f"We deliver 100% genuine factory spares with verified vehicle fitment secure protective packaging and dependable courier delivery right to your doorstep across India. "
+            f"Ride with complete confidence and total peace of mind knowing your vehicle runs on verified OEM engineering."
+        ),
+        # Angle 1: Highway Cruising & Road Confidence
+        (
+            f"Hitting the open highway calls for complete trust in every mechanical component beneath your seat. "
+            f"When accelerating through sweeping bends or cruising at high speeds your {b} {m_disp} {p}{parent_ctx} plays a vital role in keeping your motorcycle running smoothly and safely.{comp_mention} "
+            f"Worn out parts rob your vehicle of responsiveness and compromise safety on long rides. "
+            f"Replacing with this authentic factory OEM part restores dependable mechanical harmony giving you crisp throttle feedback and peaceful riding comfort across all terrains.{prompt_snippet} "
+            f"Order your genuine {b} {m_disp} {p} replacement spares from IndiaSpare today. "
+            f"We inspect every part carefully to verify authentic factory quality exact vehicle fitment and rapid shipping in protective boxes. "
+            f"Enjoy the open road with complete confidence and total peace of mind on every journey."
+        ),
+        # Angle 2: Weather Durability & Rough Road Safety
+        (
+            f"Uneven asphalt bumpy potholes and sudden monsoon rains test two wheeler components every single day across India. "
+            f"Your {b} {m_disp} {p}{parent_ctx} needs genuine factory strength that withstands moisture road grit and daily usage without hesitation.{comp_mention} "
+            f"This certified OEM replacement part is manufactured according to original vehicle blueprints ensuring effortless installation and steadfast mechanical endurance. "
+            f"It protects surrounding components from premature wear and keeps your ride performing reliably through every season.{prompt_snippet} "
+            f"IndiaSpare delivers 100% authentic factory parts in secure protective packaging directly to your doorstep. "
+            f"Ride with absolute peace of mind knowing your two wheeler runs on verified factory spares. "
+            f"Upgrade your vehicle with genuine replacement parts built for safety smooth performance and lasting durability on every road."
+        ),
+        # Angle 3: Showroom Factory Restoration
+        (
+            f"Nothing compares to the feeling of riding a motorcycle that performs with crisp showroom smoothness and quiet mechanical precision. "
+            f"Over time daily journeys wear down critical components like your {b} {m_disp} {p}{parent_ctx}. "
+            f"Installing this genuine OEM replacement part brings back original responsiveness smooth operation and worry free riding.{comp_mention} "
+            f"Engineered to official factory blueprints it installs without guesswork to safeguard your two wheeler for years to come. "
+            f"Every mile feels effortless whether commuting to work or heading out on weekend getaways.{prompt_snippet} "
+            f"IndiaSpare is your trusted destination for genuine motorcycle and scooter spares. "
+            f"Benefit from verified vehicle fitment careful transit packaging and swift delivery across India for effortless vehicle maintenance. "
+            f"Keep your ride operating at peak performance with authentic factory components today."
+        ),
+        # Angle 4: Rider Safety & Mechanical Harmony
+        (
+            f"Rider safety and enjoyable journeys begin with authentic factory components working in perfect harmony on every street. "
+            f"Whether tackling sudden stops sharp turns or rough country roads your {b} {m_disp} {p}{parent_ctx} must perform without failure.{comp_mention} "
+            f"Non genuine aftermarket alternatives often cause fitment trouble excess wear and serious safety concerns. "
+            f"This authentic OEM part meets exact factory manufacturing standards delivering dependable structural strength and long lasting mechanical reliability for worry free riding day after day.{prompt_snippet} "
+            f"Upgrade your ride with authentic parts from IndiaSpare today. "
+            f"We guarantee genuine OEM quality verified vehicle fitment and prompt shipping in protective boxes so you can hit the road with confidence. "
+            f"Count on IndiaSpare for certified genuine spares that keep your motorcycle running safely and reliably."
+        ),
+        # Angle 5: Long-Distance Reliability & Fuel Efficiency
+        (
+            f"Long distance touring and daily office runs both require consistent engine efficiency and rock solid mechanical reliability on every ride. "
+            f"Your {b} {m_disp} {p}{parent_ctx} runs at its best when every component operates with authentic factory accuracy.{comp_mention} "
+            f"Replacing worn components with this certified OEM part reduces unnecessary mechanical drag helps maintain optimal fuel efficiency and prevents costly future repairs. "
+            f"Every single part undergoes thorough inspection to ensure it delivers the durable performance and smooth ride you expect.{prompt_snippet} "
+            f"Trust IndiaSpare for all your genuine two wheeler spare parts needs with verified fitment and fast delivery. "
+            f"We take pride in delivering authentic factory spares in damage free protective packaging. "
+            f"Experience smooth riding and dependable mechanical endurance on every highway and city street."
+        ),
+    ]
 
-    full_text = clean_no_commas(f"{p1} {p2} {p3}")
+    # Select story angle based on effective seed so changing prompt selects different storytelling arc
+    selected_angle_idx = effective_seed % len(story_angles)
+    full_text = clean_no_commas(story_angles[selected_angle_idx])
     words = full_text.split()
 
     if len(words) > 140:
-        words = words[:130]
-        full_text = " ".join(words)
-        last_dot = full_text.rfind(".")
-        if last_dot > 0:
-            full_text = full_text[:last_dot + 1]
+        words = words[:132]
+        trimmed = " ".join(words)
+        last_dot = trimmed.rfind(".")
+        if last_dot > 0 and len(trimmed[:last_dot + 1].split()) >= 120:
+            full_text = trimmed[:last_dot + 1]
+            words = full_text.split()
+        else:
+            words = words[:130]
+            full_text = " ".join(words).rstrip(".") + "."
             words = full_text.split()
 
     addon_sentences = [
-        "Each component is thoroughly inspected to verify genuine factory build quality.",
-        "Trust IndiaSpare for 100% authentic OEM replacement parts backed by guaranteed vehicle fitment.",
-        "Proper installation following the official service manual guidelines is always recommended.",
-        "Keep your two wheeler operating at peak performance with authentic factory components.",
+        "Starting your two wheeler effortlessly every morning brings joy and confidence to your day.",
+        "Navigating busy city streets and highway stretches feels smooth and comfortable on every ride.",
+        "This genuine replacement part keeps your vehicle running with original factory smoothness and quiet efficiency.",
+        "Riding on rough roads and potholes is safer when your two wheeler has genuine factory parts installed.",
+        "Enjoy crisp throttle response and dependable power delivery whenever you twist the accelerator.",
+        "Every weekend road trip and daily office commute becomes more enjoyable with authentic spares.",
+        "Protect your two wheeler against unexpected breakdowns by choosing genuine factory components.",
+        "IndiaSpare carefully packs and quickly delivers authentic OEM parts directly to your doorstep.",
+        "Ride with absolute peace of mind knowing your vehicle is equipped with verified factory spares.",
+        "Keep your motorcycle feeling as smooth and responsive as the day you brought it home.",
     ]
-    for s in addon_sentences:
+    shuffled_addons = list(addon_sentences)
+    rng.shuffle(shuffled_addons)
+
+    for s in shuffled_addons:
         if len(words) < 120:
-            full_text = full_text.rstrip(".") + ". " + clean_no_commas(s)
-            words = full_text.split()
+            clean_s = clean_no_commas(s)
+            if clean_s.lower() not in full_text.lower():
+                full_text = full_text.rstrip(".") + ". " + clean_s
+                words = full_text.split()
         else:
             break
 
     if len(words) < 120:
         needed = 120 - len(words)
         padding_words = [
-            "All", "components", "meet", "stringent", "automotive", "quality", "standards",
+            "All", "parts", "meet", "strict", "factory", "quality", "standards",
             "and", "provide", "uncompromised", "safety", "on", "every", "journey", "across",
-            "all", "road", "conditions", "without", "exception"
+            "all", "road", "conditions", "without", "exception", "delivering", "smooth",
+            "rides", "and", "lasting", "durability", "for", "your", "motorcycle", "every", "day"
         ]
         full_text = full_text.rstrip(".") + ". " + " ".join(padding_words[:needed]) + "."
         words = full_text.split()
+
     # Ensure IndiaSpare is guaranteed to be present
     if "indiaspare" not in full_text.lower() and "india spare" not in full_text.lower():
         words = full_text.rstrip(".").split()
@@ -620,8 +735,8 @@ def generate_child_part_metadata(
         meta_desc = ""
         prod_desc = ""
     else:
-        meta_desc = build_meta_description(brand=b, model_code=mc, part_name=desc, model=mn, series=ser)
-        prod_desc = build_product_description(brand=b, model_code=mc, part_name=desc, model=mn, series=ser)
+        meta_desc = build_meta_description(brand=b, model_code=mc, part_name=desc, model=mn, series=ser, parent_assembly=fig_name)
+        prod_desc = build_product_description(brand=b, model_code=mc, part_name=desc, model=mn, series=ser, parent_assembly=fig_name)
     img_filename = resolve_image_filename(fig_name, model_code=mc)
 
     record = {
@@ -709,6 +824,7 @@ def generate_catalog_metadata(
     model_str = " ".join(parts_model_str)
 
     allow_child_desc = prompt_references_child_cells(user_prompt)
+    should_generate_descriptions = (not blank_descriptions) or bool(user_prompt and str(user_prompt).strip())
 
     results: list[dict[str, Any]] = []
 
@@ -779,16 +895,18 @@ def generate_catalog_metadata(
                 display_name = raw_fname or desc or "PARTS ASSEMBLY"
                 prod_title = build_product_title(brand=b, model_code=mc, part_name=display_name, model=mn, series=ser)
                 meta_title = build_meta_title(brand=b, model_code=mc, part_name=display_name, model=mn, series=ser)
-                if blank_descriptions:
+                if not should_generate_descriptions:
                     meta_desc = ""
                     prod_desc = ""
                 else:
+                    p_seed = compute_prompt_seed(user_prompt or "", f"{display_name}_{curr_fno}", r_idx)
                     meta_desc = build_meta_description(
                         brand=b,
                         model_code=mc,
                         part_name=display_name,
                         model=mn,
                         series=ser,
+                        seed=p_seed,
                         user_prompt=user_prompt or "",
                     )
                     prod_desc = build_product_description(
@@ -797,24 +915,28 @@ def generate_catalog_metadata(
                         part_name=display_name,
                         model=mn,
                         series=ser,
+                        seed=p_seed,
                         user_prompt=user_prompt or "",
                         assembly_components=components_list,
                     )
                 display_desc = desc or display_name
             else:
                 # Per user rule: child rows of short description and meta title must be strictly blank!
-                # Per user rule: description column child cell must ALSO be blank in default/combined view!
                 prod_title = ""
                 meta_title = ""
-                if allow_child_desc and not blank_descriptions:
+                if should_generate_descriptions:
                     child_name = desc or "PART"
+                    parent_name = raw_fname or curr_fname or "PARTS ASSEMBLY"
+                    c_seed = compute_prompt_seed(user_prompt or "", f"{parent_name}_{part_no}_{ref_no}_{desc}", r_idx)
                     meta_desc = build_meta_description(
                         brand=b,
                         model_code=mc,
                         part_name=child_name,
                         model=mn,
                         series=ser,
+                        seed=c_seed,
                         user_prompt=user_prompt or "",
+                        parent_assembly=parent_name,
                     )
                     prod_desc = build_product_description(
                         brand=b,
@@ -822,7 +944,9 @@ def generate_catalog_metadata(
                         part_name=child_name,
                         model=mn,
                         series=ser,
+                        seed=c_seed,
                         user_prompt=user_prompt or "",
+                        parent_assembly=parent_name,
                     )
                 else:
                     meta_desc = ""
@@ -1051,9 +1175,34 @@ def export_metadata_excel(
             merged_item["image_filename"] = (parent_meta.get("image_filename") or resolve_image_filename(fname, model_code=mc_val)) if is_parent else ""
             merged_item["product_title"] = parent_meta.get("product_title", "") if is_parent else ""
             merged_item["meta_title"] = parent_meta.get("meta_title", "") if is_parent else ""
-            merged_item["meta_description"] = parent_meta.get("meta_description") if is_parent else ""
+            if is_parent:
+                merged_item["meta_description"] = parent_meta.get("meta_description", "")
+                merged_item["product_description"] = parent_meta.get("product_description", "")
+            else:
+                c_meta = r.get("meta_description") or ""
+                c_prod = r.get("product_description") or ""
+                if not c_meta and parent_meta.get("meta_description"):
+                    c_meta = build_meta_description(
+                        brand=b_val,
+                        model_code=mc_val,
+                        part_name=desc or "PART",
+                        model=m_val,
+                        series=ser_val,
+                        parent_assembly=fname,
+                    )
+                if not c_prod and parent_meta.get("product_description"):
+                    c_prod = build_product_description(
+                        brand=b_val,
+                        model_code=mc_val,
+                        part_name=desc or "PART",
+                        model=m_val,
+                        series=ser_val,
+                        parent_assembly=fname,
+                    )
+                merged_item["meta_description"] = c_meta
+                merged_item["product_description"] = c_prod
+
             merged_item["meta_desc_chars"] = len(merged_item["meta_description"]) if merged_item["meta_description"] else 0
-            merged_item["product_description"] = parent_meta.get("product_description") if is_parent else ""
             merged_item["product_desc_words"] = len(merged_item["product_description"].split()) if merged_item["product_description"] else 0
             if is_parent and parent_meta.get("ai_analysis"):
                 merged_item["ai_analysis"] = parent_meta["ai_analysis"]

@@ -571,8 +571,28 @@ def test_child_cells_descriptions_blank_by_default_and_populated_when_prompted()
         },
     ]
 
-    # CASE 1: Standard generation (no child cells mentioned in prompt)
-    items_default = generate_catalog_metadata(
+    # CASE 1: Scan mode before prompt is entered (blank_descriptions=True)
+    items_blank = generate_catalog_metadata(
+        rows=rows,
+        model_columns=["BGPK"],
+        brand="YAMAHA",
+        model="FZ-S",
+        series="series",
+        model_code="BGPK",
+        main_parts_only=False,
+        blank_descriptions=True,
+    )
+    assert len(items_blank) == 3
+    # Both parent and child descriptions are blank during initial scan
+    assert items_blank[0]["meta_description"] == ""
+    assert items_blank[0]["product_description"] == ""
+    assert items_blank[1]["meta_description"] == ""
+    assert items_blank[1]["product_description"] == ""
+    assert items_blank[1]["product_title"] == ""
+    assert items_blank[1]["meta_title"] == ""
+
+    # CASE 2: Universal Generation with User Prompt
+    items_prompt1 = generate_catalog_metadata(
         rows=rows,
         model_columns=["BGPK"],
         brand="YAMAHA",
@@ -581,55 +601,58 @@ def test_child_cells_descriptions_blank_by_default_and_populated_when_prompted()
         model_code="BGPK",
         main_parts_only=False,
         blank_descriptions=False,
-        user_prompt="Focus on OEM build quality and durability",
+        user_prompt="Focus on smooth daily city commutes and effortless morning starts",
     )
-    assert len(items_default) == 3
+    assert len(items_prompt1) == 3
 
     # Parent item
-    p = items_default[0]
-    assert p["is_parent"] is True
-    assert p["cell_type"] == "Parent"
-    assert p["fig_no"] == "1"
-    assert p["part_name"] == "CYLINDER HEAD"
-    assert p["catalogue_code"] == "YAM_BGPK_CYLINDER HEAD"
-    # Parent includes only parent cell's parts name in short description and meta title
-    assert p["product_title"] == "YAMAHA BGPK FZ-S SERIES CYLINDER HEAD"
-    assert p["meta_title"] == "Yamaha FZ-S Series BGPK Cylinder Head | IndiaSpare"
-    assert len(p["meta_description"]) >= 151
-    assert len(p["product_description"].split()) >= 120
+    p1 = items_prompt1[0]
+    assert p1["is_parent"] is True
+    assert p1["cell_type"] == "Parent"
+    assert p1["fig_no"] == "1"
+    assert p1["part_name"] == "CYLINDER HEAD"
+    assert p1["catalogue_code"] == "YAM_BGPK_CYLINDER HEAD"
+    assert p1["product_title"] == "YAMAHA BGPK FZ-S SERIES CYLINDER HEAD"
+    assert p1["meta_title"] == "Yamaha FZ-S Series BGPK Cylinder Head | IndiaSpare"
+    assert 151 <= len(p1["meta_description"]) <= 158
+    assert "," not in p1["meta_description"]
+    assert "IndiaSpare" in p1["meta_description"]
+    assert 120 <= len(p1["product_description"].split()) <= 140
+    assert "," not in p1["product_description"]
+    assert "IndiaSpare" in p1["product_description"]
 
-    # Child item 1
-    c1 = items_default[1]
+    # Child item 1 receives universal storytelling descriptions, while titles remain strictly blank
+    c1 = items_prompt1[1]
     assert c1["is_parent"] is False
     assert c1["cell_type"] == "Child"
-    assert c1["fig_no"] == ""  # Blank per user rule
-    assert c1["part_name"] == ""  # Blank per user rule
-    assert c1["catalogue_code"] == ""  # Blank per user rule
+    assert c1["fig_no"] == ""  # Blank per hierarchy rule
+    assert c1["part_name"] == ""  # Blank per hierarchy rule
+    assert c1["catalogue_code"] == ""  # Blank per hierarchy rule
     assert c1["description"] == "BOLT FLANGE"  # Description is VISIBLE per user rule!
     assert c1["image_filename"] == ""  # Pic is HIDDEN per user rule!
-    assert c1["raw_description"] == "BOLT FLANGE"
-    assert c1["ref_no"] == "2"
-    assert c1["part_no"] == "90105-06836"
-    assert c1["product_title"] == ""  # Strictly blank per user rule!
-    assert c1["meta_title"] == ""  # Strictly blank per user rule!
-    assert c1["meta_description"] == ""  # Strictly blank per user rule!
-    assert c1["product_description"] == ""  # Strictly blank per user rule!
+    assert c1["product_title"] == ""  # Strictly blank per hierarchy rule!
+    assert c1["meta_title"] == ""  # Strictly blank per hierarchy rule!
+    assert 151 <= len(c1["meta_description"]) <= 158
+    assert "," not in c1["meta_description"]
+    assert "IndiaSpare" in c1["meta_description"]
+    assert 120 <= len(c1["product_description"].split()) <= 140
+    assert "," not in c1["product_description"]
+    assert "IndiaSpare" in c1["product_description"]
 
-    # Child item 2
-    c2 = items_default[2]
+    # Child item 2 receives universal storytelling descriptions, while titles remain strictly blank
+    c2 = items_prompt1[2]
     assert c2["is_parent"] is False
-    assert c2["fig_no"] == ""
-    assert c2["part_name"] == ""
-    assert c2["catalogue_code"] == ""
-    assert c2["description"] != ""  # Description is VISIBLE per user rule!
-    assert c2["image_filename"] == ""  # Pic is HIDDEN per user rule!
-    assert c2["product_title"] == ""  # Strictly blank per user rule!
-    assert c2["meta_title"] == ""  # Strictly blank per user rule!
-    assert c2["meta_description"] == ""
-    assert c2["product_description"] == ""
+    assert c2["description"] == "PLUG SPARK"
+    assert c2["image_filename"] == ""
+    assert c2["product_title"] == ""
+    assert c2["meta_title"] == ""
+    assert 151 <= len(c2["meta_description"]) <= 158
+    assert "," not in c2["meta_description"]
+    assert 120 <= len(c2["product_description"].split()) <= 140
+    assert "," not in c2["product_description"]
 
-    # CASE 2: User explicitly mentions child cells in prompt
-    items_with_child_prompt = generate_catalog_metadata(
+    # CASE 3: Prompt Freshness & Non-Repeating Output on another prompt
+    items_prompt2 = generate_catalog_metadata(
         rows=rows,
         model_columns=["BGPK"],
         brand="YAMAHA",
@@ -638,27 +661,13 @@ def test_child_cells_descriptions_blank_by_default_and_populated_when_prompted()
         model_code="BGPK",
         main_parts_only=False,
         blank_descriptions=False,
-        user_prompt="Generate descriptions for all parts including child cells with OEM precision",
+        user_prompt="Highway touring through scenic mountain roads and open freeways",
     )
-    assert len(items_with_child_prompt) == 3
-
-    # Parent still has full descriptions and parent part name
-    p_prompt = items_with_child_prompt[0]
-    assert p_prompt["is_parent"] is True
-    assert p_prompt["product_title"] == "YAMAHA BGPK FZ-S SERIES CYLINDER HEAD"
-    assert p_prompt["meta_title"] == "Yamaha FZ-S Series BGPK Cylinder Head | IndiaSpare"
-    assert len(p_prompt["meta_description"]) >= 151
-
-    # Child item 1 NOW has generated descriptions, but short description & meta title remain blank!
-    c1_prompt = items_with_child_prompt[1]
-    assert c1_prompt["is_parent"] is False
-    assert c1_prompt["fig_no"] == ""
-    assert c1_prompt["part_name"] == ""
-    assert c1_prompt["catalogue_code"] == ""
-    assert c1_prompt["product_title"] == ""  # Strictly blank per user rule!
-    assert c1_prompt["meta_title"] == ""  # Strictly blank per user rule!
-    assert len(c1_prompt["meta_description"]) >= 151
-    assert len(c1_prompt["product_description"].split()) >= 120
+    assert len(items_prompt2) == 3
+    # Outputs shift narrative and wording when user enters another prompt
+    assert items_prompt2[0]["product_description"] != items_prompt1[0]["product_description"]
+    assert items_prompt2[1]["product_description"] != items_prompt1[1]["product_description"]
+    assert items_prompt2[2]["product_description"] != items_prompt1[2]["product_description"]
 
 
 def test_export_single_sheet_with_autofilter_for_child_cells():

@@ -951,7 +951,8 @@ def generate_metadata_endpoint(req: MetaGenerateRequest):
         raise HTTPException(status_code=400, detail="No parts rows or figures provided, or job not found.")
 
     m_code = req.model_code or ("_".join(model_cols) if model_cols else "")
-    should_blank = req.blank_descriptions if req.blank_descriptions is not None else (not req.ai_mode)
+    has_prompt = bool(req.ai_prompt and req.ai_prompt.strip())
+    should_blank = req.blank_descriptions if req.blank_descriptions is not None else not (req.ai_mode or has_prompt)
 
     items = generate_catalog_metadata(
         rows=rows,

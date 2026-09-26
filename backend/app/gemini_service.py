@@ -74,27 +74,25 @@ def enforce_product_desc_words(
             words = words[:130]
             clean_text = " ".join(words).rstrip(".") + "."
 
-    # Diverse, authentic OEM automotive sentences across mechanical, thermal, and fitment themes
+    # Engaging, storytelling automotive sentences focused on rider experience and peace of mind (0 commas)
     addon_paragraphs = [
         f"This authentic {brand} {model_str} {part_name} is an original OEM factory specification component designed specifically for your vehicle assembly.",
-        "Manufactured under strict automotive quality standards this genuine replacement part provides exact dimensional accuracy and long term mechanical reliability.",
-        "It directly replaces worn or damaged factory components to restore optimum operating performance across all riding conditions.",
+        "Starting your two wheeler effortlessly every morning brings pure confidence and joy to your daily journey.",
+        "Navigating busy city streets and highway stretches feels smooth comfortable and relaxing on every ride.",
+        "This genuine replacement part keeps your vehicle running with original showroom smoothness and quiet efficiency.",
+        "Riding on rough roads and potholes is safer when your two wheeler has authentic factory parts installed.",
+        "Enjoy crisp throttle response and dependable power delivery whenever you accelerate on city roads or open highways.",
+        "Every weekend road trip and daily office commute becomes more enjoyable and worry free with authentic spares.",
+        "Protect your two wheeler against unexpected breakdowns by choosing verified genuine factory components.",
         f"Order your authentic {brand} {model_str} {part_name} diagram spare from IndiaSpare today.",
-        "We provide verified authentic OEM components with guaranteed fitment secure protective packaging and dependable delivery across India.",
+        "We deliver 100% genuine factory spares with verified vehicle fitment secure protective packaging and dependable courier delivery right to your doorstep across India.",
+        "Ride with absolute peace of mind knowing your vehicle is equipped with verified genuine factory spares.",
+        "Keep your motorcycle feeling as smooth responsive and fun to ride as the day you brought it home.",
         "Upgrade your motorcycle with confidence using certified factory parts built for durability and road safety.",
-        "Each genuine component undergoes rigorous factory inspection to ensure optimum operating performance.",
+        "Each genuine component undergoes careful factory inspection to ensure dependable operating performance.",
         "Trust IndiaSpare for authentic OEM replacement parts backed by verified vehicle fitment and rapid delivery.",
         "Professional installation following standard manufacturer guidelines guarantees maximum vehicle longevity.",
-        "Keep your motorcycle performing at peak efficiency under all demanding road conditions.",
-        "Engineered with premium metallurgical alloys to endure sustained high thermal stress and engine load.",
-        "Maintains critical operational clearances to protect adjacent mechanical assemblies from premature wear.",
-        "Precision balanced to reduce engine harmonic vibrations and enhance ride smoothness at high highway speeds.",
-        "Specially treated surface finishes deliver superior resistance against oxidation corrosion and abrasive contaminants.",
-        "Preserves factory calibrated torque delivery and crisp throttle response throughout everyday city traffic.",
-        "Exhaustively tested by certified automotive technicians under extreme temperature variations and rugged terrains.",
-        "Ensures complete mechanical harmony with factory mounting hardware and vehicle wiring harness connections.",
-        "Protects long term vehicle resale value by preserving authentic factory build specifications and engineering integrity.",
-        "Dependable automotive engineering provides riders with absolute peace of mind during extended touring expeditions.",
+        "Keep your motorcycle performing at peak efficiency under all demanding road and weather conditions.",
         "Count on IndiaSpare for certified genuine OEM diagram replacement components dispatched quickly with secure protective transit.",
     ]
 
@@ -133,12 +131,12 @@ def enforce_product_desc_words(
 
     # Final padding words loop if still slightly under 120 (rotated with offset)
     filler_pool = [
-        "All", "components", "meet", "stringent", "automotive", "quality", "standards",
+        "All", "parts", "meet", "strict", "factory", "quality", "standards",
         "and", "provide", "uncompromised", "safety", "on", "every", "journey", "across",
-        "all", "road", "conditions", "without", "exception", "delivering", "flawless",
-        "precision", "and", "unmatched", "durability", "for", "your", "motorcycle", "riding",
-        "needs", "every", "single", "day", "with", "verified", "reliability", "and",
-        "superb", "mechanical", "endurance", "on", "every", "highway", "stretch",
+        "all", "road", "conditions", "without", "exception", "delivering", "smooth",
+        "rides", "and", "lasting", "peace", "of", "mind", "for", "your", "motorcycle",
+        "riding", "needs", "every", "single", "day", "with", "verified", "reliability",
+        "and", "superb", "daily", "endurance", "on", "every", "highway", "stretch",
     ]
     offset = rng.randint(0, len(filler_pool) - 12) if len(filler_pool) > 15 else 0
     rotated_filler = filler_pool[offset:] + filler_pool[:offset]
@@ -183,46 +181,53 @@ def _build_gemini_payload(
     run_seed = seed if seed is not None else random.randint(1, 2147483647)
 
     system_instruction = (
-        "You are an expert automotive parts engineer and eCommerce copywriter for 'IndiaSpare', "
+        "You are an expert automotive parts specialist and storytelling eCommerce copywriter for 'IndiaSpare', "
         "an authentic OEM motorcycle and scooter spare parts supplier in India.\n\n"
         "=== SUPREME PRIORITY DIRECTIVE: USER'S PROMPT IS LAW ===\n"
         "Whenever the user enters custom prompt directives, instructions, keywords, or focus areas, you MUST prioritize "
-        "them above all else! Incorporate the user's specific tone, keywords, warranty terms, themes (e.g. racing speed, "
-        "monsoon water resistance, carbon fiber, long-term road durability, safe packaging, high heat tolerance), and "
-        "value propositions directly into the analysis, meta description, and product description. Never produce generic "
-        "canned boilerplate that ignores the user prompt.\n\n"
+        "them above all else! Incorporate the user's specific tone, keywords, warranty terms, themes (e.g. smooth ride, "
+        "morning commute, highway touring, monsoon safety, rough roads, durable packaging), and value propositions directly "
+        "into the analysis, meta description, and product description. Never produce generic canned boilerplate that ignores the user prompt.\n\n"
+        "=== STORYTELLING & SIMPLE ACCESSIBLE ENGLISH (MANDATORY) ===\n"
+        "Do NOT use complex, dense academic English or engineering jargon (avoid words like 'metallurgical alloys', "
+        "'operational clearances', 'harmonic vibrations', 'dimensional tolerances', 'premature wear', 'abrasive contaminants'). "
+        "Instead, write EASY-TO-READ, ENGAGING, STORYTELLING English that connects the part to the rider's real-world experience: "
+        "effortless morning starts, smooth acceleration, peaceful city commuting, confident highway cruising, peace of mind on rough roads "
+        "and potholes, and trusted factory reliability from IndiaSpare.\n\n"
+        "=== UNIVERSAL COVERAGE: GENERATE FOR ALL PARENT AND CHILD RECORDS ===\n"
+        "You must generate relevant, unique descriptions for EVERY item in the batch: both parent assemblies (e.g. CYLINDER HEAD) "
+        "and individual child component parts (e.g. VALVE STEM SEAL, GASKET, BOLT). Ground child part descriptions in their specific part name "
+        "and parent assembly context.\n\n"
         "DUAL-RECORD ARCHITECTURE:\n"
         "For each part assembly, you are provided with TWO distinct Excel records:\n"
         "1. 'extracted_parts_catalogue_record': Contains raw extracted engineering catalogue data from the PDF "
-        "(page, fig_no, catalog_name, ref_no, OEM part_no, clean_part_no, model_quantities, remarks, and "
+        "(item_id, is_parent, parent_assembly, page, fig_no, catalog_name, ref_no, OEM part_no, clean_part_no, model_quantities, remarks, and "
         "the complete list of extracted child components under 'extracted_components_list').\n"
         "2. 'seo_metadata_record': Contains customer-facing SEO & vehicle metadata "
         "(brand, model_code, model, series, pic image filename, short_description title in CAPS, and meta_title).\n\n"
         "MANDATORY TWO-STEP PROCEDURE:\n"
         "STEP 1 - DUAL-RECORD ANALYSIS:\n"
         "Before generating descriptions, you MUST systematically analyze BOTH Excel records together. "
-        "Examine the figure assembly, the OEM part number, clean part number format, and the actual components listed in "
-        "'extracted_components_list' (evaluating gaskets, bolts, valves, seals, and subcomponents that make up the assembly). "
+        "Examine the figure assembly, the OEM part number, clean part number format, and components. "
         "Provide a concise, grounded technical analysis in the 'analysis' field reflecting both records and the user prompt.\n\n"
         "STEP 2 - GENERATE DESCRIPTIONS GROUNDED IN ANALYSIS & USER PROMPT:\n"
         "Using your Step 1 analysis as direct grounding, generate:\n"
         "- 'meta_description': strictly 151 to 158 characters, zero commas, exact proper casing 'IndiaSpare'. "
         "Must be a high-converting eCommerce SEO summary with vehicle fitment and IndiaSpare genuine guarantee.\n"
         "- 'product_description': strictly 120 to 140 words, zero commas, exact proper casing 'IndiaSpare'. "
-        "Must detail genuine OEM factory specifications, assembly components, high heat and stress tolerance, "
-        "and IndiaSpare verified replacement reliability, thoroughly reflecting the user prompt.\n\n"
+        "Must detail genuine OEM factory specifications, easy replacement, rider confidence, and IndiaSpare verified reliability, thoroughly reflecting the user prompt.\n\n"
         "MANDATORY FRESHNESS & UNIQUENESS ON EVERY SINGLE GENERATION RUN:\n"
         "- On EVERY SINGLE generation run, you MUST produce completely original, unique, and fresh copywriting. "
-        "NEVER repeat identical sentence structures, cliches, or openers across clicks or runs.\n\n"
+        "NEVER repeat identical sentence structures, cliches, or openers across clicks or runs. Changing prompts must produce completely distinct outputs.\n\n"
         "CRITICAL RULES:\n"
         "1. ZERO COMMAS: Do NOT include ANY commas (,) in any field (analysis, meta_description, product_description).\n"
         "2. EXACT CASING: Strictly use 'IndiaSpare' (no spaces, never 'indiaspare' or 'INDIA SPARE').\n"
         "3. WORD & CHAR LIMITS: Meta description must be 151-158 characters; product description must be 120-140 words.\n"
-        "4. OUTPUT FORMAT: Return a valid JSON object matching the requested schema with 'fig_no', 'part_name', 'analysis', 'meta_description', and 'product_description'."
+        "4. OUTPUT FORMAT: Return a valid JSON object matching the requested schema with 'item_id', 'fig_no', 'part_name', 'analysis', 'meta_description', and 'product_description'."
     )
 
     parts_catalog_data = []
-    for it in items:
+    for idx, it in enumerate(items):
         # Collect dynamic model quantities from item (e.g. BGPJ: 1, BGPL: 1, etc.)
         model_quantities: dict[str, Any] = {}
         for k, v in it.items():
@@ -233,9 +238,11 @@ def _build_gemini_payload(
                 if v is not None and str(v).strip() != "":
                     model_quantities[str(k)] = str(v)
 
+        is_parent = bool(it.get("is_parent", True))
         p_no = str(it.get("part_no") or "")
         c_p_no = str(it.get("clean_part_no") or (clean_part_number(p_no) if p_no else ""))
-        p_name = str(it.get("part_name") or it.get("fig_name") or it.get("description") or "")
+        p_name = str(it.get("description") or it.get("part_name") or it.get("fig_name") or "")
+        parent_assembly_name = str(it.get("parent_fig_name") or it.get("part_name") or "")
         b_val = brand or str(it.get("brand", "YAMAHA"))
         mc_val = model_code or str(it.get("model_code", "MODEL"))
         m_val = model or str(it.get("model", ""))
@@ -243,9 +250,12 @@ def _build_gemini_payload(
 
         components_list = it.get("assembly_components") or []
         extracted_cat_record: dict[str, Any] = {
+            "item_id": f"item_{idx}",
+            "is_parent": is_parent,
+            "parent_assembly": parent_assembly_name,
             "page": it.get("page", 1),
-            "fig_no": str(it.get("fig_no", "")),
-            "catalog_name": p_name,
+            "fig_no": str(it.get("parent_fig_no") or it.get("fig_no", "")),
+            "catalog_name": parent_assembly_name or p_name,
             "ref_no": str(it.get("ref_no", "1")),
             "part_no": p_no,
             "clean_part_no": c_p_no,
@@ -266,8 +276,11 @@ def _build_gemini_payload(
             ]
 
         parts_catalog_data.append({
-            "fig_no": str(it.get("fig_no", "")),
+            "item_id": f"item_{idx}",
+            "is_parent": is_parent,
+            "fig_no": str(it.get("parent_fig_no") or it.get("fig_no", "")),
             "part_name": p_name,
+            "parent_assembly": parent_assembly_name,
             # Record 1: Extracted Parts Catalogue Excel Record
             "extracted_parts_catalogue_record": extracted_cat_record,
             # Record 2: SEO & Vehicle Metadata Excel Record
@@ -289,7 +302,7 @@ def _build_gemini_payload(
         f"{clean_prompt}\n\n"
         f"MANDATORY INSTRUCTION: You must analyze BOTH Excel records ('extracted_parts_catalogue_record' and 'seo_metadata_record') "
         f"for each of the {len(parts_catalog_data)} parts listed below before generating the descriptions.\n"
-        f"IMPORTANT: Deeply integrate the user's custom directives above into your analysis and descriptions. "
+        f"IMPORTANT: Deeply integrate the user's custom directives above into your analysis and storytelling descriptions. "
         f"Every single run must produce unique, non-repetitive copywriting with varied sentence structures and fresh vocabulary.\n\n"
         f"PARTS DUAL-RECORD DATA (INCLUDING EXTRACTED COMPONENTS):\n"
         f"{json.dumps(parts_catalog_data, indent=2)}\n\n"
@@ -297,9 +310,10 @@ def _build_gemini_payload(
         "{\n"
         '  "items": [\n'
         '    {\n'
+        '      "item_id": "item_0",\n'
         '      "fig_no": "1",\n'
         '      "part_name": "CYLINDER HEAD",\n'
-        '      "analysis": "Analyzed Record 1 (CYLINDER HEAD OEM part no BGP-E1111-00 clean part no BGPE111100 fig 1 ref 1 with extracted components) and Record 2 (YAMAHA BGPK RAY ZR). Critical combustion chamber assembly requiring precision dimensional tolerance and high heat resistance.",\n'
+        '      "analysis": "Analyzed Record 1 and Record 2 for CYLINDER HEAD BGP-E1111-00 YAMAHA BGPK RAY ZR. Factory OEM casting ensuring smooth engine performance and rider safety.",\n'
         '      "meta_description": "...",\n'
         '      "product_description": "..."\n'
         '    }\n'
@@ -508,14 +522,26 @@ def call_gemini_batch(
                             parsed = json.loads(text_content)
                             results_map = {}
                             for res_it in parsed.get("items", []):
+                                item_id = str(res_it.get("item_id", "")).strip()
                                 f_no = str(res_it.get("fig_no", "")).strip()
                                 p_name = str(res_it.get("part_name", "")).strip()
-                                key = f_no or p_name
-                                results_map[key] = {
+                                p_no = str(res_it.get("part_no", "")).strip()
+                                ref = str(res_it.get("ref_no", "")).strip()
+                                entry = {
                                     "analysis": res_it.get("analysis", ""),
                                     "meta_description": res_it.get("meta_description", ""),
                                     "product_description": res_it.get("product_description", ""),
                                 }
+                                if item_id:
+                                    results_map[item_id] = entry
+                                if f_no and ref:
+                                    results_map[f"{f_no}_{ref}"] = entry
+                                if p_no:
+                                    results_map[p_no] = entry
+                                if f_no and f_no not in results_map:
+                                    results_map[f_no] = entry
+                                if p_name and p_name not in results_map:
+                                    results_map[p_name] = entry
 
                             # Remember this successful model at top of cache
                             _DISCOVERED_MODELS_CACHE[api_key] = [(api_version, model_identifier)] + [
@@ -588,8 +614,8 @@ def enhance_metadata_with_gemini(
     - 'IndiaSpare' proper casing
     - Fallback gracefully to existing descriptions if an item fails
     - Guarantees completely unique output on every click and prompt change
-    - CRITICAL RULE: Child cell descriptions are NEVER generated on their own until the user
-      explicitly references child cells in the prompt.
+    - Universal parent and child generation: every assembly and child record receives
+      grounded storytelling metadata. Child product_title & meta_title remain strictly blank.
     """
     key = (api_key or os.getenv("GEMINI_API_KEY") or "").strip()
     if not key:
@@ -599,31 +625,15 @@ def enhance_metadata_with_gemini(
     m_disp = f"{model_code} {model}".strip() if model else model_code
     base_gen_id = generation_id or f"gen_{int(time.time() * 1000)}_{random.randint(1000, 9999)}"
 
-    allow_child = prompt_references_child_cells(user_prompt)
-
     enhanced_items = [dict(it) for it in metadata_items]
     for it in enhanced_items:
         if it.get("is_parent") is False:
             it["product_title"] = ""
             it["meta_title"] = ""
 
-    # Filter target items:
-    # If user prompt does NOT reference child cells, child cells must remain strictly blank!
-    if not allow_child:
-        for it in enhanced_items:
-            is_parent = bool(it.get("is_parent", True))
-            if not is_parent:
-                it["meta_description"] = ""
-                it["meta_long_description"] = ""
-                it["meta_desc_chars"] = 0
-                it["long_desc_length"] = 0
-                it["product_description"] = ""
-                it["product_desc_words"] = 0
-                it["ai_analysis"] = ""
-                it["ai_generated"] = False
-        target_items = [it for it in enhanced_items if it.get("is_parent", True)]
-    else:
-        target_items = enhanced_items
+    # Universal generation: All items (parent assemblies and child parts) receive
+    # unique storytelling SEO descriptions. Child product_title & meta_title remain strictly blank.
+    target_items = enhanced_items
 
     if not target_items:
         return enhanced_items
@@ -666,7 +676,12 @@ def enhance_metadata_with_gemini(
             logger.warning("Using rule-based fallback for batch %d: %s", idx, err_str)
             for it_idx, it in enumerate(batch):
                 item_seed = (batch_seed + it_idx * 7919) % 2147483647
-                p_name = str(it.get("parent_fig_name") or it.get("part_name", "") or it.get("description", "") or "PARTS ASSEMBLY")
+                is_parent = bool(it.get("is_parent", True))
+                parent_asm = str(it.get("parent_fig_name") or it.get("fig_name") or "").strip()
+                if is_parent:
+                    p_name = str(it.get("parent_fig_name") or it.get("fig_name") or it.get("part_name") or it.get("description") or "PARTS ASSEMBLY").strip()
+                else:
+                    p_name = str(it.get("part_name") or it.get("description") or it.get("parent_fig_name") or "SPARE PART").strip()
                 comps = it.get("assembly_components") or []
                 r_meta = build_meta_description(
                     brand=brand,
@@ -676,6 +691,7 @@ def enhance_metadata_with_gemini(
                     series=series,
                     seed=item_seed,
                     user_prompt=prompt_to_use,
+                    parent_assembly=parent_asm if not is_parent else "",
                 )
                 r_prod = build_product_description(
                     brand=brand,
@@ -685,6 +701,7 @@ def enhance_metadata_with_gemini(
                     series=series,
                     user_prompt=prompt_to_use,
                     assembly_components=comps,
+                    parent_assembly=parent_asm if not is_parent else "",
                 )
                 it["meta_description"] = r_meta
                 it["meta_long_description"] = r_meta
@@ -700,15 +717,22 @@ def enhance_metadata_with_gemini(
         # Post-process every item in this batch with strict mathematical validation
         for it_idx, it in enumerate(batch):
             item_seed = (batch_seed + it_idx * 7919) % 2147483647
+            item_id = str(it.get("item_id") or it.get("id") or "").strip()
+            is_parent = bool(it.get("is_parent", True))
             f_no = str(it.get("parent_fig_no") or it.get("fig_no", "")).strip()
-            p_name = str(it.get("parent_fig_name") or it.get("part_name", "") or it.get("description", "")).strip()
+            parent_asm = str(it.get("parent_fig_name") or it.get("fig_name") or "").strip()
+            if is_parent:
+                p_name = str(it.get("parent_fig_name") or it.get("fig_name") or it.get("part_name") or it.get("description") or "PARTS ASSEMBLY").strip()
+            else:
+                p_name = str(it.get("part_name") or it.get("description") or it.get("parent_fig_name") or "SPARE PART").strip()
             ref = str(it.get("ref_no", "")).strip()
             p_no = str(it.get("part_no", "")).strip()
 
             ai_data = (
-                (ai_results.get(f"{f_no}_{ref}") if f_no and ref else None)
+                (ai_results.get(item_id) if item_id else None)
+                or (ai_results.get(f"{f_no}_{ref}") if f_no and ref else None)
                 or (ai_results.get(p_no) if p_no else None)
-                or (ai_results.get(f_no) if it.get("is_parent", True) else None)
+                or (ai_results.get(f_no) if is_parent else None)
                 or ai_results.get(p_name)
                 or {}
             )
@@ -729,6 +753,21 @@ def enhance_metadata_with_gemini(
                 it["meta_long_description"] = valid_meta
                 it["meta_desc_chars"] = len(valid_meta)
                 it["long_desc_length"] = len(valid_meta)
+            else:
+                fallback_meta = build_meta_description(
+                    brand=brand,
+                    model_code=model_code,
+                    part_name=p_name,
+                    model=model,
+                    series=series,
+                    seed=item_seed,
+                    user_prompt=prompt_to_use,
+                    parent_assembly=parent_asm if not is_parent else "",
+                )
+                it["meta_description"] = fallback_meta
+                it["meta_long_description"] = fallback_meta
+                it["meta_desc_chars"] = len(fallback_meta)
+                it["long_desc_length"] = len(fallback_meta)
 
             if raw_prod:
                 valid_prod = enforce_product_desc_words(
@@ -743,6 +782,20 @@ def enhance_metadata_with_gemini(
                 )
                 it["product_description"] = valid_prod
                 it["product_desc_words"] = len(valid_prod.split())
+            else:
+                comps = it.get("assembly_components") or []
+                fallback_prod = build_product_description(
+                    brand=brand,
+                    model_code=model_code,
+                    part_name=p_name,
+                    model=model,
+                    series=series,
+                    user_prompt=prompt_to_use,
+                    assembly_components=comps,
+                    parent_assembly=parent_asm if not is_parent else "",
+                )
+                it["product_description"] = fallback_prod
+                it["product_desc_words"] = len(fallback_prod.split())
 
             it["ai_generated"] = bool(raw_meta or raw_prod or raw_analysis)
 
