@@ -54,9 +54,10 @@ def enforce_product_desc_words(
     seed: Optional[int] = None,
     model: str = "",
     model_code: str = "",
+    user_prompt: str = "",
 ) -> str:
     """Ensure product description is strictly bounded between 120 and 140 words without commas,
-    strictly preserving 'IndiaSpare' proper casing and model in ALL CAPS per user mandate.
+    strictly preserving 'IndiaSpare' proper casing, user prompt themes, and model in ALL CAPS per user mandate.
     """
     clean_text = clean_no_commas(text)
     words = clean_text.split()
@@ -96,6 +97,26 @@ def enforce_product_desc_words(
         "Dependable automotive engineering provides riders with absolute peace of mind during extended touring expeditions.",
         "Count on IndiaSpare for certified genuine OEM diagram replacement components dispatched quickly with secure protective transit.",
     ]
+
+    # If user prompt has custom directives, prioritize prompt-tailored padding sentences
+    clean_p = clean_no_commas(user_prompt or "").strip()
+    if clean_p:
+        skip_words = {
+            "generate", "descriptions", "for", "the", "and", "with",
+            "please", "each", "both", "excel", "pdf", "record", "parts",
+            "catalogue", "extracted", "metadata", "component", "components", "oem"
+        }
+        p_terms = [w for w in clean_p.split() if w.lower() not in skip_words and len(w) > 2]
+        if len(p_terms) >= 3:
+            theme = " ".join(p_terms[:6])
+            addon_paragraphs.insert(
+                0,
+                f"Engineered specifically to satisfy rider requirements for {theme} across challenging terrain.",
+            )
+            addon_paragraphs.insert(
+                1,
+                f"Delivers dependable OEM factory performance tailored for {theme} and long lasting mechanical endurance.",
+            )
 
     rng = random.Random(seed) if seed is not None else random.Random()
     shuffled_addons = list(addon_paragraphs)
@@ -164,38 +185,40 @@ def _build_gemini_payload(
     system_instruction = (
         "You are an expert automotive parts engineer and eCommerce copywriter for 'IndiaSpare', "
         "an authentic OEM motorcycle and scooter spare parts supplier in India.\n\n"
+        "=== SUPREME PRIORITY DIRECTIVE: USER'S PROMPT IS LAW ===\n"
+        "Whenever the user enters custom prompt directives, instructions, keywords, or focus areas, you MUST prioritize "
+        "them above all else! Incorporate the user's specific tone, keywords, warranty terms, themes (e.g. racing speed, "
+        "monsoon water resistance, carbon fiber, long-term road durability, safe packaging, high heat tolerance), and "
+        "value propositions directly into the analysis, meta description, and product description. Never produce generic "
+        "canned boilerplate that ignores the user prompt.\n\n"
         "DUAL-RECORD ARCHITECTURE:\n"
         "For each part assembly, you are provided with TWO distinct Excel records:\n"
-        "1. 'extracted_parts_catalogue_record': Contains raw extracted engineering catalogue data "
-        "(page, fig_no, catalog_name, ref_no, OEM part_no, clean_part_no, model_quantities, and remarks).\n"
+        "1. 'extracted_parts_catalogue_record': Contains raw extracted engineering catalogue data from the PDF "
+        "(page, fig_no, catalog_name, ref_no, OEM part_no, clean_part_no, model_quantities, remarks, and "
+        "the complete list of extracted child components under 'extracted_components_list').\n"
         "2. 'seo_metadata_record': Contains customer-facing SEO & vehicle metadata "
         "(brand, model_code, model, series, pic image filename, short_description title in CAPS, and meta_title).\n\n"
         "MANDATORY TWO-STEP PROCEDURE:\n"
         "STEP 1 - DUAL-RECORD ANALYSIS:\n"
-        "Before generating any descriptions, you MUST systematically analyze BOTH Excel records together. "
-        "Evaluate the mechanical role, OEM part number, clean part number format, assembly context (fig_no, ref_no), "
-        "quantities across vehicle model variants, remarks, and vehicle identity (brand, model, series). "
-        "Provide a concise technical grounding analysis in the 'analysis' field.\n\n"
-        "STEP 2 - GENERATE DESCRIPTIONS GROUNDED IN ANALYSIS:\n"
+        "Before generating descriptions, you MUST systematically analyze BOTH Excel records together. "
+        "Examine the figure assembly, the OEM part number, clean part number format, and the actual components listed in "
+        "'extracted_components_list' (evaluating gaskets, bolts, valves, seals, and subcomponents that make up the assembly). "
+        "Provide a concise, grounded technical analysis in the 'analysis' field reflecting both records and the user prompt.\n\n"
+        "STEP 2 - GENERATE DESCRIPTIONS GROUNDED IN ANALYSIS & USER PROMPT:\n"
         "Using your Step 1 analysis as direct grounding, generate:\n"
         "- 'meta_description': strictly 151 to 158 characters, zero commas, exact proper casing 'IndiaSpare'. "
         "Must be a high-converting eCommerce SEO summary with vehicle fitment and IndiaSpare genuine guarantee.\n"
         "- 'product_description': strictly 120 to 140 words, zero commas, exact proper casing 'IndiaSpare'. "
-        "Must detail genuine OEM factory specifications, high heat and stress tolerance, precise dimensional fitment, "
-        "and IndiaSpare verified replacement reliability.\n\n"
+        "Must detail genuine OEM factory specifications, assembly components, high heat and stress tolerance, "
+        "and IndiaSpare verified replacement reliability, thoroughly reflecting the user prompt.\n\n"
         "MANDATORY FRESHNESS & UNIQUENESS ON EVERY SINGLE GENERATION RUN:\n"
         "- On EVERY SINGLE generation run, you MUST produce completely original, unique, and fresh copywriting. "
-        "NEVER repeat identical sentence structures, cliches, or openers across clicks or runs.\n"
-        "- Dynamically explore varied technical and customer-centric angles for each part: thermal alloy resilience, "
-        "high-RPM stability, precision dimensional sealing, friction reduction, vibration damping, highway touring comfort, "
-        "monsoon water resistance, or track-grade durability.\n"
-        "- DEEP USER PROMPT INTEGRATION: When the user enters custom copywriting instructions or directives, "
-        "you MUST deeply weave their specified tone, keywords, themes, and value propositions into both the dual-record analysis "
-        "and the generated descriptions.\n\n"
+        "NEVER repeat identical sentence structures, cliches, or openers across clicks or runs.\n\n"
         "CRITICAL RULES:\n"
         "1. ZERO COMMAS: Do NOT include ANY commas (,) in any field (analysis, meta_description, product_description).\n"
         "2. EXACT CASING: Strictly use 'IndiaSpare' (no spaces, never 'indiaspare' or 'INDIA SPARE').\n"
-        "3. OUTPUT FORMAT: Return a valid JSON object matching the requested schema with 'fig_no', 'part_name', 'analysis', 'meta_description', and 'product_description'."
+        "3. WORD & CHAR LIMITS: Meta description must be 151-158 characters; product description must be 120-140 words.\n"
+        "4. OUTPUT FORMAT: Return a valid JSON object matching the requested schema with 'fig_no', 'part_name', 'analysis', 'meta_description', and 'product_description'."
     )
 
     parts_catalog_data = []
@@ -218,20 +241,35 @@ def _build_gemini_payload(
         m_val = model or str(it.get("model", ""))
         s_val = series or str(it.get("series", "series"))
 
+        components_list = it.get("assembly_components") or []
+        extracted_cat_record: dict[str, Any] = {
+            "page": it.get("page", 1),
+            "fig_no": str(it.get("fig_no", "")),
+            "catalog_name": p_name,
+            "ref_no": str(it.get("ref_no", "1")),
+            "part_no": p_no,
+            "clean_part_no": c_p_no,
+            "model_quantities": model_quantities if model_quantities else {mc_val: "1"},
+            "remarks": str(it.get("remarks", "")),
+        }
+        if components_list:
+            extracted_cat_record["total_extracted_assembly_components"] = len(components_list)
+            extracted_cat_record["extracted_components_list"] = [
+                {
+                    "ref_no": str(c.get("ref_no", "")),
+                    "part_no": str(c.get("part_no", "")),
+                    "clean_part_no": str(c.get("clean_part_no", "")),
+                    "description": str(c.get("description", "")),
+                    "remarks": str(c.get("remarks", "")),
+                }
+                for c in components_list[:25]
+            ]
+
         parts_catalog_data.append({
             "fig_no": str(it.get("fig_no", "")),
             "part_name": p_name,
             # Record 1: Extracted Parts Catalogue Excel Record
-            "extracted_parts_catalogue_record": {
-                "page": it.get("page", 1),
-                "fig_no": str(it.get("fig_no", "")),
-                "catalog_name": p_name,
-                "ref_no": str(it.get("ref_no", "1")),
-                "part_no": p_no,
-                "clean_part_no": c_p_no,
-                "model_quantities": model_quantities if model_quantities else {mc_val: "1"},
-                "remarks": str(it.get("remarks", "")),
-            },
+            "extracted_parts_catalogue_record": extracted_cat_record,
             # Record 2: SEO & Vehicle Metadata Excel Record
             "seo_metadata_record": {
                 "brand": b_val,
@@ -253,7 +291,7 @@ def _build_gemini_payload(
         f"for each of the {len(parts_catalog_data)} parts listed below before generating the descriptions.\n"
         f"IMPORTANT: Deeply integrate the user's custom directives above into your analysis and descriptions. "
         f"Every single run must produce unique, non-repetitive copywriting with varied sentence structures and fresh vocabulary.\n\n"
-        f"PARTS DUAL-RECORD DATA:\n"
+        f"PARTS DUAL-RECORD DATA (INCLUDING EXTRACTED COMPONENTS):\n"
         f"{json.dumps(parts_catalog_data, indent=2)}\n\n"
         "Return a valid JSON object in this exact structure:\n"
         "{\n"
@@ -261,7 +299,7 @@ def _build_gemini_payload(
         '    {\n'
         '      "fig_no": "1",\n'
         '      "part_name": "CYLINDER HEAD",\n'
-        '      "analysis": "Analyzed Record 1 (CYLINDER HEAD OEM part no BGP-E1111-00 clean part no BGPE111100 fig 1 ref 1) and Record 2 (YAMAHA BGPK RAY ZR). Critical combustion chamber assembly requiring precision dimensional tolerance and high heat resistance.",\n'
+        '      "analysis": "Analyzed Record 1 (CYLINDER HEAD OEM part no BGP-E1111-00 clean part no BGPE111100 fig 1 ref 1 with extracted components) and Record 2 (YAMAHA BGPK RAY ZR). Critical combustion chamber assembly requiring precision dimensional tolerance and high heat resistance.",\n'
         '      "meta_description": "...",\n'
         '      "product_description": "..."\n'
         '    }\n'
@@ -352,16 +390,21 @@ def discover_supported_models(api_key: str, client: httpx.Client) -> list[tuple[
                             if any(sub in n_lower for sub in NON_TEXT_SUBSTRINGS):
                                 continue
                             discovered.append((api_version, m_name))
-            elif resp.status_code in (400, 403):
+            elif resp.status_code == 403:
+                err_text = resp.text
+                raise ValueError(
+                    "Google AI Studio permission denied (HTTP 403). Your Google Cloud project has been denied access or the key is unauthorized. "
+                    "Please create a new API key under an active project at https://aistudio.google.com/app/apikey or switch to Rule-Based Mode."
+                )
+            elif resp.status_code == 400:
                 err_text = resp.text
                 if (
                     "API_KEY_INVALID" in err_text
                     or "not valid" in err_text.lower()
-                    or "permission_denied" in err_text.lower()
                     or "key expired" in err_text.lower()
                 ):
                     raise ValueError(
-                        "Google AI Studio API key is invalid or unauthorized. Please verify your API key at https://aistudio.google.com/app/apikey or switch to Rule-Based Mode."
+                        "Google AI Studio API key is invalid or unauthorized (HTTP 400). Please verify your API key at https://aistudio.google.com/app/apikey or switch to Rule-Based Mode."
                     )
         except ValueError:
             raise
@@ -479,6 +522,12 @@ def call_gemini_batch(
                                 m for m in models_to_try if m != (api_version, model_identifier)
                             ]
                             return results_map
+                elif resp.status_code == 403:
+                    err_text = resp.text
+                    raise ValueError(
+                        "Google AI Studio permission denied (HTTP 403). Your Google Cloud project has been denied access or the key is unauthorized. "
+                        "Please create a new API key under an active project at https://aistudio.google.com/app/apikey or switch to Rule-Based Mode."
+                    )
                 elif resp.status_code in (404, 400):
                     err_text = resp.text
                     if "API_KEY_INVALID" in err_text or "not valid" in err_text.lower():
@@ -603,7 +652,14 @@ def enhance_metadata_with_gemini(
             if not fallback_on_error:
                 raise e
             err_str = str(e)
-            if "API key not valid" in err_str or "API_KEY_INVALID" in err_str or "not found" in err_str.lower() or "invalid or unauthorized" in err_str.lower():
+            if (
+                "API key not valid" in err_str
+                or "API_KEY_INVALID" in err_str
+                or "not found" in err_str.lower()
+                or "invalid or unauthorized" in err_str.lower()
+                or "permission denied" in err_str.lower()
+                or "permission_denied" in err_str.lower()
+            ):
                 raise e
             # Graceful fallback: for items in this batch, populate rule-based descriptions
             # so the user is never stuck with blank descriptions or failed screen!
@@ -611,6 +667,7 @@ def enhance_metadata_with_gemini(
             for it_idx, it in enumerate(batch):
                 item_seed = (batch_seed + it_idx * 7919) % 2147483647
                 p_name = str(it.get("parent_fig_name") or it.get("part_name", "") or it.get("description", "") or "PARTS ASSEMBLY")
+                comps = it.get("assembly_components") or []
                 r_meta = build_meta_description(
                     brand=brand,
                     model_code=model_code,
@@ -618,6 +675,7 @@ def enhance_metadata_with_gemini(
                     model=model,
                     series=series,
                     seed=item_seed,
+                    user_prompt=prompt_to_use,
                 )
                 r_prod = build_product_description(
                     brand=brand,
@@ -625,6 +683,8 @@ def enhance_metadata_with_gemini(
                     part_name=p_name,
                     model=model,
                     series=series,
+                    user_prompt=prompt_to_use,
+                    assembly_components=comps,
                 )
                 it["meta_description"] = r_meta
                 it["meta_long_description"] = r_meta
@@ -632,6 +692,7 @@ def enhance_metadata_with_gemini(
                 it["long_desc_length"] = len(r_meta)
                 it["product_description"] = r_prod
                 it["product_desc_words"] = len(r_prod.split())
+                it["ai_analysis"] = f"Analyzed {p_name} ({len(comps)} components) with user prompt directives applied."
                 it["ai_generated"] = False
                 it["ai_notice"] = f"Generated via rule-based fallback ({err_str[:120]})"
             continue
@@ -678,6 +739,7 @@ def enhance_metadata_with_gemini(
                     seed=item_seed,
                     model=model,
                     model_code=model_code,
+                    user_prompt=prompt_to_use,
                 )
                 it["product_description"] = valid_prod
                 it["product_desc_words"] = len(valid_prod.split())

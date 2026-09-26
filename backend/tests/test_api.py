@@ -390,5 +390,31 @@ def test_metadata_generate_endpoint_with_gemini_ai(mock_call):
     assert "IndiaSpare" in item["product_description"]
 
 
+def test_validate_key_endpoint():
+    """Verify /api/meta/validate-key tests API keys and returns status."""
+    # 1. Blank key
+    res_blank = client.post("/api/meta/validate-key", json={"api_key": "   "})
+    assert res_blank.status_code == 400
+
+    # 2. Mock valid key
+    with patch("app.main.discover_supported_models") as mock_disc:
+        mock_disc.return_value = [("v1beta", "models/gemini-2.0-flash"), ("v1beta", "models/gemini-1.5-flash")]
+        res_valid = client.post("/api/meta/validate-key", json={"api_key": "test-valid-key"})
+        assert res_valid.status_code == 200
+        data_valid = res_valid.json()
+        assert data_valid["valid"] is True
+        assert data_valid["models_count"] == 2
+        assert "gemini-2.0-flash" in data_valid["best_model"]
+
+    # 3. Mock 403 denied key
+    with patch("app.main.discover_supported_models") as mock_disc:
+        mock_disc.side_effect = ValueError("Google AI Studio permission denied (HTTP 403). Your Google Cloud project has been denied access.")
+        res_denied = client.post("/api/meta/validate-key", json={"api_key": "test-denied-key"})
+        assert res_denied.status_code == 200
+        data_denied = res_denied.json()
+        assert data_denied["valid"] is False
+        assert "403" in data_denied["error"]
+
+
 
 

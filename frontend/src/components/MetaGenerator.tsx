@@ -151,6 +151,56 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
   );
   const [aiError, setAiError] = useState<string | null>(null);
 
+  // API Key Validation State
+  const [isValidatingKey, setIsValidatingKey] = useState<boolean>(false);
+  const [keyValidationResult, setKeyValidationResult] = useState<{
+    valid: boolean;
+    message: string;
+    modelsCount?: number;
+    bestModel?: string;
+  } | null>(null);
+
+  const validateApiKey = async (keyToValidate?: string) => {
+    const k = (keyToValidate !== undefined ? keyToValidate : geminiApiKey).trim();
+    if (!k) {
+      setKeyValidationResult({
+        valid: false,
+        message: 'Please enter a Google AI Studio API key first (free at aistudio.google.com).',
+      });
+      return;
+    }
+    setIsValidatingKey(true);
+    setKeyValidationResult(null);
+    try {
+      const res = await fetch('/api/meta/validate-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key: k }),
+      });
+      const data = await res.json();
+      if (data.valid) {
+        setKeyValidationResult({
+          valid: true,
+          message: `Key Active: ${data.models_count} Gemini models available (best: ${data.best_model})`,
+          modelsCount: data.models_count,
+          bestModel: data.best_model,
+        });
+      } else {
+        setKeyValidationResult({
+          valid: false,
+          message: data.error || 'Google AI Studio rejected this key.',
+        });
+      }
+    } catch (e: any) {
+      setKeyValidationResult({
+        valid: false,
+        message: e.message || 'Failed to connect to Google AI Studio validator.',
+      });
+    } finally {
+      setIsValidatingKey(false);
+    }
+  };
+
   // Generation tracking for uniqueness & user feedback on every click/prompt
   const [generationCount, setGenerationCount] = useState<number>(0);
   const [lastGeneratedPrompt, setLastGeneratedPrompt] = useState<string>('');
@@ -342,7 +392,19 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
       }
     } catch (err: any) {
       console.error('Metadata generation error:', err);
-      setAiError(err.message || 'Generation failed');
+      const msg = err.message || 'Generation failed';
+      setAiError(msg);
+      if (
+        msg.includes('403') ||
+        msg.toLowerCase().includes('permission denied') ||
+        msg.toLowerCase().includes('not valid') ||
+        msg.toLowerCase().includes('invalid')
+      ) {
+        setKeyValidationResult({
+          valid: false,
+          message: msg,
+        });
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -905,18 +967,81 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                   <span>Google AI Studio API Key</span>
                   <span className="text-[10px] text-zinc-400 normal-case">Saved locally in browser</span>
                 </label>
-                <div>
+                <div className="flex items-center gap-2">
                   <input
                     type="password"
                     value={geminiApiKey}
                     onChange={(e) => {
                       setGeminiApiKey(e.target.value);
                       localStorage.setItem('converter_gemini_api_key', e.target.value);
+                      setKeyValidationResult(null);
                     }}
-                    placeholder="AIzaSy... (or leave blank if GEMINI_API_KEY is configured on server)"
-                    className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:border-purple-500 font-mono placeholder:font-sans placeholder:text-zinc-400"
+                    placeholder="AIzaSy... (or enter key from aistudio.google.com)"
+                    className="flex-1 px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:border-purple-500 font-mono placeholder:font-sans placeholder:text-zinc-400"
                   />
+                  <button
+                    type="button"
+                    onClick={() => validateApiKey()}
+                    disabled={isValidatingKey || !geminiApiKey.trim()}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-100 hover:bg-purple-200 dark:bg-purple-950/80 dark:hover:bg-purple-900/80 text-purple-700 dark:text-purple-300 font-mono text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shrink-0"
+                    title="Test your API key against Google AI Studio"
+                  >
+                    {isValidatingKey ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Testing...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Verify Key
+                      </>
+                    )}
+                  </button>
                 </div>
+
+                {/* Live Key Validation Status Pill */}
+                {keyValidationResult && (
+                  <div
+                    className={`mt-2 p-2 px-3 rounded-xl border text-[11px] font-mono flex items-start gap-2 animate-in fade-in duration-150 ${
+                      keyValidationResult.valid
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                        : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300'
+                    }`}
+                  >
+                    {keyValidationResult.valid ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
+                    ) : (
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
+                    )}
+                    <div className="flex-1">
+                      <span>{keyValidationResult.message}</span>
+                      {!keyValidationResult.valid && (
+                        <div className="mt-1 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAiMode(false);
+                              generateMetadata(false);
+                            }}
+                            className="underline hover:text-rose-900 dark:hover:text-rose-100 font-bold cursor-pointer"
+                          >
+                            Switch to Rule-Based Mode
+                          </button>
+                          <span>•</span>
+                          <a
+                            href="https://aistudio.google.com/app/apikey"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline hover:text-rose-900 dark:hover:text-rose-100 font-semibold"
+                          >
+                            Get New Free Key &rarr;
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Quick Presets */}

@@ -268,9 +268,11 @@ def build_meta_description(
     model: str = "",
     series: str = "series",
     seed: Optional[int] = None,
+    user_prompt: str = "",
 ) -> str:
     """Build meta description strictly bounded between 151 and 158 characters without commas,
     preserving 'IndiaSpare', model in ALL CAPS, and model_code in ALL CAPS per user mandate.
+    Infuses user_prompt keywords and directives when provided.
     """
     b = (brand or "yamaha").strip().lower()
     mc = (model_code or "model").strip().lower()
@@ -297,6 +299,26 @@ def build_meta_description(
         f"genuine {b} {m_disp} {p} spare parts from indiaspare. authentic oem factory specification diagram assembly with guaranteed durable vehicle fitment.",
         f"buy genuine {b} {m_disp} {p} spare parts from indiaspare. authentic oem diagram assembly with guaranteed durable vehicle fitment and satisfaction.",
     ]
+
+    # Incorporate user prompt themes when available
+    prompt_clean = clean_no_commas(user_prompt or "").strip().lower()
+    if prompt_clean:
+        filter_words = {
+            "generate", "authentic", "descriptions", "parts", "catalogue", "extracted", "metadata",
+            "excel", "please", "with", "from", "your", "this", "that", "each", "both", "record",
+            "components", "component", "diagram", "oem", "genuine", "indiaspare", "india", "spare",
+        }
+        p_words = [w for w in prompt_clean.split() if len(w) >= 4 and w not in filter_words]
+        if p_words:
+            focus_theme = " ".join(p_words[:2])
+            candidates.insert(
+                0,
+                f"buy authentic {b} {m_disp} {p} spare parts from indiaspare. guaranteed oem factory quality with verified {focus_theme} and direct vehicle fitment.",
+            )
+            candidates.insert(
+                1,
+                f"genuine {b} {m_disp} {p} spare parts diagram from indiaspare. authentic factory replacement with direct vehicle fitment and {focus_theme}.",
+            )
 
     valid_cands = [clean_no_commas(c) for c in candidates if 151 <= len(clean_no_commas(c)) <= 158]
     if valid_cands:
@@ -371,8 +393,13 @@ def build_product_description(
     part_name: str,
     model: str = "",
     series: str = "series",
+    user_prompt: str = "",
+    assembly_components: Optional[list[dict[str, Any]]] = None,
+    seed: Optional[int] = None,
 ) -> str:
-    """Build rich product description strictly bounded between 120 and 140 words without commas."""
+    """Build rich product description strictly bounded between 120 and 140 words without commas,
+    weaving user_prompt directives and extracted assembly components when available.
+    """
     b = (brand or "YAMAHA").strip().upper()
     mc = (model_code or "MODEL").strip().upper()
     mn = (model or "").strip().upper()
@@ -387,15 +414,42 @@ def build_product_description(
         parts_model.append(ser)
     m_disp = " ".join(parts_model).strip()
 
+    # Extract component mention from genuine extracted PDF/Excel assembly data
+    comp_mention = ""
+    if assembly_components:
+        c_names = []
+        for c in assembly_components:
+            cd = clean_no_commas(str(c.get("description") or "").strip().upper())
+            if cd and cd not in c_names and cd != p:
+                c_names.append(cd)
+            if len(c_names) >= 2:
+                break
+        if c_names:
+            comp_mention = f" This assembly includes authentic factory components such as {' and '.join(c_names)} engineered to exact dimensional tolerances."
+
+    # Extract user prompt directives to weave into description
+    prompt_snippet = ""
+    clean_p = clean_no_commas(user_prompt or "").strip()
+    if clean_p:
+        skip_words = {
+            "generate", "authentic", "descriptions", "for", "the", "and", "with",
+            "please", "each", "both", "excel", "pdf", "record", "parts", "catalogue",
+            "extracted", "metadata", "component", "components", "oem"
+        }
+        meaningful = [w for w in clean_p.split() if w.lower() not in skip_words and len(w) > 2]
+        if len(meaningful) >= 3:
+            theme = " ".join(meaningful[:6])
+            prompt_snippet = f" Designed to deliver {theme} under demanding riding conditions."
+
     p1 = (
         f"This authentic {b} {m_disp} {p} is an original OEM factory specification component "
-        f"designed specifically for your vehicle assembly. Manufactured under strict quality standards "
+        f"designed specifically for your vehicle assembly.{comp_mention} Manufactured under strict quality standards "
         f"this genuine replacement part provides exact dimensional accuracy and long term mechanical reliability. "
         f"It directly replaces worn or damaged factory components to restore optimum operating performance."
     )
     p2 = (
         f"Every genuine {b} spare part is engineered using premium grade materials capable of withstanding severe "
-        f"operating conditions high heat and mechanical stress. The precision manufacturing ensures seamless compatibility "
+        f"operating conditions high heat and mechanical stress.{prompt_snippet} The precision manufacturing ensures seamless compatibility "
         f"with adjacent assembly parts preventing premature wear and maintaining factory efficiency across all riding conditions."
     )
     p3 = (
@@ -651,6 +705,35 @@ def generate_catalog_metadata(
     results: list[dict[str, Any]] = []
 
     if rows and len(rows) > 0:
+        # Pre-group all rows by figure key so each parent assembly has its complete extracted component breakdown
+        fig_components_map: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        curr_group_key = None
+        for r_idx, r in enumerate(rows):
+            raw_fno = str(r.get("parent_fig_no") or r.get("fig_no") or "").strip()
+            raw_fname = str(r.get("parent_fig_name") or r.get("fig_name") or "").strip()
+            fig_key = (raw_fno, raw_fname) if (raw_fno or raw_fname) else ("row", str(r_idx))
+            if r.get("is_parent") is True or (r.get("is_parent") is None and fig_key != curr_group_key):
+                curr_group_key = fig_key
+            gk = curr_group_key or fig_key
+            if gk not in fig_components_map:
+                fig_components_map[gk] = []
+
+            p_no = str(r.get("part_no") or "").strip()
+            c_p_no = str(r.get("clean_part_no") or (clean_part_number(p_no) if p_no else ""))
+            desc = str(r.get("description") or "").strip()
+            ref_no = str(r.get("ref_no") or "").strip()
+            comp_dict = {
+                "ref_no": ref_no,
+                "part_no": p_no,
+                "clean_part_no": c_p_no,
+                "description": desc,
+                "remarks": str(r.get("remarks") or ""),
+            }
+            for m in model_columns:
+                if m in r:
+                    comp_dict[m] = r[m]
+            fig_components_map[gk].append(comp_dict)
+
         last_fig_key = None
         for r_idx, r in enumerate(rows):
             raw_fno = str(r.get("parent_fig_no") or r.get("fig_no") or "").strip()
@@ -667,10 +750,12 @@ def generate_catalog_metadata(
                 curr_fno = raw_fno
                 curr_fname = raw_fname
                 curr_cat_code = r.get("catalogue_code") or build_catalogue_code(mc, raw_fname, raw_fno)
+                components_list = fig_components_map.get(fig_key, [])
             else:
                 curr_fno = ""
                 curr_fname = ""
                 curr_cat_code = ""
+                components_list = []
 
             part_no = str(r.get("part_no") or "").strip()
             clean_no = str(r.get("clean_part_no") or (clean_part_number(part_no) if part_no else ""))
@@ -690,8 +775,23 @@ def generate_catalog_metadata(
                     meta_desc = ""
                     prod_desc = ""
                 else:
-                    meta_desc = build_meta_description(brand=b, model_code=mc, part_name=display_name, model=mn, series=ser)
-                    prod_desc = build_product_description(brand=b, model_code=mc, part_name=display_name, model=mn, series=ser)
+                    meta_desc = build_meta_description(
+                        brand=b,
+                        model_code=mc,
+                        part_name=display_name,
+                        model=mn,
+                        series=ser,
+                        user_prompt=user_prompt or "",
+                    )
+                    prod_desc = build_product_description(
+                        brand=b,
+                        model_code=mc,
+                        part_name=display_name,
+                        model=mn,
+                        series=ser,
+                        user_prompt=user_prompt or "",
+                        assembly_components=components_list,
+                    )
                 display_desc = desc or display_name
             else:
                 # Per user rule: child rows of short description and meta title must be strictly blank!
@@ -700,8 +800,22 @@ def generate_catalog_metadata(
                 meta_title = ""
                 if allow_child_desc and not blank_descriptions:
                     child_name = desc or "PART"
-                    meta_desc = build_meta_description(brand=b, model_code=mc, part_name=child_name, model=mn, series=ser)
-                    prod_desc = build_product_description(brand=b, model_code=mc, part_name=child_name, model=mn, series=ser)
+                    meta_desc = build_meta_description(
+                        brand=b,
+                        model_code=mc,
+                        part_name=child_name,
+                        model=mn,
+                        series=ser,
+                        user_prompt=user_prompt or "",
+                    )
+                    prod_desc = build_product_description(
+                        brand=b,
+                        model_code=mc,
+                        part_name=child_name,
+                        model=mn,
+                        series=ser,
+                        user_prompt=user_prompt or "",
+                    )
                 else:
                     meta_desc = ""
                     prod_desc = ""
@@ -722,6 +836,7 @@ def generate_catalog_metadata(
                 "description": display_desc,
                 "raw_description": desc,
                 "component_description": desc,
+                "assembly_components": components_list,
                 "brand": b,
                 "model_code": mc,
                 "model": mn,

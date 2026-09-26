@@ -17,6 +17,8 @@ import time
 import uuid
 from typing import Any, Optional
 
+import httpx
+
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
@@ -810,7 +812,11 @@ def download_pipeline_metadata(job_id: str, format: str = "xlsx"):
 # ---------------------------------------------------------------------------
 
 
-from app.gemini_service import enhance_metadata_with_gemini
+from app.gemini_service import discover_supported_models, enhance_metadata_with_gemini
+
+
+class KeyValidateRequest(BaseModel):
+    api_key: str
 
 
 class MetaGenerateRequest(BaseModel):
@@ -842,6 +848,39 @@ class MetaExportRequest(BaseModel):
     model_columns: list[str] = Field(default_factory=list)
     raw_rows: Optional[list[dict[str, Any]]] = None
     selected_columns: Optional[list[str]] = None
+
+
+@app.post("/api/meta/validate-key")
+def validate_gemini_key_endpoint(req: KeyValidateRequest):
+    """Validate a Google AI Studio API key and return working models count."""
+    key = req.api_key.strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="API key is required.")
+
+    with httpx.Client(timeout=8.0) as client:
+        try:
+            models = discover_supported_models(key, client)
+            if models:
+                return {
+                    "valid": True,
+                    "models_count": len(models),
+                    "best_model": models[0][1],
+                    "models": [m[1] for m in models[:5]],
+                }
+            return {
+                "valid": False,
+                "error": "No text models supported for this key.",
+            }
+        except ValueError as ve:
+            return {
+                "valid": False,
+                "error": str(ve),
+            }
+        except Exception as e:
+            return {
+                "valid": False,
+                "error": f"Failed to reach Google AI Studio: {str(e)}",
+            }
 
 
 _SAMPLE_CATALOG_CACHE: Optional[dict[str, Any]] = None
@@ -962,7 +1001,14 @@ def generate_metadata_endpoint(req: MetaGenerateRequest):
         except Exception as e:
             logger.warning("AI generation error: %s", e)
             clean_err = str(e)
-            if "API key not found" in clean_err or "API_KEY_INVALID" in clean_err or "not valid" in clean_err.lower() or "unauthorized" in clean_err.lower():
+            if (
+                "API key not found" in clean_err
+                or "API_KEY_INVALID" in clean_err
+                or "not valid" in clean_err.lower()
+                or "unauthorized" in clean_err.lower()
+                or "permission denied" in clean_err.lower()
+                or "permission_denied" in clean_err.lower()
+            ):
                 raise HTTPException(status_code=400, detail=clean_err)
 
             if req.fallback_to_rules:
