@@ -308,91 +308,81 @@ def build_meta_description(
     # Candidate storytelling sentences
     candidates = []
 
-    # If child part with distinct parent assembly
     if parent_p and parent_p != p:
-        candidates.extend([
-            f"buy authentic {b} {m_disp} {p} for {parent_p} from indiaspare. enjoy smooth rides and daily reliability with verified direct factory vehicle fitment today.",
-            f"genuine {b} {m_disp} {p} for {parent_p} oem spare from indiaspare. keep your motorcycle running smoothly and safely with verified factory vehicle fitment.",
-            f"order genuine {b} {m_disp} {p} for {parent_p} from indiaspare. restore smooth performance and rider safety with verified authentic factory vehicle fitment.",
-            f"authentic {b} {m_disp} {p} for {parent_p} spare part from indiaspare. enjoy peaceful daily riding and exact factory fitment with verified oem durability.",
-        ])
+        openings = [
+            f"buy authentic {b} {m_disp} {p} for {parent_p} from indiaspare.",
+            f"genuine {b} {m_disp} {p} for {parent_p} oem spare from indiaspare.",
+            f"order genuine {b} {m_disp} {p} for {parent_p} from indiaspare.",
+            f"authentic {b} {m_disp} {p} for {parent_p} spare part from indiaspare.",
+            f"shop verified {b} {m_disp} {p} for {parent_p} at indiaspare.",
+            f"official {b} {m_disp} {p} for {parent_p} spare from indiaspare.",
+            f"find authentic {b} {m_disp} {p} for {parent_p} at indiaspare.",
+            f"buy genuine {b} {m_disp} {p} for {parent_p} spare from indiaspare.",
+        ]
+    else:
+        openings = [
+            f"buy authentic {b} {m_disp} {p} spare parts from indiaspare.",
+            f"order genuine {b} {m_disp} {p} original spares from indiaspare.",
+            f"shop verified {b} {m_disp} {p} oem spare parts at indiaspare.",
+            f"genuine {b} {m_disp} {p} authentic factory spares from indiaspare.",
+            f"official {b} {m_disp} {p} factory replacement parts from indiaspare.",
+            f"authentic {b} {m_disp} {p} genuine oem spare from indiaspare.",
+            f"get authentic {b} {m_disp} {p} genuine spare parts from indiaspare.",
+            f"buy genuine {b} {m_disp} {p} replacement spares from indiaspare.",
+            f"find authentic {b} {m_disp} {p} oem spare parts at indiaspare.",
+            f"buy official {b} {m_disp} {p} replacement parts from indiaspare.",
+            f"order authentic {b} {m_disp} {p} factory spare from indiaspare.",
+        ]
 
-    candidates.extend([
-        f"buy authentic {b} {m_disp} {ser} {p} genuine oem spare parts diagram from indiaspare. high quality factory replacement parts with verified vehicle fit.",
-        f"buy genuine {b} {m_disp} {ser} {p} original oem spare parts diagram from indiaspare. factory direct replacement component with verified vehicle fit.",
-        f"authentic {b} {m_disp} {ser} {p} oem spare parts diagram illustration by indiaspare. factory standard direct replacement parts with verified vehicle fit.",
-        f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from indiaspare. high quality factory replacement parts with verified vehicle fit.",
-        f"genuine {b} {m_disp} {p} authentic oem spare parts diagram from indiaspare. high quality factory replacement parts with verified vehicle fitment today.",
-        f"buy genuine {b} {m_disp} {ser} {p} replacement parts from indiaspare. authentic oem factory specification diagram assembly with guaranteed vehicle fit.",
-        f"authentic {b} {m_disp} {p} spare part from indiaspare. genuine factory standard oem diagram illustration with guaranteed durability and vehicle fitment.",
-        f"original {b} {m_disp} {ser} {p} replacement component from indiaspare. premium oem factory diagram spare with guaranteed vehicle fitment and durability.",
-        f"buy official {b} {m_disp} {p} genuine spare parts from indiaspare. authentic oem factory replacement diagram assembly with guaranteed fit and quality.",
-        f"official {b} {m_disp} {p} spare parts from indiaspare. genuine oem factory specification replacement diagram illustration with guaranteed vehicle fitment.",
-        f"authentic {b} {m_disp} {p} diagram spare part from indiaspare. high quality factory replacement component with guaranteed vehicle fit and durability.",
-        f"genuine {b} {m_disp} {p} spare parts from indiaspare. authentic oem factory specification diagram assembly with guaranteed durable vehicle fitment.",
-        f"buy genuine {b} {m_disp} {p} spare parts from indiaspare. authentic oem diagram assembly with guaranteed durable vehicle fitment and satisfaction.",
-        f"buy authentic {b} {m_disp} {p} genuine oem spare from indiaspare. enjoy smooth rides and peaceful daily journeys with verified direct vehicle fitment today.",
-        f"order genuine {b} {m_disp} {p} factory oem spare from indiaspare. restore showroom smoothness and rider confidence with verified direct vehicle fitment.",
-        f"shop authentic {b} {m_disp} {p} genuine oem parts at indiaspare. experience smooth journeys and daily reliability with verified direct vehicle fitment.",
-        f"authentic {b} {m_disp} {p} genuine factory replacement from indiaspare. ride with total peace of mind and smooth performance with verified vehicle fit.",
-        f"genuine {b} {m_disp} {p} factory oem replacement part from indiaspare. experience peaceful riding and smooth handling with verified direct vehicle fitment.",
-    ])
-
-    # Incorporate user prompt themes when available
-    prompt_clean = clean_no_commas(user_prompt or "").strip().lower()
-    if prompt_clean:
-        filter_words = {
-            "generate", "authentic", "descriptions", "parts", "catalogue", "extracted", "metadata",
-            "excel", "please", "with", "from", "your", "this", "that", "each", "both", "record",
-            "components", "component", "diagram", "oem", "genuine", "indiaspare", "india", "spare",
-        }
-        p_words = [w for w in prompt_clean.split() if len(w) >= 4 and w not in filter_words]
-        if p_words:
-            focus_theme = " ".join(p_words[:2])
-            candidates.insert(
-                0,
-                f"buy authentic {b} {m_disp} {p} spare parts from indiaspare. guaranteed oem factory quality with verified {focus_theme} and direct vehicle fitment.",
-            )
-            candidates.insert(
-                1,
-                f"genuine {b} {m_disp} {p} spare parts diagram from indiaspare. authentic factory replacement with direct vehicle fitment and {focus_theme}.",
-            )
-
-    valid_cands = [clean_no_commas(c) for c in candidates if 151 <= len(clean_no_commas(c)) <= 158]
-    if valid_cands:
-        return preserve_caps(rng.choice(valid_cands), model=mn, model_code=mc)
-
-    # Algorithmic prefix + suffix combinations
-    prefix = clean_no_commas(f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from indiaspare.")
-
-    suffix_bank = [
-        "high quality factory replacement parts with verified vehicle fit.",
-        "high quality factory replacement parts with guaranteed fitment.",
-        "premium oem factory standard replacement for your vehicle.",
-        "guaranteed authentic oem factory replacement with exact fit.",
-        "factory direct replacement spare with guaranteed fitment.",
-        "direct factory replacement component with verified fit.",
-        "factory standard oem replacement with guaranteed fit.",
-        "genuine factory replacement with guaranteed durability.",
-        "authentic oem factory replacement with guaranteed fit.",
-        "guaranteed authentic factory replacement spare parts.",
-        "factory replacement diagram with verified fitment.",
-        "verified factory replacement with guaranteed fit.",
-        "genuine oem factory replacement with verified vehicle fit.",
-        "direct factory replacement parts with verified fit.",
-        "premium factory replacement with guaranteed fitment.",
-        "enjoy smooth rides and safety with verified vehicle fit.",
-        "restore smooth daily riding with verified vehicle fit.",
+    narratives = [
+        "enjoy smooth riding daily durability and factory precision fitment",
+        "experience peaceful journeys responsive handling and verified vehicle fit",
+        "restore factory balance vibration free riding and direct vehicle fitment",
+        "maintain optimal road safety long lasting endurance and exact vehicle fit",
+        "keep your motorcycle running smoothly with authentic factory durability",
+        "protect your two wheeler with verified factory specification and fitment",
+        "restore showroom smoothness and riding confidence with genuine factory fit",
+        "enjoy peaceful daily commuting and responsive power with verified fit",
+        "ensure dependable highway cruising and smooth handling with factory fit",
+        "deliver maximum road safety and lasting durability with verified fitment",
+        "experience long term road safety and dependable mechanical harmony",
+        "ride with total peace of mind and verified factory standard durability",
     ]
 
-    valid_combos = []
-    for s in suffix_bank:
-        cand = clean_no_commas(f"{prefix} {s}")
-        if 151 <= len(cand) <= 158:
-            valid_combos.append(cand)
+    prompt_clean = clean_no_commas(user_prompt or "").strip().lower()
+    if prompt_clean:
+        skip = {"generate", "authentic", "descriptions", "for", "the", "and", "with", "parts", "oem", "spare", "catalogue", "excel"}
+        p_words = [w for w in prompt_clean.split() if w not in skip and len(w) >= 4]
+        if len(p_words) >= 2:
+            th = " ".join(p_words[:2])
+            narratives.insert(0, f"enjoy {th} and verified direct vehicle fitment with oem durability")
+            narratives.insert(1, f"restore {th} and smooth riding performance with factory direct fit")
+            narratives.insert(2, f"experience {th} and factory precision fitment with verified quality")
 
-    if valid_combos:
-        return preserve_caps(rng.choice(valid_combos), model=mn, model_code=mc)
+    closings = [
+        " today.",
+        " guaranteed.",
+        " with verified vehicle fit.",
+        " with direct vehicle fitment.",
+        " across all roads.",
+        " for daily reliability.",
+        " with complete peace of mind.",
+        " on every journey.",
+        " across india.",
+        " with fast courier delivery.",
+        " for long term safety.",
+    ]
+
+    candidates = []
+    for op in openings:
+        for narr in narratives:
+            for cl in closings:
+                cand = clean_no_commas(f"{op} {narr}{cl}")
+                if 151 <= len(cand) <= 158:
+                    candidates.append(cand)
+
+    if candidates:
+        return preserve_caps(rng.choice(candidates), model=mn, model_code=mc)
 
     base = clean_no_commas(
         f"buy authentic {b} {m_disp} {p} genuine oem spare parts diagram from indiaspare. "
