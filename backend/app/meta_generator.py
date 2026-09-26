@@ -491,7 +491,15 @@ def build_product_description(
         ]
         full_text = full_text.rstrip(".") + ". " + " ".join(padding_words[:needed]) + "."
         words = full_text.split()
-    elif len(words) > 140:
+    # Ensure IndiaSpare is guaranteed to be present
+    if "indiaspare" not in full_text.lower() and "india spare" not in full_text.lower():
+        words = full_text.rstrip(".").split()
+        if len(words) >= 137:
+            words = words[:134]
+        full_text = " ".join(words) + " from IndiaSpare."
+        words = full_text.split()
+
+    if len(words) > 140:
         words = words[:135]
         full_text = " ".join(words).rstrip(".") + "."
 
