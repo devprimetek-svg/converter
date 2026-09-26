@@ -53,12 +53,6 @@ class PipelineJob:
         self.excel_bytes: Optional[bytes] = None
         self.excel_filename: str = ""
 
-        # Metadata & SEO state
-        self.metadata_items: list[dict[str, Any]] = []
-        self.metadata_excel_bytes: Optional[bytes] = None
-        self.metadata_csv_bytes: Optional[bytes] = None
-        self.metadata_filename: str = ""
-
         # Image state
         self.total_images_found = 0
         self.images_processed_count = 0

@@ -64,13 +64,6 @@ interface PipelineStatus {
 }
 
 export interface AutoPipelineProps {
-  onProceedToMeta?: (data: {
-    jobId: string;
-    rows: any[];
-    figures: any[];
-    modelColumns: string[];
-    filename: string;
-  }) => void;
   onJobCompleted?: (data: {
     jobId: string;
     rows: any[];
@@ -80,7 +73,7 @@ export interface AutoPipelineProps {
   }) => void;
 }
 
-export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta, onJobCompleted }) => {
+export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) => {
   // Preset States (Pre-filled exactly per user specifications: Company logo, -30° rotation, 115 padding, 25% scale, 10% opacity, tiled)
   const [wmType, setWmType] = useState<'logo' | 'text'>('logo');
   const [wmText, setWmText] = useState<string>('IndiaSpare');
@@ -796,23 +789,6 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onProceedToMeta, onJ
                   <FileSpreadsheet className="w-4 h-4 text-zinc-700 dark:text-white" />
                   Excel Only
                 </button>
-                {onProceedToMeta && (
-                  <button
-                    onClick={() =>
-                      onProceedToMeta({
-                        jobId: status.job_id,
-                        rows: status.rows || status.rows_sample || [],
-                        figures: status.figures || [],
-                        modelColumns: status.model_columns || [],
-                        filename: status.filename.replace(/\.pdf$/i, ''),
-                      })
-                    }
-                    className="inline-flex items-center gap-2 px-5 py-3 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer"
-                  >
-                    <Sparkles className="w-4 h-4 text-purple-200" />
-                    SEO & Metadata Module &rarr;
-                  </button>
-                )}
                 <button
                   onClick={handleReset}
                   className="inline-flex items-center gap-1.5 px-4 py-3 rounded-full bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white text-xs sm:text-sm font-semibold border border-zinc-200 dark:border-zinc-800 transition-all font-mono cursor-pointer"

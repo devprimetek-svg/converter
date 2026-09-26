@@ -15,45 +15,6 @@ export interface FigureItem {
   first_page: number;
 }
 
-export interface PartMetadataItem {
-  page: number;
-  fig_no: string;
-  fig_name?: string;
-  part_name?: string;
-  ref_no: string;
-  part_no: string;
-  clean_part_no: string;
-  description: string;
-  brand?: string;
-  model_code?: string;
-  model?: string;
-  series?: string;
-  compatible_models: string;
-  image_filename: string;
-  product_title: string;
-  meta_title?: string;
-  meta_description?: string;
-  meta_long_description: string;
-  meta_desc_chars?: number;
-  long_desc_length?: number;
-  product_description?: string;
-  product_desc_words?: number;
-  remarks?: string;
-  ai_generated?: boolean;
-  ai_analysis?: string;
-  is_parent?: boolean;
-  catalogue_code?: string;
-  cell_type?: string;
-  [key: string]: any;
-}
-
-export interface MetaTemplateConfig {
-  brand: string;
-  style: 'ecommerce' | 'marketplace' | 'minimalist' | 'custom';
-  customTitle?: string;
-  customLongDesc?: string;
-}
-
 export interface ExtractionStatus {
   job_id: string;
   filename: string;

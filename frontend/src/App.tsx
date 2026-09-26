@@ -9,7 +9,6 @@ import { PdfImageExtractor } from './components/PdfImageExtractor';
 import { BulkImageResizer } from './components/BulkImageResizer';
 import { WatermarkTool } from './components/WatermarkTool';
 import { AutoPipeline } from './components/AutoPipeline';
-import { MetaGenerator } from './components/MetaGenerator';
 import type { ExtractionStatus } from './types';
 
 export function App() {
@@ -28,43 +27,6 @@ export function App() {
   const [isUploading, setIsUploading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  // Shared Catalogue Context for SEO & Metadata Module (persisted across tabs in sessionStorage)
-  const [pipelineMetaContext, setPipelineMetaContext] = useState<{
-    jobId: string;
-    rows: any[];
-    figures: any[];
-    modelColumns: string[];
-    filename: string;
-  } | null>(() => {
-    try {
-      const saved = sessionStorage.getItem('converter_active_catalog');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-
-  const updateSharedCatalog = (data: {
-    jobId: string;
-    rows: any[];
-    figures: any[];
-    modelColumns: string[];
-    filename: string;
-  } | null) => {
-    setPipelineMetaContext(data);
-    if (data && data.rows && data.rows.length > 0) {
-      try {
-        sessionStorage.setItem('converter_active_catalog', JSON.stringify(data));
-      } catch (e) {
-        console.warn('Failed to save catalogue to sessionStorage:', e);
-      }
-    } else {
-      try {
-        sessionStorage.removeItem('converter_active_catalog');
-      } catch {}
-    }
-  };
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollingTimerRef = useRef<number | null>(null);
@@ -211,19 +173,6 @@ export function App() {
     }, 500);
   };
 
-  // Automatically keep shared catalogue synced for SEO & Metadata module when catalogue finishes
-  useEffect(() => {
-    if (status && status.status === 'completed' && status.rows && status.rows.length > 0) {
-      updateSharedCatalog({
-        jobId: status.job_id,
-        rows: status.rows,
-        figures: status.figures || [],
-        modelColumns: status.model_columns || [],
-        filename: status.filename.replace(/\.pdf$/i, ''),
-      });
-    }
-  }, [status]);
-
   const handleExport = async (cleanParts: boolean, targetModel?: string) => {
     if (!status || !status.rows || status.rows.length === 0) return;
 
@@ -314,15 +263,7 @@ export function App() {
         {/* Tab 0: Automated End-to-End Pipeline */}
         {activeTab === 'auto-pipeline' && (
           <div className="animate-in fade-in duration-200">
-            <AutoPipeline
-              onProceedToMeta={(data) => {
-                updateSharedCatalog(data);
-                setActiveTab('meta-generator');
-              }}
-              onJobCompleted={(data) => {
-                updateSharedCatalog(data);
-              }}
-            />
+            <AutoPipeline />
           </div>
         )}
 
@@ -374,28 +315,6 @@ export function App() {
                 />
               </div>
             )}
-          </div>
-        )}
-
-        {/* Tab 2: SEO & Product Metadata Generator */}
-        {activeTab === 'meta-generator' && (
-          <div className="animate-in fade-in duration-200">
-            <MetaGenerator
-              key={
-                pipelineMetaContext?.jobId
-                  ? `${pipelineMetaContext.jobId}_${pipelineMetaContext.rows?.length || 0}`
-                  : status?.job_id
-                  ? `${status.job_id}_${status.rows?.length || 0}`
-                  : pipelineMetaContext?.filename
-                  ? `${pipelineMetaContext.filename}_${pipelineMetaContext.rows?.length || 0}`
-                  : 'sample-meta'
-              }
-              initialRows={pipelineMetaContext?.rows || status?.rows || []}
-              initialFigures={pipelineMetaContext?.figures || status?.figures || []}
-              modelColumns={pipelineMetaContext?.modelColumns || status?.model_columns || []}
-              initialFilename={pipelineMetaContext?.filename || status?.filename?.replace(/\.pdf$/i, '') || 'Catalogue'}
-              jobId={pipelineMetaContext?.jobId || status?.job_id}
-            />
           </div>
         )}
 
