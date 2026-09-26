@@ -2,11 +2,16 @@ export interface PartRow {
   page: number;
   fig_no: string;
   fig_name: string;
+  catalogue_code?: string;
+  pic?: string;
+  image?: string;
+  is_parent?: boolean;
+  parent_fig_name?: string;
   ref_no: string;
   part_no: string;
   description: string;
   remarks: string;
-  [key: string]: string | number;
+  [key: string]: string | number | boolean | undefined;
 }
 
 export interface FigureItem {

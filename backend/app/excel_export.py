@@ -36,6 +36,15 @@ def build_catalogue_code(model_code: str, fig_name: str, fig_no: str = "") -> st
     return f"YAM_{mc}_{fn}"
 
 
+def build_image_record(model_code: str, fig_name: str, fig_no: str = "") -> str:
+    """Build standardized parent image filename record.
+    Matches naming standard: YAM_{MODEL_CODE}_{PARTS NAME}.jpeg
+    e.g. YAM_BGPK_CYLINDER HEAD.jpeg
+    """
+    cat_code = build_catalogue_code(model_code, fig_name, fig_no)
+    return f"{cat_code}.jpeg" if cat_code else ""
+
+
 def is_valid_quantity(val: Any) -> bool:
     """Return True if quantity is non-empty, non-zero, and not a blank placeholder."""
     if val is None:
@@ -118,12 +127,13 @@ def generate_excel_workbook(
         bottom=thin_border_side,
     )
 
-    # Base columns: Catalogue Code placed immediately after Parts Name (fig_name)
+    # Base columns: Catalogue Code placed after Parts Name, Pic (parent image record) placed before Ref No.
     headers = [
         ("Page", "page", center_align),
         ("Fig No.", "fig_no", center_align),
         ("Parts Name", "fig_name", left_align),
         ("Catalogue Code", "catalogue_code", left_align),
+        ("Pic", "pic", left_align),
         ("Ref No.", "ref_no", center_align),
         ("Part No.", "part_no", left_align),
         ("Description", "description", left_align),
@@ -165,11 +175,13 @@ def generate_excel_workbook(
             curr_fig_no = raw_fig_no
             curr_fig_name = raw_fig_name
             curr_cat_code = row_data.get("catalogue_code") or build_catalogue_code(active_model_code, raw_fig_name, raw_fig_no)
+            curr_pic = row_data.get("pic") or row_data.get("image") or (f"{curr_cat_code}.jpeg" if curr_cat_code else "")
         else:
-            # Child cell under same figure: fig_no, fig_name, and catalogue_code do NOT repeat and remain blank
+            # Child cell under same figure: fig_no, fig_name, catalogue_code, and pic do NOT repeat and remain blank
             curr_fig_no = ""
             curr_fig_name = ""
             curr_cat_code = ""
+            curr_pic = ""
 
         for col_idx, (_, field_key, cell_align) in enumerate(headers, start=1):
             if field_key == "fig_no":
@@ -178,6 +190,8 @@ def generate_excel_workbook(
                 val = curr_fig_name
             elif field_key == "catalogue_code":
                 val = curr_cat_code
+            elif field_key in ("pic", "image"):
+                val = curr_pic
             elif field_key == "part_no":
                 val = row_data.get("part_no", "")
                 if clean_parts:

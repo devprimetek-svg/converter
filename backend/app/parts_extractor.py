@@ -65,6 +65,15 @@ def build_catalogue_code(model_code: str, fig_name: str, fig_no: str = "") -> st
     return f"YAM_{mc}_{fn}"
 
 
+def build_image_record(model_code: str, fig_name: str, fig_no: str = "") -> str:
+    """Build standardized parent image filename record.
+    Matches naming standard: YAM_{MODEL_CODE}_{PARTS NAME}.jpeg
+    e.g. YAM_BGPK_CYLINDER HEAD.jpeg
+    """
+    cat_code = build_catalogue_code(model_code, fig_name, fig_no)
+    return f"{cat_code}.jpeg" if cat_code else ""
+
+
 def clean_part_number(part_no: str) -> str:
     """Clean a Yamaha part number according to catalog rules:
     - Remove dashes (hyphens, en-dashes, em-dashes) and spaces.
@@ -594,6 +603,11 @@ def extract_parts_from_pdf(
                     if is_parent
                     else ""
                 )
+                pic_val = (
+                    f"{cat_code}.jpeg"
+                    if is_parent and cat_code
+                    else ""
+                )
 
                 # Construct row
                 row_dict: dict = {
@@ -604,6 +618,8 @@ def extract_parts_from_pdf(
                     "parent_fig_name": current_fig_name,
                     "is_parent": is_parent,
                     "catalogue_code": cat_code,
+                    "pic": pic_val,
+                    "image": pic_val,
                     "ref_no": ref_no,
                     "part_no": part_no,
                     "description": description,
