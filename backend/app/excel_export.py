@@ -45,6 +45,21 @@ def build_image_record(model_code: str, fig_name: str, fig_no: str = "") -> str:
     return f"{cat_code}.jpeg" if cat_code else ""
 
 
+def build_model_name_record(model_code: str, model_name: str, fig_name: str) -> str:
+    """Build the formatted model name record for a parent parts row.
+    Format: YAMAHA {MODEL_CODE} {MODEL_NAME} Series {PARTS_NAME}
+    e.g.    YAMAHA BGPJ LCX125 Series CYLINDER HEAD
+    """
+    mc = (model_code or "MODEL").strip().upper()
+    mn = (model_name or "").strip()
+    fn = re.sub(r"\s+", " ", (fig_name or "").strip()).upper()
+    if not fn:
+        fn = "PARTS"
+    if mn:
+        return f"YAMAHA {mc} {mn} Series {fn}"
+    return f"YAMAHA {mc} Series {fn}"
+
+
 def is_valid_quantity(val: Any) -> bool:
     """Return True if quantity is non-empty, non-zero, and not a blank placeholder."""
     if val is None:
@@ -133,6 +148,7 @@ def generate_excel_workbook(
         ("Fig No.", "fig_no", center_align),
         ("Parts Name", "fig_name", left_align),
         ("Catalogue Code", "catalogue_code", left_align),
+        ("Model Name", "model_name", left_align),
         ("Pic", "pic", left_align),
         ("Ref No.", "ref_no", center_align),
         ("Part No.", "part_no", left_align),
@@ -176,11 +192,14 @@ def generate_excel_workbook(
             curr_fig_name = raw_fig_name
             curr_cat_code = row_data.get("catalogue_code") or build_catalogue_code(active_model_code, raw_fig_name, raw_fig_no)
             curr_pic = row_data.get("pic") or row_data.get("image") or (f"{curr_cat_code}.jpeg" if curr_cat_code else "")
+            # Model name: prefer the pre-computed value from extraction; build fallback otherwise
+            curr_model_name = row_data.get("model_name") or build_model_name_record(active_model_code, "", raw_fig_name)
         else:
-            # Child cell under same figure: fig_no, fig_name, catalogue_code, and pic do NOT repeat and remain blank
+            # Child cell: fig_no, fig_name, catalogue_code, model_name, and pic do NOT repeat — remain blank
             curr_fig_no = ""
             curr_fig_name = ""
             curr_cat_code = ""
+            curr_model_name = ""
             curr_pic = ""
 
         for col_idx, (_, field_key, cell_align) in enumerate(headers, start=1):
@@ -190,6 +209,8 @@ def generate_excel_workbook(
                 val = curr_fig_name
             elif field_key == "catalogue_code":
                 val = curr_cat_code
+            elif field_key == "model_name":
+                val = curr_model_name
             elif field_key in ("pic", "image"):
                 val = curr_pic
             elif field_key == "part_no":

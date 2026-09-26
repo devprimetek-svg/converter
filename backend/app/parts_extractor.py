@@ -74,6 +74,74 @@ def build_image_record(model_code: str, fig_name: str, fig_no: str = "") -> str:
     return f"{cat_code}.jpeg" if cat_code else ""
 
 
+def extract_model_info_from_pdf(pdf) -> tuple[str, str]:
+    """Scan the first few pages of an open pdfplumber PDF to detect the model name and primary
+    model code printed on the cover / foreword page.
+
+    Returns
+    -------
+    (model_name, model_code) — e.g. ("LCX125", "BGPJ")
+    If not detected, returns ("", "").
+
+    The cover page commonly contains a line such as:
+        LCX125 (BGPJ / BGPL) INDIA
+        R15 V4 (BJPK) INDIA
+        YZF-R15 (B7W2 / B7W4) INDIA
+    Pattern: <MODEL_NAME> (<CODE1> [/ <CODE2> ...]) [COUNTRY]
+    """
+    stop_words = {"PARTS", "CATALOGUE", "CATALOG", "YAMAHA", "GENUINE", "FOREWORD",
+                  "CONTENTS", "INDEX", "ACCESSORIES", "INDIA", "SERIES", "SUMMARY"}
+    for page_idx in range(min(4, len(pdf.pages))):
+        try:
+            text = pdf.pages[page_idx].extract_text() or ""
+        except Exception:
+            continue
+        for raw_line in text.split("\n"):
+            line = raw_line.strip()
+            # Match: <ANYTHING> ( CODE1 / CODE2 ) [COUNTRY]
+            m = re.search(
+                r"([A-Za-z0-9](?:[A-Za-z0-9\-\.\+\s]*?[A-Za-z0-9])?)\s*\(\s*([A-Z][A-Za-z0-9]+(?:\s*/\s*[A-Z][A-Za-z0-9]+)*)\s*\)",
+                line,
+            )
+            if not m:
+                continue
+            cand_name = m.group(1).strip()
+            codes_raw = m.group(2)
+            codes = [c.strip().upper() for c in re.split(r"[/,\s]+", codes_raw) if c.strip()]
+            # Reject if candidate name is entirely a stop-word or too short
+            name_clean = re.sub(r"\s+", " ", cand_name).strip().upper()
+            if not name_clean or name_clean in stop_words or len(name_clean) < 2:
+                continue
+            # Reject if name is just the model code itself (4-char alphanum codes)
+            if re.fullmatch(r"[A-Z0-9]{3,8}", name_clean) and codes and name_clean in codes:
+                continue
+            if codes:
+                return cand_name.strip(), codes[0]
+    return "", ""
+
+
+def build_model_name_record(model_code: str, model_name: str, fig_name: str) -> str:
+    """Build the formatted model name record for a parent parts row.
+    Format: YAMAHA {MODEL_CODE} {MODEL_NAME} Series {PARTS_NAME}
+    e.g.    YAMAHA BGPJ LCX125 Series CYLINDER HEAD
+
+    Rules:
+    - MODEL_CODE is uppercased
+    - MODEL_NAME kept as-is (title-case friendly) but stripped
+    - PARTS_NAME is the fig_name uppercased with extra spaces normalised
+    - If model_name is blank, omit it: YAMAHA {MODEL_CODE} Series {PARTS_NAME}
+    - If model_code is also blank, use MODEL as fallback
+    """
+    mc = (model_code or "MODEL").strip().upper()
+    mn = (model_name or "").strip()
+    fn = re.sub(r"\s+", " ", (fig_name or "").strip()).upper()
+    if not fn:
+        fn = "PARTS"
+    if mn:
+        return f"YAMAHA {mc} {mn} Series {fn}"
+    return f"YAMAHA {mc} Series {fn}"
+
+
 def clean_part_number(part_no: str) -> str:
     """Clean a Yamaha part number according to catalog rules:
     - Remove dashes (hyphens, en-dashes, em-dashes) and spaces.
@@ -322,6 +390,14 @@ def extract_parts_from_pdf(
     total_pages = len(pdf.pages)
     if total_pages == 0:
         raise ExtractionError("PDF document contains no pages.")
+
+    # Detect model name and primary model code from cover/foreword pages
+    pdf_model_name: str = ""
+    pdf_model_code: str = ""
+    try:
+        pdf_model_name, pdf_model_code = extract_model_info_from_pdf(pdf)
+    except Exception:
+        pass  # Non-fatal: fall back to detected model columns later
 
     all_rows: list[dict] = []
     document_model_columns: list[str] = []
@@ -609,6 +685,15 @@ def extract_parts_from_pdf(
                     else ""
                 )
 
+                # Determine effective model code for this row
+                # Prefer detected model column code; fall back to pdf_model_code from cover page
+                effective_model_code = primary_model if primary_model != "MODEL" else (pdf_model_code or primary_model)
+                model_name_val = (
+                    build_model_name_record(effective_model_code, pdf_model_name, current_fig_name)
+                    if is_parent
+                    else ""
+                )
+
                 # Construct row
                 row_dict: dict = {
                     "page": page_num,
@@ -618,6 +703,7 @@ def extract_parts_from_pdf(
                     "parent_fig_name": current_fig_name,
                     "is_parent": is_parent,
                     "catalogue_code": cat_code,
+                    "model_name": model_name_val,
                     "pic": pic_val,
                     "image": pic_val,
                     "ref_no": ref_no,

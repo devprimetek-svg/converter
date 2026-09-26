@@ -3,6 +3,7 @@ export interface PartRow {
   fig_no: string;
   fig_name: string;
   catalogue_code?: string;
+  model_name?: string;
   pic?: string;
   image?: string;
   is_parent?: boolean;

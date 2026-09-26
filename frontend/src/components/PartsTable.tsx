@@ -126,6 +126,16 @@ export const PartsTable: React.FC<PartsTableProps> = ({ rows, modelColumns, clea
               </th>
 
               <th
+                onClick={() => handleSort('model_name')}
+                className="group px-3 py-3 font-bold cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors whitespace-nowrap min-w-[260px]"
+              >
+                <div className="flex items-center gap-1">
+                  <span>Model Name</span>
+                  {renderSortIcon('model_name')}
+                </div>
+              </th>
+
+              <th
                 onClick={() => handleSort('pic')}
                 className="group px-3 py-3 font-bold cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors whitespace-nowrap min-w-[170px]"
               >
@@ -195,7 +205,7 @@ export const PartsTable: React.FC<PartsTableProps> = ({ rows, modelColumns, clea
             {displayedRows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={9 + modelColumns.length}
+                  colSpan={10 + modelColumns.length}
                   className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 font-sans"
                 >
                   No parts match the current filter or search criteria.
@@ -210,6 +220,7 @@ export const PartsTable: React.FC<PartsTableProps> = ({ rows, modelColumns, clea
                 const primaryModel = modelColumns && modelColumns.length > 0 ? modelColumns[0] : 'MODEL';
                 const catCode = (row as any).catalogue_code || `YAM_${primaryModel}_${cleanFig}`;
                 const picVal = (row as any).pic || (row as any).image || (catCode ? `${catCode}.jpeg` : '');
+                const modelNameVal = (row as any).model_name || '';
 
                 return (
                   <tr
@@ -232,6 +243,12 @@ export const PartsTable: React.FC<PartsTableProps> = ({ rows, modelColumns, clea
 
                     <td className="px-3 py-2 font-mono font-bold text-slate-700 dark:text-slate-300 truncate max-w-[200px]" title={catCode}>
                       {isFirstOfFig ? catCode : ''}
+                    </td>
+
+                    <td className="px-3 py-2 font-sans text-xs text-emerald-800 dark:text-emerald-300 truncate max-w-[280px]" title={isFirstOfFig ? modelNameVal : ''}>
+                      {isFirstOfFig && modelNameVal ? (
+                        <span className="font-semibold">{modelNameVal}</span>
+                      ) : ''}
                     </td>
 
                     <td className="px-3 py-2 font-mono text-[11px] text-slate-600 dark:text-slate-400 truncate max-w-[210px]" title={isFirstOfFig ? picVal : ''}>

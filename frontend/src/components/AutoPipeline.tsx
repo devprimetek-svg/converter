@@ -1034,6 +1034,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                       <th className="p-2.5">Fig</th>
                       <th className="p-2.5">Parts Name</th>
                       <th className="p-2.5">Catalogue Code</th>
+                      <th className="p-2.5 min-w-[200px]">Model Name</th>
                       <th className="p-2.5">Pic</th>
                       <th className="p-2.5">Ref</th>
                       <th className="p-2.5">Part No.</th>
@@ -1051,12 +1052,16 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                       const mc = status.model_columns && status.model_columns.length > 0 ? status.model_columns[0] : 'MODEL';
                       const catCode = (r as any).catalogue_code || `YAM_${mc}_${cleanFig}`;
                       const picVal = (r as any).pic || (r as any).image || (catCode ? `${catCode}.jpeg` : '');
+                      const modelNameVal = (r as any).model_name || '';
 
                       return (
                         <tr key={i} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
                           <td className="p-2.5 font-semibold text-zinc-500">{isFirstOfFig ? r.fig_no : ''}</td>
                           <td className="p-2.5 text-zinc-700 dark:text-zinc-300 font-medium">{isFirstOfFig ? (r.fig_name || '-') : ''}</td>
                           <td className="p-2.5 font-mono font-bold text-zinc-700 dark:text-zinc-300">{isFirstOfFig ? catCode : ''}</td>
+                          <td className="p-2.5 text-xs text-emerald-700 dark:text-emerald-300 font-semibold max-w-[220px] truncate" title={isFirstOfFig ? modelNameVal : ''}>
+                            {isFirstOfFig && modelNameVal ? modelNameVal : ''}
+                          </td>
                           <td className="p-2.5 font-mono text-[11px] text-zinc-600 dark:text-zinc-400">
                             {isFirstOfFig && picVal ? (
                               <div className="flex items-center gap-1 font-medium text-blue-600 dark:text-blue-400">
