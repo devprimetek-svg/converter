@@ -8,6 +8,7 @@ post-processing to enforce strict character and word count boundaries:
 - Short Description & Meta Title: preserve Brand, Model, Series after Model, and Model Code.
 """
 
+import concurrent.futures
 import json
 import logging
 import os
@@ -658,10 +659,10 @@ def enhance_metadata_with_gemini(
                 seed=batch_seed,
             )
         except Exception as e:
-            logger.error("Failed to generate AI batch %d: %s.", idx, e)
+            err_str = str(e)
+            logger.error("Failed to generate AI batch %d: %s.", idx, err_str)
             if not fallback_on_error:
                 raise e
-            err_str = str(e)
             if (
                 "API key not valid" in err_str
                 or "API_KEY_INVALID" in err_str
@@ -670,7 +671,7 @@ def enhance_metadata_with_gemini(
                 or "permission denied" in err_str.lower()
                 or "permission_denied" in err_str.lower()
             ):
-                raise e
+                raise RuntimeError(err_str)
             # Graceful fallback: for items in this batch, populate rule-based descriptions
             # so the user is never stuck with blank descriptions or failed screen!
             logger.warning("Using rule-based fallback for batch %d: %s", idx, err_str)

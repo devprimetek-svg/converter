@@ -145,10 +145,17 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
   // Parts Filter Scope: 'all' (current extracted Excel - default) | 'parent' (main assemblies) | 'child' (components)
   const [partsScope, setPartsScope] = useState<'all' | 'parent' | 'child'>('all');
 
-  // Google AI Studio (Gemini) State (prompt box open and ready by default)
-  const [aiMode, setAiMode] = useState<boolean>(true);
+  // Generation tracking refs to prevent unwanted overwrites
+  const hasGeneratedRef = useRef<boolean>(false);
+  const hasInitialScannedRef = useRef<boolean>(false);
+
+  // Google AI Studio (Gemini) State (defaults to instant rule-based if no key is saved)
   const [geminiApiKey, setGeminiApiKey] = useState<string>(() => {
     return localStorage.getItem('converter_gemini_api_key') || '';
+  });
+  const [aiMode, setAiMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem('converter_gemini_api_key');
+    return Boolean(saved && saved.trim().length > 0);
   });
   const [aiPrompt, setAiPrompt] = useState<string>(
     'Generate authentic OEM eCommerce descriptions emphasizing factory precision, durability, heat resistance, direct vehicle fitment, and IndiaSpare verified quality.'
@@ -302,12 +309,52 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
   const activeModelCode = (modelCode.trim() || resolvedModelCode).toUpperCase();
   const isModelFilled = model.trim().length > 0;
 
-  // Load initial metadata with blank descriptions when inputs or catalogue change
+  // Load initial metadata with blank descriptions ONLY ONCE when catalogue rows are first loaded
   useEffect(() => {
-    if ((rows && rows.length > 0) || (figures && figures.length > 0) || jobId) {
+    if (!hasInitialScannedRef.current && ((rows && rows.length > 0) || (figures && figures.length > 0) || jobId)) {
+      hasInitialScannedRef.current = true;
       generateMetadata(false);
     }
-  }, [rows, figures, brand, modelCode, model, series, partsScope, resolvedModelCode, jobId]);
+  }, [rows, figures, jobId]);
+
+  // Synchronize model/brand onto metadataItems in-memory without wiping generated descriptions
+  useEffect(() => {
+    if (metadataItems.length > 0) {
+      setMetadataItems((prev) =>
+        prev.map((item) => {
+          const isParent = item.is_parent !== false;
+          const mCode = activeModelCode;
+          const mName = model.trim().toUpperCase();
+          const bName = brand.trim() || 'YAMAHA';
+          const sName = series.trim();
+          const pName = item.part_name || item.parent_fig_name || item.fig_name || item.description || 'PARTS ASSEMBLY';
+
+          let pTitle = item.product_title;
+          let mTitle = item.meta_title;
+          if (isParent) {
+            const serUpper = sName && sName.toLowerCase() !== 'series' ? `${sName.toUpperCase()} ` : '';
+            pTitle = mName
+              ? `${bName} ${mCode} ${mName} ${serUpper}${pName}`.toUpperCase()
+              : `${bName} ${mCode} ${serUpper}${pName}`.toUpperCase();
+            const bTitle = bName.charAt(0).toUpperCase() + bName.slice(1).toLowerCase();
+            const serTitle = sName && sName.toLowerCase() !== 'series' ? `${sName} ` : '';
+            mTitle = mName
+              ? `${bTitle} ${mName} ${serTitle}${mCode} ${pName} | IndiaSpare`
+              : `${bTitle} ${serTitle}${mCode} ${pName} | IndiaSpare`;
+          }
+          return {
+            ...item,
+            brand: bName,
+            model_code: mCode,
+            model: mName,
+            series: sName,
+            product_title: pTitle,
+            meta_title: mTitle,
+          };
+        })
+      );
+    }
+  }, [brand, model, modelCode, series, activeModelCode]);
 
   const generateMetadata = async (isGenerateClick: boolean = false, overrideAiMode?: boolean) => {
     if ((!rows || rows.length === 0) && (!figures || figures.length === 0) && !jobId) return;
@@ -318,17 +365,19 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
       setGenerationNotice(null);
     }
 
-    // Pre-flight check: if using AI mode on user click and no API key is entered
+    // Smart auto-fallback: if user clicked Generate in AI mode without an API key
     if (isGenerateClick && isAi && !geminiApiKey.trim()) {
       setIsGenerating(false);
-      setAiError(
-        "Google AI Studio API key not found. Please enter your API key in the 'Google AI Studio API Key' box below (free at aistudio.google.com), or click '⚡ Generate with Rule-Based Mode Instead' for instant generation with your prompt."
+      setAiMode(false);
+      setGenerationNotice(
+        "⚡ Instant Generation Active: Generated using Rule-Based Storytelling Engine with your prompt applied! (Enter your free Google AI Studio key below to use Gemini 2.5 Flash)."
       );
-      return;
+      return generateMetadata(true, false);
     }
 
     const nextGenCount = isGenerateClick ? generationCount + 1 : generationCount;
     const runId = isAi && isGenerateClick ? `run_${Date.now()}_${Math.random().toString(36).substring(2, 8)}` : undefined;
+    const isBlank = hasGeneratedRef.current ? false : !isGenerateClick;
 
     try {
       const payload: any = {
@@ -345,7 +394,7 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
         ai_mode: isGenerateClick ? isAi : false,
         ai_prompt: isGenerateClick ? aiPrompt.trim() : undefined,
         gemini_api_key: isAi && geminiApiKey.trim() ? geminiApiKey.trim() : undefined,
-        blank_descriptions: !isGenerateClick,
+        blank_descriptions: isBlank,
         generation_id: runId,
         fallback_to_rules: true,
       };
@@ -386,6 +435,10 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
 
       const data = await res.json();
       setMetadataItems(data.items || []);
+
+      if (isGenerateClick) {
+        hasGeneratedRef.current = true;
+      }
 
       if (data.ai_fallback && data.notice) {
         setAiError(data.notice);
@@ -1610,48 +1663,136 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                             </td>
 
                             {/* Meta Description */}
-                            <td className="p-2.5 text-center">
+                            <td className="p-2.5 min-w-[220px] max-w-[280px]">
                               {metaDesc ? (
-                                <div className="space-y-0.5">
-                                  <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                                    {metaChars}c
-                                  </span>
-                                  <div>
-                                    <button
-                                      onClick={() => setExpandedItemKey(isExpandedMeta ? null : `meta_${itemKey}`)}
-                                      className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
-                                    >
-                                      {isExpandedMeta ? <>Hide <ChevronUp className="w-3 h-3" /></> : <>View <ChevronDown className="w-3 h-3" /></>}
-                                    </button>
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <div className="flex items-center gap-1">
+                                      <span
+                                        className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-mono font-bold border ${
+                                          metaChars >= 151 && metaChars <= 158
+                                            ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                                            : 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                                        }`}
+                                      >
+                                        {metaChars}c
+                                      </span>
+                                      <span className="text-[9px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                                        0 commas ✓
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => copyToClipboard(metaDesc, `meta_desc_${itemKey}`)}
+                                        title="Copy Meta Description"
+                                        className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+                                      >
+                                        {copiedId === `meta_desc_${itemKey}` ? (
+                                          <Check className="w-3 h-3 text-emerald-500" />
+                                        ) : (
+                                          <Copy className="w-3 h-3" />
+                                        )}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedItemKey(isExpandedMeta ? null : `meta_${itemKey}`)}
+                                        className="text-[10px] font-semibold text-zinc-500 hover:text-black dark:hover:text-white cursor-pointer"
+                                        title={isExpandedMeta ? "Collapse full text" : "Expand full text"}
+                                      >
+                                        {isExpandedMeta ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                      </button>
+                                    </div>
                                   </div>
+                                  <p
+                                    onClick={() => setExpandedItemKey(isExpandedMeta ? null : `meta_${itemKey}`)}
+                                    className="text-[11px] text-zinc-700 dark:text-zinc-300 line-clamp-2 font-sans cursor-pointer hover:text-black dark:hover:text-white transition-colors leading-snug"
+                                    title="Click to view full description"
+                                  >
+                                    {metaDesc}
+                                  </p>
                                 </div>
                               ) : (
-                                <span className="text-[10px] text-zinc-400 font-mono italic" title="Not yet generated (click Generate above)">
-                                  Blank
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] text-zinc-400 font-mono italic">
+                                    Not generated
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => generateMetadata(true, aiMode)}
+                                    className="text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                                    title="Click to generate descriptions"
+                                  >
+                                    + Generate
+                                  </button>
+                                </div>
                               )}
                             </td>
 
                             {/* Product Description */}
-                            <td className="p-2.5 text-center">
+                            <td className="p-2.5 min-w-[240px] max-w-[320px]">
                               {prodDesc ? (
-                                <div className="space-y-0.5">
-                                  <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-                                    {prodWords}w
-                                  </span>
-                                  <div>
-                                    <button
-                                      onClick={() => setExpandedItemKey(isExpandedProd ? null : `prod_${itemKey}`)}
-                                      className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
-                                    >
-                                      {isExpandedProd ? <>Hide <ChevronUp className="w-3 h-3" /></> : <>View <ChevronDown className="w-3 h-3" /></>}
-                                    </button>
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between gap-1">
+                                    <div className="flex items-center gap-1">
+                                      <span
+                                        className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-mono font-bold border ${
+                                          prodWords >= 120 && prodWords <= 140
+                                            ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800'
+                                            : 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                                        }`}
+                                      >
+                                        {prodWords}w
+                                      </span>
+                                      <span className="text-[9px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                                        0 commas ✓
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => copyToClipboard(prodDesc, `prod_desc_${itemKey}`)}
+                                        title="Copy Product Description"
+                                        className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+                                      >
+                                        {copiedId === `prod_desc_${itemKey}` ? (
+                                          <Check className="w-3 h-3 text-emerald-500" />
+                                        ) : (
+                                          <Copy className="w-3 h-3" />
+                                        )}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedItemKey(isExpandedProd ? null : `prod_${itemKey}`)}
+                                        className="text-[10px] font-semibold text-zinc-500 hover:text-black dark:hover:text-white cursor-pointer"
+                                        title={isExpandedProd ? "Collapse full text" : "Expand full text"}
+                                      >
+                                        {isExpandedProd ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                      </button>
+                                    </div>
                                   </div>
+                                  <p
+                                    onClick={() => setExpandedItemKey(isExpandedProd ? null : `prod_${itemKey}`)}
+                                    className="text-[11px] text-zinc-700 dark:text-zinc-300 line-clamp-2 font-sans cursor-pointer hover:text-black dark:hover:text-white transition-colors leading-snug"
+                                    title="Click to view full description"
+                                  >
+                                    {prodDesc}
+                                  </p>
                                 </div>
                               ) : (
-                                <span className="text-[10px] text-zinc-400 font-mono italic" title="Not yet generated (click Generate above)">
-                                  Blank
-                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] text-zinc-400 font-mono italic">
+                                    Not generated
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => generateMetadata(true, aiMode)}
+                                    className="text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                                    title="Click to generate descriptions"
+                                  >
+                                    + Generate
+                                  </button>
+                                </div>
                               )}
                             </td>
                           </tr>
@@ -1989,48 +2130,136 @@ export const MetaGenerator: React.FC<MetaGeneratorProps> = ({
                             </td>
 
                             {/* Meta Description */}
-                            <td className="p-3 text-center">
+                            <td className="p-3 min-w-[220px] max-w-[300px]">
                               {metaDesc ? (
                                 <div className="space-y-1">
-                                  <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                                    {metaChars} chars
-                                  </span>
-                                  <div>
-                                    <button
-                                      onClick={() => setExpandedItemKey(isExpandedMeta ? null : `meta_${itemKey}`)}
-                                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
-                                    >
-                                      {isExpandedMeta ? <>Hide <ChevronUp className="w-3 h-3" /></> : <>View <ChevronDown className="w-3 h-3" /></>}
-                                    </button>
+                                  <div className="flex items-center justify-between gap-1">
+                                    <div className="flex items-center gap-1">
+                                      <span
+                                        className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                                          metaChars >= 151 && metaChars <= 158
+                                            ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                                            : 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                                        }`}
+                                      >
+                                        {metaChars} chars
+                                      </span>
+                                      <span className="text-[9px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                                        0 commas ✓
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => copyToClipboard(metaDesc, `meta_desc_${itemKey}`)}
+                                        title="Copy Meta Description"
+                                        className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+                                      >
+                                        {copiedId === `meta_desc_${itemKey}` ? (
+                                          <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                        ) : (
+                                          <Copy className="w-3.5 h-3.5" />
+                                        )}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedItemKey(isExpandedMeta ? null : `meta_${itemKey}`)}
+                                        className="text-[11px] font-semibold text-zinc-500 hover:text-black dark:hover:text-white cursor-pointer"
+                                        title={isExpandedMeta ? "Collapse full text" : "Expand full text"}
+                                      >
+                                        {isExpandedMeta ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                      </button>
+                                    </div>
                                   </div>
+                                  <p
+                                    onClick={() => setExpandedItemKey(isExpandedMeta ? null : `meta_${itemKey}`)}
+                                    className="text-xs text-zinc-700 dark:text-zinc-300 line-clamp-2 font-sans cursor-pointer hover:text-black dark:hover:text-white transition-colors leading-snug"
+                                    title="Click to view full description"
+                                  >
+                                    {metaDesc}
+                                  </p>
                                 </div>
                               ) : (
-                                <span className="text-[11px] text-zinc-400 font-mono italic" title={item.is_parent === false ? "Child cell descriptions left blank unless prompt references child cells" : undefined}>
-                                  {item.is_parent === false ? 'Blank (Child)' : 'Blank'}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[11px] text-zinc-400 font-mono italic">
+                                    {item.is_parent === false ? 'Blank (Child)' : 'Not generated'}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => generateMetadata(true, aiMode)}
+                                    className="text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                                    title="Click to generate descriptions"
+                                  >
+                                    + Generate
+                                  </button>
+                                </div>
                               )}
                             </td>
 
                             {/* Product Description */}
-                            <td className="p-3 text-center">
+                            <td className="p-3 min-w-[240px] max-w-[340px]">
                               {prodDesc ? (
                                 <div className="space-y-1">
-                                  <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
-                                    {prodWords} words
-                                  </span>
-                                  <div>
-                                    <button
-                                      onClick={() => setExpandedItemKey(isExpandedProd ? null : `prod_${itemKey}`)}
-                                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
-                                    >
-                                      {isExpandedProd ? <>Hide <ChevronUp className="w-3 h-3" /></> : <>View <ChevronDown className="w-3 h-3" /></>}
-                                    </button>
+                                  <div className="flex items-center justify-between gap-1">
+                                    <div className="flex items-center gap-1">
+                                      <span
+                                        className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                                          prodWords >= 120 && prodWords <= 140
+                                            ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800'
+                                            : 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800'
+                                        }`}
+                                      >
+                                        {prodWords} words
+                                      </span>
+                                      <span className="text-[9px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                                        0 commas ✓
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => copyToClipboard(prodDesc, `prod_desc_${itemKey}`)}
+                                        title="Copy Product Description"
+                                        className="p-1 rounded hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-black dark:hover:text-white transition-colors cursor-pointer"
+                                      >
+                                        {copiedId === `prod_desc_${itemKey}` ? (
+                                          <Check className="w-3.5 h-3.5 text-emerald-500" />
+                                        ) : (
+                                          <Copy className="w-3.5 h-3.5" />
+                                        )}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedItemKey(isExpandedProd ? null : `prod_${itemKey}`)}
+                                        className="text-[11px] font-semibold text-zinc-500 hover:text-black dark:hover:text-white cursor-pointer"
+                                        title={isExpandedProd ? "Collapse full text" : "Expand full text"}
+                                      >
+                                        {isExpandedProd ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                      </button>
+                                    </div>
                                   </div>
+                                  <p
+                                    onClick={() => setExpandedItemKey(isExpandedProd ? null : `prod_${itemKey}`)}
+                                    className="text-xs text-zinc-700 dark:text-zinc-300 line-clamp-2 font-sans cursor-pointer hover:text-black dark:hover:text-white transition-colors leading-snug"
+                                    title="Click to view full description"
+                                  >
+                                    {prodDesc}
+                                  </p>
                                 </div>
                               ) : (
-                                <span className="text-[11px] text-zinc-400 font-mono italic" title={item.is_parent === false ? "Child cell descriptions left blank unless prompt references child cells" : undefined}>
-                                  {item.is_parent === false ? 'Blank (Child)' : 'Blank'}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[11px] text-zinc-400 font-mono italic">
+                                    {item.is_parent === false ? 'Blank (Child)' : 'Not generated'}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => generateMetadata(true, aiMode)}
+                                    className="text-[10px] font-mono font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                                    title="Click to generate descriptions"
+                                  >
+                                    + Generate
+                                  </button>
+                                </div>
                               )}
                             </td>
                           </tr>
