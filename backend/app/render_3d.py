@@ -446,9 +446,11 @@ def process_isometric_to_photorealistic(
     engine_used = "Cloud AI (Flux Engine)"
     ai_note: Optional[str] = None
 
+    clean_api_key = (api_key or "").strip()
+
     # Step 2: Real AI Generation (Gemini or Cloud AI Flux)
-    if ai_engine == "gemini" or (ai_engine == "auto" and api_key and api_key.strip()):
-        gemini_img, gemini_err = call_gemini_multimodal_render(image_bytes, prompt_to_use, api_key.strip())
+    if clean_api_key and (ai_engine in ("gemini", "auto")):
+        gemini_img, gemini_err = call_gemini_multimodal_render(image_bytes, prompt_to_use, clean_api_key)
         if gemini_img is not None:
             clean_render = gemini_img.resize((input_img.width, input_img.height), Image.Resampling.LANCZOS)
             engine_used = "Google Gemini AI"
