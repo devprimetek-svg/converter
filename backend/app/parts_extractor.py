@@ -164,6 +164,37 @@ def normalize_part_number(part_no: str) -> str:
     return re.sub(r"[\u2010\u2011\u2012\u2013\u2014\u2015]", "-", part_no)
 
 
+def clean_remarks(remarks: str) -> str:
+    """Clean the remarks text extracted from catalog tables.
+    Do not extract words like UR, AB, YB (case-insensitive standalone tokens).
+    Also strips orphaned punctuation (commas, slashes, dashes, parentheses) and extra whitespace.
+    """
+    if not remarks:
+        return ""
+
+    # Remove standalone UR, AB, YB tokens (case-insensitive)
+    # \b matches word boundaries so words like TURBO, CABLE, ABOUT, FOUR are preserved
+    cleaned = re.sub(r"\b(UR|AB|YB)\b", "", str(remarks), flags=re.IGNORECASE)
+
+    # Remove empty parentheses e.g. () or ( )
+    cleaned = re.sub(r"\(\s*\)", "", cleaned)
+
+    # Clean up repetitive or orphaned separators like ", ,", "/ /", "--"
+    cleaned = re.sub(r"[,/\\|\-–—]\s*[,/\\|\-–—]+", " ", cleaned)
+
+    # Strip leading/trailing separators and whitespace
+    cleaned = re.sub(r"^[\s,/\-\–—.:;]+|[\s,/\-\–—.:;]+$", "", cleaned)
+
+    # Normalize multiple whitespaces
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    # If nothing meaningful (no alphanumeric chars) remains, return empty string
+    if not re.search(r"[A-Za-z0-9]", cleaned):
+        return ""
+
+    return cleaned
+
+
 def get_letter_suffix(idx: int) -> str:
     """Return 'A', 'B', ... 'Z', 'AA', 'AB' etc. for a 0-based index."""
     res = ""
@@ -662,7 +693,7 @@ def extract_parts_from_pdf(
                 # All following left-side words joined with spaces are DESCRIPTION
                 description = " ".join(w["text"] for w in remaining_words[1:]).strip()
 
-                remarks_str = " ".join(remarks_words).strip()
+                remarks_str = clean_remarks(" ".join(remarks_words))
 
                 fig_key = f"{current_fig_no}_{current_fig_name}"
                 is_parent = fig_key not in seen_fig_row_keys

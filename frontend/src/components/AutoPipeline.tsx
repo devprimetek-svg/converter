@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import { cleanRemarks } from '../utils/cleanRemarks';
 
 interface PipelineStatus {
   job_id: string;
@@ -1078,7 +1079,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                               {r[m] || '-'}
                             </td>
                           ))}
-                          <td className="p-2.5 text-zinc-500">{r.remarks || '-'}</td>
+                          <td className="p-2.5 text-zinc-500">{cleanRemarks(r.remarks) || '-'}</td>
                         </tr>
                       );
                     })}

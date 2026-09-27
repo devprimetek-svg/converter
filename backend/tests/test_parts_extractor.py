@@ -11,6 +11,7 @@ from app.parts_extractor import (
     ExtractionError,
     NoTextLayerError,
     clean_part_number,
+    clean_remarks,
     cluster_words_into_lines,
     detect_vertical_model_columns,
     extract_parts_from_pdf,
@@ -475,5 +476,98 @@ def test_custom_edited_model_name_in_excel():
     assert ws.cell(row=2, column=5).value == "YAMAHA BJPK R15 V4 Series CYLINDER"
     # Row 3 (Child): blank
     assert (ws.cell(row=3, column=5).value or "") == ""
+
+
+def test_clean_remarks():
+    """Verify that clean_remarks removes standalone tokens like UR, AB, YB (case-insensitive)
+    and handles surrounding punctuation without affecting non-target words."""
+    # Standalone tokens
+    assert clean_remarks("UR") == ""
+    assert clean_remarks("AB") == ""
+    assert clean_remarks("YB") == ""
+    assert clean_remarks("ur") == ""
+    assert clean_remarks("ab") == ""
+    assert clean_remarks("yb") == ""
+
+    # Combined tokens and punctuation
+    assert clean_remarks("UR, AB") == ""
+    assert clean_remarks("UR / YB") == ""
+    assert clean_remarks("(UR)") == ""
+    assert clean_remarks("(AB)") == ""
+    assert clean_remarks("UR - YB") == ""
+    assert clean_remarks("UR / AB / YB") == ""
+
+    # Tokens with valid context
+    assert clean_remarks("UR FOR BWC1") == "FOR BWC1"
+    assert clean_remarks("UR FOR MDNM6") == "FOR MDNM6"
+    assert clean_remarks("OPTIONAL UR") == "OPTIONAL"
+    assert clean_remarks("YB - MAT BLACK") == "MAT BLACK"
+    assert clean_remarks("UR (AP)") == "(AP)"
+
+    # Words containing substrings UR, AB, YB should NOT be modified
+    assert clean_remarks("TURBO") == "TURBO"
+    assert clean_remarks("CABLE") == "CABLE"
+    assert clean_remarks("ABOUT") == "ABOUT"
+    assert clean_remarks("FOUR") == "FOUR"
+
+
+def test_extraction_omits_ur_ab_yb_remarks():
+    """Verify that extract_parts_from_pdf does not extract words like UR, AB, YB in remarks column."""
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=(842, 595))
+    c.drawString(100, 500, "PARTS CATALOGUE")
+    c.drawString(100, 450, "LCX125 INDIA")
+    c.showPage()
+
+    c.drawString(50, 550, "FIG. 1 CYLINDER")
+    c.drawString(50, 520, "REF. NO.")
+    c.drawString(120, 520, "PART NO.")
+    c.drawString(240, 520, "DESCRIPTION")
+    # Model code vertical letters at x=520: K, P, G, B -> BGPK
+    c.drawString(520, 540, "K")
+    c.drawString(520, 533, "P")
+    c.drawString(520, 526, "G")
+    c.drawString(520, 519, "B")
+    c.drawString(600, 520, "REMARKS")
+
+    # Row 1 with remark 'UR' -> should become ''
+    c.drawString(50, 490, "1")
+    c.drawString(120, 490, "B7J-E1102-00")
+    c.drawString(240, 490, "CYLINDER HEAD ASSY")
+    c.drawString(520, 490, "1")
+    c.drawString(600, 490, "UR")
+
+    # Row 2 with remark 'UR FOR BWC1' -> should become 'FOR BWC1'
+    c.drawString(50, 470, "2")
+    c.drawString(120, 470, "95022-06010")
+    c.drawString(240, 470, "BOLT, FLANGE")
+    c.drawString(520, 470, "1")
+    c.drawString(600, 470, "UR FOR BWC1")
+
+    # Row 3 with remark 'AB' -> should become ''
+    c.drawString(50, 450, "3")
+    c.drawString(120, 450, "90430-06817")
+    c.drawString(240, 450, "GASKET")
+    c.drawString(520, 450, "1")
+    c.drawString(600, 450, "AB")
+
+    c.drawString(420, 30, "1")
+    c.showPage()
+    c.save()
+    buf.seek(0)
+
+    result = extract_parts_from_pdf(buf)
+    rows = result["rows"]
+    assert len(rows) == 3
+
+    # Row 1 remarks had 'UR' -> now empty string
+    assert rows[0]["remarks"] == ""
+
+    # Row 2 remarks had 'UR FOR BWC1' -> now 'FOR BWC1'
+    assert rows[1]["remarks"] == "FOR BWC1"
+
+    # Row 3 remarks had 'AB' -> now empty string
+    assert rows[2]["remarks"] == ""
+
 
 

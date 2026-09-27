@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useCallback } from 'react';
 import { ChevronDown, ChevronUp, ChevronsUpDown, ChevronLeft, ChevronRight, Image as ImageIcon, Pencil, Check } from 'lucide-react';
 import type { PartRow } from '../types';
 import { cleanPartNumber } from '../utils/cleanPartNo';
+import { cleanRemarks } from '../utils/cleanRemarks';
 
 interface PartsTableProps {
   rows: PartRow[];
@@ -385,13 +386,19 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                       );
                     })}
 
-                    <td className="px-4 py-2 font-sans text-slate-600 dark:text-slate-400">
-                      {row.remarks ? (
-                        <span className="inline-block px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/80 text-amber-800 dark:text-amber-300 text-[11px] font-medium">
-                          {row.remarks}
-                        </span>
-                      ) : null}
-                    </td>
+                    {/* Remarks column */}
+                    {(() => {
+                      const displayRemarks = cleanRemarks(row.remarks);
+                      return (
+                        <td className="px-4 py-2 font-sans text-slate-600 dark:text-slate-400">
+                          {displayRemarks ? (
+                            <span className="inline-block px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/80 text-amber-800 dark:text-amber-300 text-[11px] font-medium">
+                              {displayRemarks}
+                            </span>
+                          ) : null}
+                        </td>
+                      );
+                    })()}
                   </tr>
                 );
               })
