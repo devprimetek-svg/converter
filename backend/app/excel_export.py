@@ -188,6 +188,7 @@ def generate_excel_workbook(
         is_parent_cell = (fig_key != last_fig_key)
         if is_parent_cell:
             last_fig_key = fig_key
+            curr_page = str(row_data.get("page", ""))
             curr_fig_no = raw_fig_no
             curr_fig_name = raw_fig_name
             curr_cat_code = row_data.get("catalogue_code") or build_catalogue_code(active_model_code, raw_fig_name, raw_fig_no)
@@ -195,7 +196,8 @@ def generate_excel_workbook(
             # Model name: prefer the pre-computed value from extraction; build fallback otherwise
             curr_model_name = row_data.get("model_name") or build_model_name_record(active_model_code, "", raw_fig_name)
         else:
-            # Child cell: fig_no, fig_name, catalogue_code, model_name, and pic do NOT repeat — remain blank
+            # Child cell: page, fig_no, fig_name, catalogue_code, model_name, and pic do NOT repeat — remain blank
+            curr_page = ""
             curr_fig_no = ""
             curr_fig_name = ""
             curr_cat_code = ""
@@ -203,7 +205,9 @@ def generate_excel_workbook(
             curr_pic = ""
 
         for col_idx, (_, field_key, cell_align) in enumerate(headers, start=1):
-            if field_key == "fig_no":
+            if field_key == "page":
+                val = curr_page
+            elif field_key == "fig_no":
                 val = curr_fig_no
             elif field_key == "fig_name":
                 val = curr_fig_name

@@ -269,7 +269,7 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                     }`}
                   >
                     <td className="px-3 py-2 text-center text-slate-500 dark:text-slate-400">
-                      {row.page}
+                      {isFirstOfFig ? row.page : ''}
                     </td>
 
                     <td className="px-3 py-2 text-center font-semibold text-slate-700 dark:text-slate-300">

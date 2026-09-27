@@ -397,8 +397,8 @@ def test_parent_cell_blanking_and_catalogue_code_in_excel():
     assert ws.cell(row=2, column=7).value == "1"            # Ref No.
     assert ws.cell(row=2, column=8).value == "BGP-E1111-00" # Part No.
 
-    # Figure 1 - Row 3 (Child 1: fig_no, fig_name, catalogue_code, model_name, pic must be blank)
-    assert ws.cell(row=3, column=1).value == "1"            # Page
+    # Figure 1 - Row 3 (Child 1: page, fig_no, fig_name, catalogue_code, model_name, pic must be blank)
+    assert (ws.cell(row=3, column=1).value or "") == ""     # Page (BLANK)
     assert (ws.cell(row=3, column=2).value or "") == ""     # Fig No. (BLANK)
     assert (ws.cell(row=3, column=3).value or "") == ""     # Parts Name (BLANK)
     assert (ws.cell(row=3, column=4).value or "") == ""     # Catalogue Code (BLANK)
@@ -407,8 +407,8 @@ def test_parent_cell_blanking_and_catalogue_code_in_excel():
     assert ws.cell(row=3, column=7).value == "2"            # Ref No.
     assert ws.cell(row=3, column=8).value == "90105-088D1"
 
-    # Figure 1 - Row 4 (Child 2: fig_no, fig_name, catalogue_code, model_name, pic must be blank)
-    assert ws.cell(row=4, column=1).value == "1"            # Page
+    # Figure 1 - Row 4 (Child 2: page, fig_no, fig_name, catalogue_code, model_name, pic must be blank)
+    assert (ws.cell(row=4, column=1).value or "") == ""     # Page (BLANK)
     assert (ws.cell(row=4, column=2).value or "") == ""     # Fig No. (BLANK)
     assert (ws.cell(row=4, column=3).value or "") == ""     # Parts Name (BLANK)
     assert (ws.cell(row=4, column=4).value or "") == ""     # Catalogue Code (BLANK)
@@ -425,8 +425,8 @@ def test_parent_cell_blanking_and_catalogue_code_in_excel():
     assert "CRANKSHAFT.jpeg" in ws.cell(row=5, column=6).value  # Pic
     assert ws.cell(row=5, column=7).value == "1"            # Ref No.
 
-    # Figure 2 - Row 6 (Child 1: fig_no, fig_name, catalogue_code, model_name, pic must be blank)
-    assert ws.cell(row=6, column=1).value == "2"            # Page
+    # Figure 2 - Row 6 (Child 1: page, fig_no, fig_name, catalogue_code, model_name, pic must be blank)
+    assert (ws.cell(row=6, column=1).value or "") == ""     # Page (BLANK)
     assert (ws.cell(row=6, column=2).value or "") == ""     # Fig No. (BLANK)
     assert (ws.cell(row=6, column=3).value or "") == ""     # Parts Name (BLANK)
     assert (ws.cell(row=6, column=4).value or "") == ""     # Catalogue Code (BLANK)
