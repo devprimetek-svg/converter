@@ -9,6 +9,7 @@ import { PdfImageExtractor } from './components/PdfImageExtractor';
 import { BulkImageResizer } from './components/BulkImageResizer';
 import { WatermarkTool } from './components/WatermarkTool';
 import { AutoPipeline } from './components/AutoPipeline';
+import { Render3DStudio } from './components/Render3DStudio';
 import type { ExtractionStatus } from './types';
 
 export function App() {
@@ -317,6 +318,13 @@ export function App() {
                 />
               </div>
             )}
+          </div>
+        )}
+
+        {/* Tab: 3D Photorealistic Studio */}
+        {activeTab === '3d-render' && (
+          <div className="animate-in fade-in duration-200">
+            <Render3DStudio />
           </div>
         )}
 
