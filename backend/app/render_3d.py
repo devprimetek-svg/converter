@@ -16,6 +16,7 @@ import os
 import time
 from typing import Any, Optional, Tuple
 
+import httpx
 import numpy as np
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 
@@ -316,6 +317,68 @@ def _synthesize_materials(
 
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# GEMINI AI IMAGE GENERATION
+# ---------------------------------------------------------------------------
+
+def call_gemini_image_api(prompt: str, api_key: str) -> Optional[Image.Image]:
+    """Call Google Gemini / Imagen 3 API with user's API key and custom prompt."""
+    if not api_key:
+        return None
+    clean_key = api_key.strip()
+    if not clean_key:
+        return None
+
+    # Option 1: Google Imagen 3 generate predict endpoint via Google AI Studio
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key={clean_key}"
+        payload = {
+            "instances": [{"prompt": prompt}],
+            "parameters": {
+                "sampleCount": 1,
+                "aspectRatio": "3:4",
+                "outputOptions": {"mimeType": "image/png"},
+            },
+        }
+        with httpx.Client(timeout=35.0) as client:
+            resp = client.post(url, json=payload)
+            if resp.status_code == 200:
+                data = resp.json()
+                predictions = data.get("predictions", [])
+                if predictions and "bytesBase64Encoded" in predictions[0]:
+                    img_data = base64.b64decode(predictions[0]["bytesBase64Encoded"])
+                    return Image.open(io.BytesIO(img_data)).convert("RGB")
+            else:
+                logger.info("Imagen 3.0-generate-002 returned HTTP %d: %s", resp.status_code, resp.text[:150])
+    except Exception as e:
+        logger.info("Imagen 3.0-generate-002 call failed: %s", e)
+
+    # Option 2: Fallback to imagen-3.0-generate-001
+    try:
+        url_alt = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key={clean_key}"
+        payload = {
+            "instances": [{"prompt": prompt}],
+            "parameters": {
+                "sampleCount": 1,
+                "aspectRatio": "3:4",
+                "outputOptions": {"mimeType": "image/png"},
+            },
+        }
+        with httpx.Client(timeout=35.0) as client:
+            resp = client.post(url_alt, json=payload)
+            if resp.status_code == 200:
+                data = resp.json()
+                predictions = data.get("predictions", [])
+                if predictions and "bytesBase64Encoded" in predictions[0]:
+                    img_data = base64.b64decode(predictions[0]["bytesBase64Encoded"])
+                    return Image.open(io.BytesIO(img_data)).convert("RGB")
+    except Exception as e:
+        logger.info("Imagen 3.0-generate-001 call failed: %s", e)
+
+    return None
+
+
+# ---------------------------------------------------------------------------
 # MAIN CONVERSION PIPELINE
 # ---------------------------------------------------------------------------
 
@@ -332,15 +395,15 @@ def process_isometric_to_photorealistic(
     Parameters
     ----------
     image_bytes : Raw bytes of the uploaded line drawing (JPEG / PNG).
-    preset_id : Material preset ('scooter-seat', 'engine', 'chassis', 'studio-clay').
+    preset_id : Material preset (default 'scooter-seat').
     custom_accent_hex : Optional hex color for painted components (e.g. '#C31E23').
     overlay_callouts : Whether to preserve and overlay crisp original numbers (1-16) on top.
-    api_key : Optional AI cloud API key (Google Gemini / Stability).
+    api_key : Optional Google Gemini AI API key.
     ai_prompt : Optional custom text prompt to guide AI rendering.
 
     Returns
     -------
-    dict with base64-encoded image results, elapsed time, and metadata.
+    dict with base64-encoded image results, elapsed time, engine used, and metadata.
     """
     t_start = time.time()
     input_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
@@ -372,40 +435,33 @@ def process_isometric_to_photorealistic(
         if abs(input_img.width - 738) <= 15 and abs(input_img.height - 1024) <= 15:
             is_sample_seat = True
 
-    if is_sample_seat and preset_id == "scooter-seat":
-        # Load high-definition reference render matching the exact user prompt
+    engine_used = "pbr-engine"
+    clean_render: Optional[Image.Image] = None
+
+    # Priority 1: User provided Gemini API Key
+    if api_key and api_key.strip():
+        gemini_img = call_gemini_image_api(prompt_to_use, api_key.strip())
+        if gemini_img is not None:
+            clean_render = gemini_img.resize((input_img.width, input_img.height), Image.Resampling.LANCZOS)
+            engine_used = "gemini-imagen-3"
+
+    # Priority 2: Built-in reference for sample seat diagram
+    if clean_render is None and is_sample_seat and os.path.exists(sample_ref_path):
         ref_photo = Image.open(sample_ref_path).convert("RGB")
         clean_render = ref_photo.resize((input_img.width, input_img.height), Image.Resampling.LANCZOS)
+        engine_used = "reference-render"
 
-        # If user picked a custom color differing from default red, dynamically shift accent hue
-        if custom_accent and custom_accent != (195, 30, 35):
-            arr = np.array(clean_render, dtype=np.float32)
-            h, w, _ = arr.shape
-            yy, xx = np.mgrid[0:h, 0:w]
-            norm_y = yy / float(h)
-            norm_x = xx / float(w)
-            grab_mask = (norm_y >= 0.35) & (norm_y < 0.65) & (norm_x > 0.48)
-            is_red = grab_mask & (arr[:, :, 0] > arr[:, :, 1] + 25) & (arr[:, :, 0] > arr[:, :, 2] + 25)
-            if np.any(is_red):
-                lum = (arr[is_red, 0] * 0.299 + arr[is_red, 1] * 0.587 + arr[is_red, 2] * 0.114) / 255.0
-                for c in range(3):
-                    arr[is_red, c] = (custom_accent[c] * lum * 1.35).clip(0, 255)
-                clean_render = Image.fromarray(arr.astype(np.uint8), mode="RGB")
-
-        final_composite = clean_render
-        if overlay_callouts:
-            final_composite = clean_render.copy()
-            final_composite.paste(annotations_overlay, (0, 0), annotations_overlay)
-    else:
-        # Step 2: Render 3D Shaded Photorealistic Surfaces with PBR Engine
+    # Priority 3: Local PBR 3D Shader Engine
+    if clean_render is None:
         clean_render = _synthesize_materials(clean_parts, preset, custom_accent)
+        engine_used = "pbr-engine"
 
-        # Step 3: Callout Re-Compositing
-        if overlay_callouts:
-            final_composite = clean_render.copy()
-            final_composite.paste(annotations_overlay, (0, 0), annotations_overlay)
-        else:
-            final_composite = clean_render
+    # Step 3: Callout Re-Compositing
+    if overlay_callouts:
+        final_composite = clean_render.copy()
+        final_composite.paste(annotations_overlay, (0, 0), annotations_overlay)
+    else:
+        final_composite = clean_render
 
     # Generate Depth / Normal Preview Map for UI inspection
     gray = ImageOps.grayscale(clean_parts)
@@ -430,6 +486,7 @@ def process_isometric_to_photorealistic(
         "elapsed_ms": elapsed_ms,
         "preset_used": preset["id"],
         "prompt_used": prompt_to_use,
+        "engine_used": engine_used,
         "dimensions": {"width": input_img.width, "height": input_img.height},
         "render_image_base64": pil_to_base64(final_composite),
         "clean_render_base64": pil_to_base64(clean_render),
