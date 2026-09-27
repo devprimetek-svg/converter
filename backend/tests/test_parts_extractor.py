@@ -434,3 +434,46 @@ def test_parent_cell_blanking_and_catalogue_code_in_excel():
     assert (ws.cell(row=6, column=6).value or "") == ""     # Pic (BLANK)
     assert ws.cell(row=6, column=7).value == "2"            # Ref No.
 
+
+def test_custom_edited_model_name_in_excel():
+    """Verify that when a user edits the model name (passed in row_data['model_name']),
+    it is written to the Excel Parent Cell and child cells remain blank."""
+    rows = [
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "catalogue_code": "YAM_BGPK_CYLINDER",
+            "model_name": "YAMAHA BJPK R15 V4 Series CYLINDER",  # user edited!
+            "pic": "YAM_BGPK_CYLINDER.jpeg",
+            "ref_no": "1",
+            "part_no": "BGP-E1111-00",
+            "description": "HEAD, CYLINDER 1",
+            "BGPK": "1",
+        },
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "catalogue_code": "",
+            "model_name": "",
+            "pic": "",
+            "ref_no": "2",
+            "part_no": "90105-088D1",
+            "description": "BOLT, FLANGE",
+            "BGPK": "4",
+        },
+    ]
+
+    buf = generate_excel_workbook(rows=rows, model_columns=["BGPK"], model_code="BGPK")
+    wb = openpyxl.load_workbook(buf)
+    ws = wb.active
+
+    # Col 5 is Model Name
+    assert ws.cell(row=1, column=5).value == "Model Name"
+    # Row 2 (Parent): exact edited string preserved
+    assert ws.cell(row=2, column=5).value == "YAMAHA BJPK R15 V4 Series CYLINDER"
+    # Row 3 (Child): blank
+    assert (ws.cell(row=3, column=5).value or "") == ""
+
+

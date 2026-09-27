@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   Download,
   Search,
@@ -10,6 +10,8 @@ import {
   Filter,
   Sparkles,
   Bike,
+  Pencil,
+  AlertCircle,
 } from 'lucide-react';
 import type { ExtractionStatus } from '../types';
 import { PartsTable } from './PartsTable';
@@ -17,7 +19,8 @@ import { PartsTable } from './PartsTable';
 interface ResultsDashboardProps {
   status: ExtractionStatus;
   onReset: () => void;
-  onExport: (cleanParts: boolean, targetModel?: string) => Promise<void>;
+  /** rows param: rows with edited model names merged in */
+  onExport: (cleanParts: boolean, targetModel?: string, rows?: any[]) => Promise<void>;
   isExporting: boolean;
 }
 
@@ -32,8 +35,29 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
   const [selectedModel, setSelectedModel] = useState<string>('ALL');
   const [cleanParts, setCleanParts] = useState<boolean>(false);
   const [exportingModel, setExportingModel] = useState<string | null>(null);
+  /** Map of figKey → user-edited model name. Export is only enabled once this has entries. */
+  const [editedModelNames, setEditedModelNames] = useState<Record<string, string>>({});
 
   const { rows = [], model_columns = [], figures = [], total_pages = 0 } = status;
+
+  const hasEdits = Object.keys(editedModelNames).length > 0;
+
+  /** Merge edited model names back into every row before export */
+  const rowsWithEdits = useMemo(() => {
+    if (!hasEdits) return rows;
+    return rows.map((row) => {
+      const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
+      const editedVal = editedModelNames[figKey];
+      if (editedVal !== undefined) {
+        return { ...row, model_name: editedVal };
+      }
+      return row;
+    });
+  }, [rows, editedModelNames, hasEdits]);
+
+  const handleModelNameEdit = useCallback((figKey: string, newValue: string) => {
+    setEditedModelNames((prev) => ({ ...prev, [figKey]: newValue }));
+  }, []);
 
   // Compute part count per model code
   const modelPartCounts = useMemo(() => {
@@ -54,30 +78,17 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
     return counts;
   }, [rows, model_columns]);
 
-  // Filter rows based on search, figure, and model
+  // Filter rows (from rowsWithEdits so search sees updated model_name too)
   const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
-      // Figure filter
-      if (selectedFigure !== 'ALL' && row.fig_no !== selectedFigure) {
-        return false;
-      }
+    return rowsWithEdits.filter((row) => {
+      if (selectedFigure !== 'ALL' && row.fig_no !== selectedFigure) return false;
 
-      // Model filter (if selected, row must have quantity for this model)
       if (selectedModel !== 'ALL') {
         const val = String(row[selectedModel] ?? '').trim();
-        if (
-          val === '' ||
-          val === '-' ||
-          val === '0' ||
-          val === '*' ||
-          val.toLowerCase() === 'none' ||
-          val.toLowerCase() === 'null'
-        ) {
-          return false;
-        }
+        if (!val || val === '-' || val === '0' || val === '*' ||
+          val.toLowerCase() === 'none' || val.toLowerCase() === 'null') return false;
       }
 
-      // Search term
       if (!searchTerm) return true;
       const term = searchTerm.toLowerCase();
       return (
@@ -88,9 +99,10 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
         String(row.ref_no).toLowerCase().includes(term)
       );
     });
-  }, [rows, selectedFigure, selectedModel, searchTerm]);
+  }, [rowsWithEdits, selectedFigure, selectedModel, searchTerm]);
 
   const handleModelExport = async (model?: string) => {
+    if (!hasEdits) return; // Export disabled until at least one model name is edited
     let target: string | undefined;
     if (model === 'ALL') {
       target = undefined;
@@ -101,7 +113,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
     }
     setExportingModel(target || 'ALL');
     try {
-      await onExport(cleanParts, target);
+      await onExport(cleanParts, target, rowsWithEdits);
     } finally {
       setExportingModel(null);
     }
@@ -109,19 +121,15 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6">
-      {/* Top Banner & KPI Stat Cards */}
+      {/* KPI Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-100 dark:border-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
             <FileText className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Pages Processed
-            </p>
-            <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-0.5">
-              {total_pages}
-            </h4>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Pages Processed</p>
+            <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-0.5">{total_pages}</h4>
           </div>
         </div>
 
@@ -130,12 +138,8 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
             <Layers className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Figures Found
-            </p>
-            <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-0.5">
-              {figures.length}
-            </h4>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Figures Found</p>
+            <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-0.5">{figures.length}</h4>
           </div>
         </div>
 
@@ -144,12 +148,8 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Total Parts Rows
-            </p>
-            <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-0.5">
-              {rows.length.toLocaleString()}
-            </h4>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total Parts Rows</p>
+            <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-0.5">{rows.length.toLocaleString()}</h4>
           </div>
         </div>
 
@@ -158,18 +158,11 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
             <Tags className="w-6 h-6" />
           </div>
           <div className="overflow-hidden">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Model Codes ({model_columns.length})
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Model Codes ({model_columns.length})</p>
             <div className="flex flex-wrap gap-1 mt-1">
               {model_columns.length > 0 ? (
                 model_columns.map((col) => (
-                  <span
-                    key={col}
-                    className="inline-block px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 text-xs font-bold font-mono"
-                  >
-                    {col}
-                  </span>
+                  <span key={col} className="inline-block px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 text-xs font-bold font-mono">{col}</span>
                 ))
               ) : (
                 <span className="text-xs text-slate-400 font-mono">None</span>
@@ -182,9 +175,8 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
       {/* Main Control Bar */}
       <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
         <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4">
-          {/* Search, Figure Filter, & Model Filter */}
+          {/* Filters */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1 flex-wrap">
-            {/* Search Input */}
             <div className="relative flex-1 min-w-[200px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -196,7 +188,6 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
               />
             </div>
 
-            {/* Figure Dropdown */}
             <div className="relative min-w-[200px]">
               <Filter className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <select
@@ -206,14 +197,11 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
               >
                 <option value="ALL">All Figures ({figures.length})</option>
                 {figures.map((fig) => (
-                  <option key={fig.fig_no} value={fig.fig_no}>
-                    FIG. {fig.fig_no} - {fig.fig_name}
-                  </option>
+                  <option key={fig.fig_no} value={fig.fig_no}>FIG. {fig.fig_no} - {fig.fig_name}</option>
                 ))}
               </select>
             </div>
 
-            {/* Model Filter (enabled if >= 2 models) */}
             {model_columns.length >= 2 && (
               <div className="relative min-w-[170px]">
                 <Bike className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -224,9 +212,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                 >
                   <option value="ALL">All Models ({rows.length})</option>
                   {model_columns.map((model) => (
-                    <option key={model} value={model}>
-                      Model {model} ({modelPartCounts[model] || 0} parts)
-                    </option>
+                    <option key={model} value={model}>Model {model} ({modelPartCounts[model] || 0} parts)</option>
                   ))}
                 </select>
               </div>
@@ -244,26 +230,25 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
               Upload New
             </button>
 
-            {/* If only 1 model or 0 models: show standard Export button */}
             {model_columns.length < 2 && (
               <button
                 onClick={() => handleModelExport()}
-                disabled={isExporting || rows.length === 0}
+                disabled={isExporting || rows.length === 0 || !hasEdits}
                 className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-sm font-bold shadow-md shadow-blue-700/20 disabled:opacity-50 disabled:pointer-events-none transition-all duration-150"
+                title={!hasEdits ? 'Edit at least one Model Name cell in the table below to enable export' : 'Export to Excel'}
               >
                 <Download className="w-4 h-4" />
                 {isExporting ? 'Exporting...' : 'Export to Excel'}
               </button>
             )}
 
-            {/* If 2 or more models: show Master Export + individual Model Export buttons */}
             {model_columns.length >= 2 && (
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => handleModelExport('ALL')}
-                  disabled={isExporting || rows.length === 0}
+                  disabled={isExporting || rows.length === 0 || !hasEdits}
                   className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs sm:text-sm font-bold shadow-sm disabled:opacity-50 disabled:pointer-events-none transition-all"
-                  title="Export complete combined catalogue with all model columns"
+                  title={!hasEdits ? 'Edit at least one Model Name cell in the table below to enable export' : 'Export complete combined catalogue with all model columns'}
                 >
                   <Download className="w-4 h-4" />
                   {isExporting && exportingModel === 'ALL' ? 'Exporting...' : 'Export All Models'}
@@ -273,9 +258,9 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                   <button
                     key={model}
                     onClick={() => handleModelExport(model)}
-                    disabled={isExporting || (modelPartCounts[model] || 0) === 0}
+                    disabled={isExporting || (modelPartCounts[model] || 0) === 0 || !hasEdits}
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold shadow-sm shadow-blue-600/20 disabled:opacity-50 disabled:pointer-events-none transition-all"
-                    title={`Export only parts applicable to model ${model}`}
+                    title={!hasEdits ? 'Edit at least one Model Name cell in the table below to enable export' : `Export only parts applicable to model ${model}`}
                   >
                     <Download className="w-3.5 h-3.5" />
                     {isExporting && exportingModel === model ? (
@@ -295,7 +280,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
           </div>
         </div>
 
-        {/* Clean Part No. Toggle Option */}
+        {/* Status bar: export gate hint + clean parts toggle */}
         <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
           <label className="flex items-center gap-3 cursor-pointer select-none">
             <div className="relative">
@@ -305,45 +290,45 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                 onChange={(e) => setCleanParts(e.target.checked)}
                 className="sr-only"
               />
-              <div
-                className={`block w-11 h-6 rounded-full transition-colors ${
-                  cleanParts ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
-                }`}
-              />
-              <div
-                className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${
-                  cleanParts ? 'transform translate-x-5' : ''
-                }`}
-              />
+              <div className={`block w-11 h-6 rounded-full transition-colors ${cleanParts ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'}`} />
+              <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${cleanParts ? 'transform translate-x-5' : ''}`} />
             </div>
             <div className="text-xs sm:text-sm">
-              <span className="font-bold text-slate-800 dark:text-slate-200">
-                Clean Part No.
-              </span>
-              <span className="ml-1 text-slate-500 dark:text-slate-400">
-                (strips dashes; adds '00' only if cleaned is 10 chars — leaves 12-char painted unchanged)
-              </span>
+              <span className="font-bold text-slate-800 dark:text-slate-200">Clean Part No.</span>
+              <span className="ml-1 text-slate-500 dark:text-slate-400">(strips dashes; adds '00' only if cleaned is 10 chars — leaves 12-char painted unchanged)</span>
             </div>
           </label>
 
-          <div className="text-xs text-slate-500 dark:text-slate-400">
-            {cleanParts ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {hasEdits ? (
+              <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {Object.keys(editedModelNames).length} Model Name{Object.keys(editedModelNames).length !== 1 ? 's' : ''} edited — Export enabled
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-800">
+                <AlertCircle className="w-3.5 h-3.5" />
+                Click any Model Name cell below to edit — then Export unlocks
+                <Pencil className="w-3 h-3" />
+              </span>
+            )}
+            {cleanParts && (
               <span className="inline-flex items-center gap-1 font-semibold text-blue-600 dark:text-blue-400">
                 <Sparkles className="w-3.5 h-3.5" />
                 Live Clean View Active
               </span>
-            ) : (
-              <span>Original Catalog Formats</span>
             )}
           </div>
         </div>
       </div>
 
-      {/* Parts Table */}
+      {/* Parts Table with inline Model Name editing */}
       <PartsTable
         rows={filteredRows}
         modelColumns={selectedModel === 'ALL' ? model_columns : [selectedModel]}
         cleanParts={cleanParts}
+        editedModelNames={editedModelNames}
+        onModelNameEdit={handleModelNameEdit}
       />
     </div>
   );

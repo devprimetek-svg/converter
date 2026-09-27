@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { ChevronDown, ChevronUp, ChevronsUpDown, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react';
+import React, { useState, useMemo, useRef, useCallback } from 'react';
+import { ChevronDown, ChevronUp, ChevronsUpDown, ChevronLeft, ChevronRight, Image as ImageIcon, Pencil, Check } from 'lucide-react';
 import type { PartRow } from '../types';
 import { cleanPartNumber } from '../utils/cleanPartNo';
 
@@ -7,16 +7,45 @@ interface PartsTableProps {
   rows: PartRow[];
   modelColumns: string[];
   cleanParts: boolean;
+  /** Map of fig_key → edited model name. Only parent rows are editable. */
+  editedModelNames?: Record<string, string>;
+  /** Called when user commits an edited model name for a figure. */
+  onModelNameEdit?: (figKey: string, newValue: string) => void;
 }
 
-type SortField = 'page' | 'fig_no' | 'fig_name' | 'catalogue_code' | 'pic' | 'ref_no' | 'part_no' | 'description' | 'remarks' | string;
+type SortField = 'page' | 'fig_no' | 'fig_name' | 'catalogue_code' | 'model_name' | 'pic' | 'ref_no' | 'part_no' | 'description' | 'remarks' | string;
 type SortDirection = 'asc' | 'desc';
 
-export const PartsTable: React.FC<PartsTableProps> = ({ rows, modelColumns, cleanParts }) => {
+export const PartsTable: React.FC<PartsTableProps> = ({
+  rows,
+  modelColumns,
+  cleanParts,
+  editedModelNames = {},
+  onModelNameEdit,
+}) => {
   const [sortField, setSortField] = useState<SortField>('page');
   const [sortDir, setSortDir] = useState<SortDirection>('asc');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(25);
+  /** figKey of the cell currently being edited (null = none) */
+  const [editingFigKey, setEditingFigKey] = useState<string | null>(null);
+  /** Draft value while editing */
+  const [draftValue, setDraftValue] = useState<string>('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const startEditing = useCallback((figKey: string, currentVal: string) => {
+    setEditingFigKey(figKey);
+    setDraftValue(currentVal);
+    // Auto-focus the input after render
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, []);
+
+  const commitEdit = useCallback((figKey: string) => {
+    if (onModelNameEdit && draftValue.trim() !== '') {
+      onModelNameEdit(figKey, draftValue.trim());
+    }
+    setEditingFigKey(null);
+  }, [draftValue, onModelNameEdit]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -220,7 +249,17 @@ export const PartsTable: React.FC<PartsTableProps> = ({ rows, modelColumns, clea
                 const primaryModel = modelColumns && modelColumns.length > 0 ? modelColumns[0] : 'MODEL';
                 const catCode = (row as any).catalogue_code || `YAM_${primaryModel}_${cleanFig}`;
                 const picVal = (row as any).pic || (row as any).image || (catCode ? `${catCode}.jpeg` : '');
-                const modelNameVal = (row as any).model_name || '';
+
+                // Build a stable key per figure for editing
+                const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
+                // Resolve model name: edited value overrides the extracted value
+                const extractedModelName = (row as any).model_name || '';
+                const modelNameVal = isFirstOfFig
+                  ? (editedModelNames[figKey] !== undefined ? editedModelNames[figKey] : extractedModelName)
+                  : '';
+
+                const isEditing = isFirstOfFig && editingFigKey === figKey;
+                const isEdited = editedModelNames[figKey] !== undefined;
 
                 return (
                   <tr
@@ -245,9 +284,58 @@ export const PartsTable: React.FC<PartsTableProps> = ({ rows, modelColumns, clea
                       {isFirstOfFig ? catCode : ''}
                     </td>
 
-                    <td className="px-3 py-2 font-sans text-xs text-emerald-800 dark:text-emerald-300 truncate max-w-[280px]" title={isFirstOfFig ? modelNameVal : ''}>
-                      {isFirstOfFig && modelNameVal ? (
-                        <span className="font-semibold">{modelNameVal}</span>
+                    {/* ── Inline-editable Model Name cell ── */}
+                    <td className="px-2 py-1.5 max-w-[300px]">
+                      {isFirstOfFig ? (
+                        isEditing ? (
+                          <div className="flex items-center gap-1">
+                            <input
+                              ref={inputRef}
+                              type="text"
+                              value={draftValue}
+                              onChange={(e) => setDraftValue(e.target.value)}
+                              onBlur={() => commitEdit(figKey)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') commitEdit(figKey);
+                                if (e.key === 'Escape') setEditingFigKey(null);
+                              }}
+                              className="flex-1 min-w-0 px-2 py-1 text-xs font-semibold rounded-lg border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-900 dark:text-emerald-100 outline-none focus:ring-2 focus:ring-emerald-400"
+                              title="Press Enter or click away to save"
+                            />
+                            <button
+                              onMouseDown={(e) => { e.preventDefault(); commitEdit(figKey); }}
+                              className="shrink-0 p-1 rounded-md bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
+                              title="Save"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            className={`group flex items-center gap-1.5 cursor-pointer rounded-lg px-2 py-1 transition-all ${
+                              isEdited
+                                ? 'bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-300 dark:border-emerald-700'
+                                : 'hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800'
+                            }`}
+                            onClick={() => onModelNameEdit !== undefined && startEditing(figKey, modelNameVal)}
+                            title={onModelNameEdit ? 'Click to edit model name' : undefined}
+                          >
+                            <span className={`text-xs font-semibold truncate ${
+                              isEdited
+                                ? 'text-emerald-700 dark:text-emerald-300'
+                                : 'text-emerald-800 dark:text-emerald-300'
+                            }`}>
+                              {modelNameVal || <span className="italic text-slate-400 dark:text-slate-500 font-normal">—</span>}
+                            </span>
+                            {onModelNameEdit && (
+                              <Pencil className={`w-3 h-3 shrink-0 transition-opacity ${
+                                isEdited
+                                  ? 'text-emerald-500 opacity-70'
+                                  : 'text-slate-400 dark:text-slate-500 opacity-0 group-hover:opacity-100'
+                              }`} />
+                            )}
+                          </div>
+                        )
                       ) : ''}
                     </td>
 

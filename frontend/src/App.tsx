@@ -173,7 +173,7 @@ export function App() {
     }, 500);
   };
 
-  const handleExport = async (cleanParts: boolean, targetModel?: string) => {
+  const handleExport = async (cleanParts: boolean, targetModel?: string, editedRows?: any[]) => {
     if (!status || !status.rows || status.rows.length === 0) return;
 
     setIsExporting(true);
@@ -194,11 +194,13 @@ export function App() {
         return true;
       };
 
-      let rowsToExport = status.rows;
+      // Use edited rows if provided (they contain the updated model_name values)
+      const baseRows = editedRows || status.rows;
+      let rowsToExport = baseRows;
       if (targetModel) {
-        rowsToExport = status.rows.filter((r) => isValidQty(r[targetModel]));
+        rowsToExport = baseRows.filter((r) => isValidQty(r[targetModel]));
       } else if (status.model_columns && status.model_columns.length >= 2) {
-        rowsToExport = status.rows.filter((r) =>
+        rowsToExport = baseRows.filter((r) =>
           status.model_columns.some((m) => isValidQty(r[m]))
         );
       }
