@@ -82,7 +82,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Center Minimalist Tab Navigation */}
-        <nav className="hidden lg:flex items-center gap-1 p-1 bg-zinc-100 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs font-medium">
+        <nav className="hidden md:flex items-center gap-1 p-1 bg-zinc-100 dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 text-[11px] font-medium whitespace-nowrap">
           {tabs.map((t) => {
             const Icon = t.icon;
             const isActive = activeTab === t.id;
@@ -90,17 +90,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 key={t.id}
                 onClick={() => setActiveTab(t.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-150 ${
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all duration-150 whitespace-nowrap shrink-0 text-[11px] cursor-pointer ${
                   isActive
-                    ? 'bg-black text-white dark:bg-white dark:text-black font-bold shadow-xs'
+                    ? 'bg-black text-white dark:bg-white dark:text-black font-semibold shadow-xs'
                     : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-zinc-200/70 dark:hover:bg-zinc-900'
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white dark:text-black' : 'text-zinc-500 dark:text-zinc-400'}`} />
-                <span>{t.label}</span>
+                <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white dark:text-black' : 'text-zinc-500 dark:text-zinc-400'}`} />
+                <span className="whitespace-nowrap">{t.label}</span>
                 {t.badge && (
                   <span
-                    className={`text-[9px] px-1.5 py-0.5 rounded-md font-mono uppercase tracking-wider ${
+                    className={`text-[8px] px-1 py-0.5 rounded font-mono uppercase tracking-wider whitespace-nowrap shrink-0 ${
                       isActive
                         ? 'bg-zinc-800 text-white dark:bg-zinc-200 dark:text-black'
                         : 'bg-zinc-200 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400'
@@ -115,31 +115,31 @@ export const Navbar: React.FC<NavbarProps> = ({
         </nav>
 
         {/* Right Controls: Replay Splash & Theme Toggle */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {onReplaySplash && (
             <button
               onClick={onReplaySplash}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-950 hover:bg-zinc-200 dark:hover:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all text-xs font-mono font-medium"
+              className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-950 hover:bg-zinc-200 dark:hover:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all text-[11px] font-mono font-medium whitespace-nowrap shrink-0 cursor-pointer"
               title="Replay Venture Automation Startup Screen"
             >
-              <RotateCcw className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-300" />
-              <span className="hidden sm:inline">Splash</span>
+              <RotateCcw className="w-3 h-3 text-zinc-600 dark:text-zinc-300 shrink-0" />
+              <span className="hidden sm:inline whitespace-nowrap">Splash</span>
             </button>
           )}
 
           <button
             onClick={() => setDarkMode(!darkMode)}
-            className="p-2 rounded-lg text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white bg-zinc-100 dark:bg-zinc-950 hover:bg-zinc-200 dark:hover:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white bg-zinc-100 dark:bg-zinc-950 hover:bg-zinc-200 dark:hover:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors cursor-pointer shrink-0"
             title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             aria-label="Toggle theme"
           >
-            {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-zinc-700" />}
+            {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-zinc-700" />}
           </button>
         </div>
       </div>
 
       {/* Mobile Device Browser Tab Navigation Bar */}
-      <div className="lg:hidden flex items-center justify-start border-t border-zinc-200 dark:border-zinc-800/80 px-2 py-2 bg-white dark:bg-black text-xs font-medium overflow-x-auto no-scrollbar gap-1.5 safe-bottom">
+      <div className="md:hidden flex items-center justify-start border-t border-zinc-200 dark:border-zinc-800/80 px-2 py-1.5 bg-white dark:bg-black text-[11px] font-medium overflow-x-auto no-scrollbar gap-1 safe-bottom">
         {tabs.map((t) => {
           const Icon = t.icon;
           const isActive = activeTab === t.id;
@@ -147,14 +147,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               key={t.id}
               onClick={() => setActiveTab(t.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg whitespace-nowrap min-h-[40px] text-xs transition-all ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg whitespace-nowrap shrink-0 text-[11px] transition-all cursor-pointer ${
                 isActive
-                  ? 'bg-black text-white dark:bg-white dark:text-black font-bold shadow-xs'
+                  ? 'bg-black text-white dark:bg-white dark:text-black font-semibold shadow-xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white bg-zinc-100 dark:bg-zinc-950'
               }`}
             >
-              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white dark:text-black' : 'text-zinc-500 dark:text-zinc-400'}`} />
-              <span>{t.label}</span>
+              <Icon className={`w-3 h-3 shrink-0 ${isActive ? 'text-white dark:text-black' : 'text-zinc-500 dark:text-zinc-400'}`} />
+              <span className="whitespace-nowrap">{t.label}</span>
             </button>
           );
         })}

@@ -875,28 +875,28 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
           </div>
 
           {/* Results Navigation Tabs */}
-          <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-3">
+          <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-3 overflow-x-auto whitespace-nowrap">
             <button
               onClick={() => setActiveResultTab('images')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-all cursor-pointer ${
                 activeResultTab === 'images'
-                  ? 'bg-black text-white dark:bg-white dark:text-black font-bold shadow-xs'
+                  ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900'
               }`}
             >
-              <ImageIcon className={`w-4 h-4 ${activeResultTab === 'images' ? 'text-white dark:text-black' : 'text-zinc-500 dark:text-zinc-400'}`} />
-              Diagram Gallery ({status.images_processed})
+              <ImageIcon className={`w-3.5 h-3.5 shrink-0 ${activeResultTab === 'images' ? 'text-white dark:text-black' : 'text-zinc-500 dark:text-zinc-400'}`} />
+              <span className="whitespace-nowrap">Diagram Gallery ({status.images_processed})</span>
             </button>
             <button
               onClick={() => setActiveResultTab('parts')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-all cursor-pointer ${
                 activeResultTab === 'parts'
-                  ? 'bg-black text-white dark:bg-white dark:text-black font-bold shadow-xs'
+                  ? 'bg-black text-white dark:bg-white dark:text-black shadow-xs'
                   : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-900'
               }`}
             >
-              <FileSpreadsheet className={`w-4 h-4 ${activeResultTab === 'parts' ? 'text-white dark:text-black' : 'text-zinc-500 dark:text-zinc-400'}`} />
-              Catalogue Records ({status.total_rows})
+              <FileSpreadsheet className={`w-3.5 h-3.5 shrink-0 ${activeResultTab === 'parts' ? 'text-white dark:text-black' : 'text-zinc-500 dark:text-zinc-400'}`} />
+              <span className="whitespace-nowrap">Catalogue Records ({status.total_rows})</span>
             </button>
           </div>
 
