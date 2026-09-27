@@ -9,10 +9,9 @@ import {
   Sparkles,
   Zap,
   RotateCcw,
-  Box,
 } from 'lucide-react';
 
-export type ActiveTab = 'auto-pipeline' | 'catalogue' | 'pdf-images' | 'resizer' | 'watermark' | '3d-render';
+export type ActiveTab = 'auto-pipeline' | 'catalogue' | 'pdf-images' | 'resizer' | 'watermark';
 
 interface NavbarProps {
   darkMode: boolean;
@@ -41,12 +40,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       label: 'Parts to Excel',
       icon: FileSpreadsheet,
       badge: 'Yamaha',
-    },
-    {
-      id: '3d-render' as ActiveTab,
-      label: '3D Photorealistic',
-      icon: Box,
-      badge: '3D AI',
     },
     {
       id: 'pdf-images' as ActiveTab,

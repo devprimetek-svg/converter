@@ -29,7 +29,6 @@ from app.parts_extractor import (
     NoTextLayerError,
     extract_parts_from_pdf,
 )
-from app.render_3d import process_isometric_to_photorealistic, MATERIAL_PRESETS
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("converter")
@@ -768,64 +767,6 @@ def download_pipeline_excel(job_id: str, model: Optional[str] = None):
             "Access-Control-Expose-Headers": "Content-Disposition",
         },
     )
-
-
-# ---------------------------------------------------------------------------
-# 3D PHOTOREALISTIC RENDERING ENGINE ENDPOINTS
-# ---------------------------------------------------------------------------
-
-@app.get("/api/render3d/presets")
-def get_render3d_presets():
-    """Return all available 3D photorealistic material presets."""
-    return {"presets": list(MATERIAL_PRESETS.values())}
-
-
-@app.get("/api/render3d/sample-image")
-def get_render3d_sample_image():
-    """Return sample isometric seat diagram for instant 1-click testing."""
-    sample_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "sample_isometric_seat.jpg")
-    if os.path.exists(sample_path):
-        return FileResponse(sample_path, media_type="image/jpeg")
-    raise HTTPException(status_code=404, detail="Sample image not found")
-
-
-@app.post("/api/render3d/process")
-async def render_isometric_to_3d(
-    file: Optional[UploadFile] = File(None),
-    preset_id: str = "scooter-seat",
-    custom_accent_hex: Optional[str] = None,
-    overlay_callouts: bool = True,
-    api_key: Optional[str] = None,
-    ai_prompt: Optional[str] = None,
-    ai_engine: str = Form("auto"),
-):
-    """Process an isometric line drawing into a 3D photorealistic render."""
-    image_bytes = None
-    if file and file.filename:
-        image_bytes = await file.read()
-    else:
-        sample_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "sample_isometric_seat.jpg")
-        if os.path.exists(sample_path):
-            with open(sample_path, "rb") as f:
-                image_bytes = f.read()
-
-    if not image_bytes:
-        raise HTTPException(status_code=400, detail="No image provided")
-
-    try:
-        result = process_isometric_to_photorealistic(
-            image_bytes=image_bytes,
-            preset_id=preset_id,
-            custom_accent_hex=custom_accent_hex,
-            overlay_callouts=overlay_callouts,
-            api_key=api_key,
-            ai_prompt=ai_prompt,
-            ai_engine=ai_engine,
-        )
-        return result
-    except Exception as e:
-        logger.exception("3D rendering failed: %s", e)
-        raise HTTPException(status_code=500, detail=f"3D rendering failed: {str(e)}")
 
 
 # Mount built frontend static assets if present (for unified single-container cloud deployment)
