@@ -14,6 +14,7 @@ import logging
 import math
 import os
 import time
+import urllib.parse
 from typing import Any, Optional, Tuple
 
 import httpx
@@ -317,64 +318,91 @@ def _synthesize_materials(
 
 
 # ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# GEMINI AI IMAGE GENERATION
+# AI IMAGE GENERATION ENGINES (GEMINI & CLOUD FLUX)
 # ---------------------------------------------------------------------------
 
-def call_gemini_image_api(prompt: str, api_key: str) -> Optional[Image.Image]:
-    """Call Google Gemini / Imagen 3 API with user's API key and custom prompt."""
+def call_gemini_multimodal_render(
+    image_bytes: bytes,
+    prompt: str,
+    api_key: str,
+) -> Tuple[Optional[Image.Image], Optional[str]]:
+    """Call Google Gemini multimodal image generation with input diagram and custom prompt."""
     if not api_key:
-        return None
+        return None, "No API key provided."
     clean_key = api_key.strip()
     if not clean_key:
-        return None
+        return None, "API key is empty."
 
-    # Option 1: Google Imagen 3 generate predict endpoint via Google AI Studio
-    try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key={clean_key}"
+    b64_image = base64.b64encode(image_bytes).decode("utf-8")
+    models_to_try = [
+        "gemini-2.5-flash-image",
+        "gemini-2.0-flash-exp-image-generation",
+        "gemini-2.0-flash",
+    ]
+
+    last_error = None
+    for model_name in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={clean_key}"
         payload = {
-            "instances": [{"prompt": prompt}],
-            "parameters": {
-                "sampleCount": 1,
-                "aspectRatio": "3:4",
-                "outputOptions": {"mimeType": "image/png"},
+            "contents": [
+                {
+                    "parts": [
+                        {"text": prompt},
+                        {
+                            "inlineData": {
+                                "mimeType": "image/jpeg",
+                                "data": b64_image,
+                            }
+                        },
+                    ]
+                }
+            ],
+            "generationConfig": {
+                "responseModalities": ["TEXT", "IMAGE"],
             },
         }
-        with httpx.Client(timeout=35.0) as client:
-            resp = client.post(url, json=payload)
-            if resp.status_code == 200:
-                data = resp.json()
-                predictions = data.get("predictions", [])
-                if predictions and "bytesBase64Encoded" in predictions[0]:
-                    img_data = base64.b64decode(predictions[0]["bytesBase64Encoded"])
-                    return Image.open(io.BytesIO(img_data)).convert("RGB")
-            else:
-                logger.info("Imagen 3.0-generate-002 returned HTTP %d: %s", resp.status_code, resp.text[:150])
-    except Exception as e:
-        logger.info("Imagen 3.0-generate-002 call failed: %s", e)
 
-    # Option 2: Fallback to imagen-3.0-generate-001
+        try:
+            with httpx.Client(timeout=45.0) as client:
+                resp = client.post(url, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    candidates = data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        for part in parts:
+                            if "inlineData" in part and "data" in part["inlineData"]:
+                                img_bytes = base64.b64decode(part["inlineData"]["data"])
+                                return Image.open(io.BytesIO(img_bytes)).convert("RGB"), None
+                else:
+                    err_info = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {}
+                    msg = err_info.get("error", {}).get("message") or f"HTTP {resp.status_code}"
+                    last_error = f"{model_name}: {msg}"
+                    logger.info("Gemini call error on %s: %s", model_name, last_error)
+        except Exception as e:
+            last_error = str(e)
+            logger.info("Gemini call exception on %s: %s", model_name, e)
+
+    return None, last_error
+
+
+def call_cloud_ai_image_generator(prompt: str, width: int = 768, height: int = 1024) -> Optional[Image.Image]:
+    """Call Cloud AI (Flux / Photorealistic) image generator based on custom prompt."""
     try:
-        url_alt = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key={clean_key}"
-        payload = {
-            "instances": [{"prompt": prompt}],
-            "parameters": {
-                "sampleCount": 1,
-                "aspectRatio": "3:4",
-                "outputOptions": {"mimeType": "image/png"},
-            },
-        }
-        with httpx.Client(timeout=35.0) as client:
-            resp = client.post(url_alt, json=payload)
-            if resp.status_code == 200:
-                data = resp.json()
-                predictions = data.get("predictions", [])
-                if predictions and "bytesBase64Encoded" in predictions[0]:
-                    img_data = base64.b64decode(predictions[0]["bytesBase64Encoded"])
-                    return Image.open(io.BytesIO(img_data)).convert("RGB")
+        clean_prompt = prompt.replace("image_0.png", "the technical exploded parts diagram")
+        enhanced_prompt = (
+            f"{clean_prompt}, octane render, unreal engine 5, 8k product render, "
+            f"detailed mechanical textures, cinematic studio softbox lighting, photorealistic 3d"
+        )
+        encoded = urllib.parse.quote(enhanced_prompt)
+        url = f"https://image.pollinations.ai/prompt/{encoded}?width={width}&height={height}&model=flux&nologo=true"
+        with httpx.Client(timeout=40.0) as client:
+            resp = client.get(url)
+            if resp.status_code == 200 and resp.headers.get("content-type", "").startswith("image/"):
+                return Image.open(io.BytesIO(resp.content)).convert("RGB")
+            logger.warning("Cloud AI generator returned HTTP %d: %s", resp.status_code, resp.text[:100])
     except Exception as e:
-        logger.info("Imagen 3.0-generate-001 call failed: %s", e)
-
+        logger.warning("Cloud AI generator error: %s", e)
     return None
 
 
@@ -389,17 +417,19 @@ def process_isometric_to_photorealistic(
     overlay_callouts: bool = True,
     api_key: Optional[str] = None,
     ai_prompt: Optional[str] = None,
+    ai_engine: str = "auto",
 ) -> dict[str, Any]:
-    """Execute the full isometric to 3D photorealistic conversion workflow.
+    """Execute the full isometric to 3D photorealistic conversion workflow using Real AI.
 
     Parameters
     ----------
     image_bytes : Raw bytes of the uploaded line drawing (JPEG / PNG).
-    preset_id : Material preset (default 'scooter-seat').
-    custom_accent_hex : Optional hex color for painted components (e.g. '#C31E23').
+    preset_id : Material preset (retained for backward compatibility).
+    custom_accent_hex : Optional hex color for painted components.
     overlay_callouts : Whether to preserve and overlay crisp original numbers (1-16) on top.
     api_key : Optional Google Gemini AI API key.
-    ai_prompt : Optional custom text prompt to guide AI rendering.
+    ai_prompt : Custom text prompt to guide AI rendering.
+    ai_engine : AI Engine ('gemini', 'flux', 'auto').
 
     Returns
     -------
@@ -410,51 +440,38 @@ def process_isometric_to_photorealistic(
 
     # Step 1: Two-Layer Callout Extraction
     clean_parts, annotations_overlay = extract_annotations_layer(input_img)
-
-    # Parse custom accent color if given
-    custom_accent = None
-    if custom_accent_hex:
-        clean_hex = custom_accent_hex.strip("#")
-        if len(clean_hex) == 6:
-            try:
-                custom_accent = (
-                    int(clean_hex[0:2], 16),
-                    int(clean_hex[2:4], 16),
-                    int(clean_hex[4:6], 16),
-                )
-            except ValueError:
-                pass
-
-    preset = MATERIAL_PRESETS.get(preset_id, MATERIAL_PRESETS["scooter-seat"])
     prompt_to_use = (ai_prompt or "").strip() or DEFAULT_3D_PROMPT
 
-    # Check if the input image matches the reference exploded seat diagram
-    sample_ref_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "sample_photorealistic_seat.png")
-    is_sample_seat = False
-    if os.path.exists(sample_ref_path):
-        if abs(input_img.width - 738) <= 15 and abs(input_img.height - 1024) <= 15:
-            is_sample_seat = True
-
-    engine_used = "pbr-engine"
     clean_render: Optional[Image.Image] = None
+    engine_used = "Cloud AI (Flux Engine)"
+    ai_note: Optional[str] = None
 
-    # Priority 1: User provided Gemini API Key
-    if api_key and api_key.strip():
-        gemini_img = call_gemini_image_api(prompt_to_use, api_key.strip())
+    # Step 2: Real AI Generation (Gemini or Cloud AI Flux)
+    if ai_engine == "gemini" or (ai_engine == "auto" and api_key and api_key.strip()):
+        gemini_img, gemini_err = call_gemini_multimodal_render(image_bytes, prompt_to_use, api_key.strip())
         if gemini_img is not None:
             clean_render = gemini_img.resize((input_img.width, input_img.height), Image.Resampling.LANCZOS)
-            engine_used = "gemini-imagen-3"
+            engine_used = "Google Gemini AI"
+        else:
+            logger.warning("Gemini failed (%s), generating via Cloud AI Flux generator", gemini_err)
+            flux_img = call_cloud_ai_image_generator(prompt_to_use, input_img.width, input_img.height)
+            if flux_img is not None:
+                clean_render = flux_img.resize((input_img.width, input_img.height), Image.Resampling.LANCZOS)
+                engine_used = "Cloud AI (Flux Photorealistic)"
+                ai_note = f"Gemini API ({gemini_err or 'quota/model unavailable'}). Switched to Cloud AI Flux Generator to fulfill your prompt."
+            else:
+                ai_note = f"Gemini error: {gemini_err}."
 
-    # Priority 2: Built-in reference for sample seat diagram
-    if clean_render is None and is_sample_seat and os.path.exists(sample_ref_path):
-        ref_photo = Image.open(sample_ref_path).convert("RGB")
-        clean_render = ref_photo.resize((input_img.width, input_img.height), Image.Resampling.LANCZOS)
-        engine_used = "reference-render"
-
-    # Priority 3: Local PBR 3D Shader Engine
     if clean_render is None:
-        clean_render = _synthesize_materials(clean_parts, preset, custom_accent)
-        engine_used = "pbr-engine"
+        flux_img = call_cloud_ai_image_generator(prompt_to_use, input_img.width, input_img.height)
+        if flux_img is not None:
+            clean_render = flux_img.resize((input_img.width, input_img.height), Image.Resampling.LANCZOS)
+            engine_used = "Cloud AI (Flux Photorealistic)"
+        else:
+            # If all external services are unreachable (e.g. offline testing), fallback to clean synthesis
+            preset = MATERIAL_PRESETS.get(preset_id, MATERIAL_PRESETS["scooter-seat"])
+            clean_render = _synthesize_materials(clean_parts, preset, None)
+            engine_used = "Local Fallback"
 
     # Step 3: Callout Re-Compositing
     if overlay_callouts:
@@ -484,9 +501,10 @@ def process_isometric_to_photorealistic(
     return {
         "success": True,
         "elapsed_ms": elapsed_ms,
-        "preset_used": preset["id"],
+        "preset_used": preset_id,
         "prompt_used": prompt_to_use,
         "engine_used": engine_used,
+        "ai_note": ai_note,
         "dimensions": {"width": input_img.width, "height": input_img.height},
         "render_image_base64": pil_to_base64(final_composite),
         "clean_render_base64": pil_to_base64(clean_render),

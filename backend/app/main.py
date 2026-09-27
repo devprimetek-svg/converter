@@ -797,6 +797,7 @@ async def render_isometric_to_3d(
     overlay_callouts: bool = True,
     api_key: Optional[str] = None,
     ai_prompt: Optional[str] = None,
+    ai_engine: str = Form("auto"),
 ):
     """Process an isometric line drawing into a 3D photorealistic render."""
     image_bytes = None
@@ -819,6 +820,7 @@ async def render_isometric_to_3d(
             overlay_callouts=overlay_callouts,
             api_key=api_key,
             ai_prompt=ai_prompt,
+            ai_engine=ai_engine,
         )
         return result
     except Exception as e:

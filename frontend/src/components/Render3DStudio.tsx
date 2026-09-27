@@ -14,6 +14,7 @@ import {
   Key,
   ExternalLink,
   Layers3,
+  Cpu,
 } from 'lucide-react';
 
 const DEFAULT_AI_PROMPT =
@@ -24,6 +25,7 @@ interface RenderResult {
   elapsed_ms: number;
   preset_used: string;
   engine_used?: string;
+  ai_note?: string;
   prompt_used?: string;
   dimensions: { width: number; height: number };
   render_image_base64: string;
@@ -39,7 +41,8 @@ export const Render3DStudio: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [result, setResult] = useState<RenderResult | null>(null);
 
-  // Gemini API Key & Custom Prompt (Stored locally for convenience)
+  // AI Engine selector & Gemini API Key
+  const [aiEngine, setAiEngine] = useState<'gemini' | 'flux'>('gemini');
   const [apiKey, setApiKey] = useState<string>(() => {
     return localStorage.getItem('gemini_api_key') || '';
   });
@@ -96,6 +99,11 @@ export const Render3DStudio: React.FC = () => {
       return;
     }
 
+    if (aiEngine === 'gemini' && !apiKey.trim()) {
+      setErrorMsg('Please enter your Google Gemini API Key or switch to Cloud AI (Flux Free) below.');
+      return;
+    }
+
     setIsProcessing(true);
     setErrorMsg(null);
 
@@ -104,6 +112,7 @@ export const Render3DStudio: React.FC = () => {
       formData.append('file', selectedFile);
     }
     formData.append('overlay_callouts', overlayCallouts ? 'true' : 'false');
+    formData.append('ai_engine', aiEngine);
     if (apiKey.trim()) {
       formData.append('api_key', apiKey.trim());
     }
@@ -157,15 +166,15 @@ export const Render3DStudio: React.FC = () => {
         <div className="relative z-10 max-w-3xl space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase tracking-widest">
             <Sparkles className="w-3.5 h-3.5" />
-            Gemini 3D Photorealistic Studio
+            AI 3D Photorealistic Studio
           </div>
           <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
             Transform Technical Line Art into 3D Product Renders
           </h2>
           <p className="text-zinc-400 text-sm sm:text-base leading-relaxed">
-            Provide your custom prompt to Google Gemini to transform 2D isometric exploded parts diagrams into
-            textured, photorealistic 3D objects with studio lighting while keeping all callout numbers (1–16) and
-            leader lines 100% crisp.
+            Enter your custom prompt to generate textured, photorealistic 3D objects with studio lighting directly from
+            2D exploded parts drawings, while strictly preserving all callout numbers (1–16) and leader lines in crisp
+            clarity.
           </p>
         </div>
       </div>
@@ -177,9 +186,16 @@ export const Render3DStudio: React.FC = () => {
         </div>
       )}
 
+      {result?.ai_note && (
+        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs flex items-center gap-3">
+          <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+          <span>{result.ai_note}</span>
+        </div>
+      )}
+
       {/* Main Grid: Controls on Left, Live View on Right */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Simple Clean UI (Upload, Gemini Key, Custom Prompt, Options) */}
+        {/* Left Column: Simple Clean UI (Upload, AI Engine, Custom Prompt, Options) */}
         <div className="lg:col-span-5 space-y-6">
           {/* Card 1: Select/Upload Line Diagram */}
           <div className="p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm space-y-4">
@@ -191,7 +207,7 @@ export const Render3DStudio: React.FC = () => {
               <button
                 onClick={handleLoadSample}
                 disabled={isProcessing}
-                className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition-colors flex items-center gap-1.5"
+                className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition-colors flex items-center gap-1.5 cursor-pointer"
                 title="Load sample scooter seat & grab bar diagram"
               >
                 <Sparkles className="w-3 h-3 text-blue-500" />
@@ -218,44 +234,90 @@ export const Render3DStudio: React.FC = () => {
             </div>
           </div>
 
-          {/* Card 2: Google Gemini API Key */}
-          <div className="p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm space-y-3">
+          {/* Card 2: AI Generation Engine & Authentication */}
+          <div className="p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-sm space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
                 <Key className="w-4 h-4 text-amber-500" />
-                2. Gemini API Key
+                2. AI Generation Engine
               </h3>
-              <a
-                href="https://aistudio.google.com/app/apikey"
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                title="Get free API key from Google AI Studio"
-              >
-                Get API Key <ExternalLink className="w-3 h-3" />
-              </a>
             </div>
 
-            <div className="relative">
-              <input
-                type={showApiKey ? 'text' : 'password'}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder="AIzaSy... (saved in browser)"
-                className="w-full px-3 py-2 pr-10 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            {/* Engine Tabs */}
+            <div className="flex rounded-xl bg-zinc-100 dark:bg-zinc-800/80 p-1 gap-1">
               <button
                 type="button"
-                onClick={() => setShowApiKey(!showApiKey)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                title={showApiKey ? 'Hide API key' : 'Show API key'}
+                onClick={() => setAiEngine('gemini')}
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  aiEngine === 'gemini'
+                    ? 'bg-white dark:bg-zinc-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                    : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
+                }`}
               >
-                {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <Sparkles className="w-3.5 h-3.5 text-blue-500" />
+                Google Gemini AI
+              </button>
+              <button
+                type="button"
+                onClick={() => setAiEngine('flux')}
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  aiEngine === 'flux'
+                    ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                    : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
+                }`}
+              >
+                <Cpu className="w-3.5 h-3.5 text-emerald-500" />
+                Cloud AI (Flux Free)
               </button>
             </div>
-            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-              Direct connection to Google Gemini. If left empty, runs locally with built-in reference & PBR shader.
-            </p>
+
+            {aiEngine === 'gemini' ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                    Google Gemini API Key:
+                  </label>
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                  >
+                    Get API Key <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder="AIzaSy... (saved in browser)"
+                    className="w-full px-3 py-2 pr-10 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors cursor-pointer"
+                    title={showApiKey ? 'Hide API key' : 'Show API key'}
+                  >
+                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                  Sends diagram directly to Gemini 2.5/2.0 Flash multimodal image generation API.
+                </p>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs space-y-1">
+                <div className="font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                  <Check className="w-4 h-4 text-emerald-600" />
+                  Ready to Generate - No API Key Needed
+                </div>
+                <p className="text-zinc-600 dark:text-zinc-400 text-[11px]">
+                  Uses Cloud AI Flux.1 photorealistic 3D engine to render textures and objects directly as instructed by your prompt.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Card 3: Custom AI Prompt (The Main Control) */}
@@ -263,7 +325,7 @@ export const Render3DStudio: React.FC = () => {
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold uppercase tracking-wider text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-blue-500" />
-                3. Custom Gemini Prompt
+                3. Custom Prompt
               </h3>
               <div className="flex items-center gap-2">
                 <button
@@ -273,7 +335,7 @@ export const Render3DStudio: React.FC = () => {
                     setCopiedPrompt(true);
                     setTimeout(() => setCopiedPrompt(false), 2000);
                   }}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition-colors"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 transition-colors cursor-pointer"
                   title="Copy prompt text"
                 >
                   {copiedPrompt ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
@@ -282,7 +344,7 @@ export const Render3DStudio: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setCustomPrompt(DEFAULT_AI_PROMPT)}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline transition-colors"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline transition-colors cursor-pointer"
                   title="Reset to recommended prompt"
                 >
                   <RotateCcw className="w-3 h-3" />
@@ -296,10 +358,10 @@ export const Render3DStudio: React.FC = () => {
               onChange={(e) => setCustomPrompt(e.target.value)}
               rows={5}
               className="w-full px-3 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 text-xs font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all resize-none shadow-xs"
-              placeholder="Enter your custom instructions for Gemini (materials, textures, colors, lighting)..."
+              placeholder="Enter your custom prompt (materials, textures, colors, studio lighting)..."
             />
             <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-              Customize colors, materials (e.g. textured black leather, gloss candy red lacquer, chrome bolts), or studio lighting according to your requirement.
+              Modify the prompt to specify materials (black leather, metallic red gloss, chrome, matte ABS), lighting, or colors as you desire.
             </p>
           </div>
 
@@ -330,7 +392,11 @@ export const Render3DStudio: React.FC = () => {
               className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold text-sm shadow-md shadow-blue-600/20 disabled:opacity-50 disabled:pointer-events-none transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               <Sparkles className="w-4 h-4" />
-              {isProcessing ? 'Converting with Gemini AI...' : 'Convert with Gemini 3D'}
+              {isProcessing
+                ? 'Generating 3D Render from Prompt...'
+                : aiEngine === 'gemini'
+                ? 'Generate with Gemini 3D'
+                : 'Generate with Cloud AI (Flux)'}
             </button>
           </div>
         </div>
@@ -350,7 +416,7 @@ export const Render3DStudio: React.FC = () => {
                 <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-lg text-xs">
                   <button
                     onClick={() => setActiveLayerTab('composite')}
-                    className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
                       activeLayerTab === 'composite'
                         ? 'bg-white dark:bg-zinc-900 text-blue-600 dark:text-blue-400 shadow-xs'
                         : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
@@ -360,7 +426,7 @@ export const Render3DStudio: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setActiveLayerTab('clean')}
-                    className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
                       activeLayerTab === 'clean'
                         ? 'bg-white dark:bg-zinc-900 text-blue-600 dark:text-blue-400 shadow-xs'
                         : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
@@ -370,7 +436,7 @@ export const Render3DStudio: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setActiveLayerTab('depth')}
-                    className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
                       activeLayerTab === 'depth'
                         ? 'bg-white dark:bg-zinc-900 text-blue-600 dark:text-blue-400 shadow-xs'
                         : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
@@ -380,7 +446,7 @@ export const Render3DStudio: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setActiveLayerTab('annotations')}
-                    className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    className={`px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer ${
                       activeLayerTab === 'annotations'
                         ? 'bg-white dark:bg-zinc-900 text-blue-600 dark:text-blue-400 shadow-xs'
                         : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900'
@@ -430,13 +496,9 @@ export const Render3DStudio: React.FC = () => {
                     alt="3D Photorealistic Render"
                     className="w-full h-full object-contain pointer-events-none"
                   />
-                  <span className="absolute bottom-3 right-3 px-2 py-0.5 rounded-md bg-black/70 text-white font-mono text-[10px] uppercase tracking-wider backdrop-blur-xs">
-                    {result.engine_used === 'gemini-imagen-3'
-                      ? '✨ Gemini 3D'
-                      : result.engine_used === 'reference-render'
-                      ? '✨ Reference 3D'
-                      : '3D Render'}{' '}
-                    ({result.elapsed_ms}ms)
+                  <span className="absolute bottom-3 right-3 px-2 py-0.5 rounded-md bg-black/70 text-white font-mono text-[10px] uppercase tracking-wider backdrop-blur-xs flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    {result.engine_used || 'AI Render'} ({result.elapsed_ms}ms)
                   </span>
                 </div>
               )}
