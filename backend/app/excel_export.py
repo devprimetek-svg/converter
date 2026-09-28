@@ -45,28 +45,50 @@ def build_image_record(model_code: str, fig_name: str, fig_no: str = "") -> str:
     return f"{cat_code}.jpeg" if cat_code else ""
 
 
-def build_model_name_record(model_code: str, model_name: str, fig_name: str) -> str:
+def build_model_name_record(model_code: str, model_name: str, fig_name: str, brand: str = "YAMAHA") -> str:
     """Build the formatted model name record for a parent parts row.
-    Format: YAMAHA {MODEL_CODE} {MODEL_NAME} Series {PARTS_NAME}
-    e.g.    YAMAHA BGPJ LCX125 Series CYLINDER HEAD
+    Format: YAMAHA {MODEL_CODE} "{MODEL_NAME}" Series {PARTS_NAME}
+    e.g.    YAMAHA BJPK "FASCINO 125CC DISK" Series CYLINDER
+    or      YAMAHA BGPJ "LCX125" Series CYLINDER HEAD
     """
     mc = (model_code or "MODEL").strip().upper()
     mn = (model_name or "").strip()
     fn = re.sub(r"\s+", " ", (fig_name or "").strip()).upper()
     if not fn:
         fn = "PARTS"
+    b = (brand or "YAMAHA").strip().upper()
     if mn:
-        return f"YAMAHA {mc} {mn} Series {fn}"
-    return f"YAMAHA {mc} Series {fn}"
+        clean_mn = mn.strip('"')
+        return f'{b} {mc} "{clean_mn}" Series {fn}'
+    return f"{b} {mc} Series {fn}"
+
+
+def detect_brand(val: Any, fallback: str = "YAMAHA") -> str:
+    """Detect brand from input string if explicitly present, e.g. YAMAHA or YAHAMA."""
+    if val is None:
+        return fallback
+    s = str(val)
+    if re.search(r"\bYAHAMA\b", s, flags=re.IGNORECASE):
+        return "YAHAMA"
+    if re.search(r"\bYAMAHA\b", s, flags=re.IGNORECASE):
+        return "YAMAHA"
+    return fallback
 
 
 def extract_raw_model_name(val: Any, model_code: str = "") -> str:
     """Extract only the vehicle/product model portion from a model name string.
-    e.g. 'YAMAHA BGPJ FZ-S FI Series CYLINDER HEAD' -> 'FZ-S FI'
-         'YAMAHA BGPJ Series CYLINDER HEAD' -> ''
-         'FZ-S FI' -> 'FZ-S FI'
-         'YAMAHA FZ-S FI Series' -> 'FZ-S FI'
-         'R15 V4' -> 'R15 V4'
+    Strips brand (YAMAHA/YAHAMA), model_code, 'Series', and figure heading.
+    Also strips surrounding quotes if present.
+
+    Examples:
+      'YAHAMA BJPK "FASCINO 125CC DISK" Series CYLINDER' -> 'FASCINO 125CC DISK'
+      'YAMAHA BJPK "FASCINO 125CC DISK" Series CYLINDER' -> 'FASCINO 125CC DISK'
+      'YAHAMA BJPK FASCINO 125CC DISK Series CYLINDER'   -> 'FASCINO 125CC DISK'
+      'YAMAHA BJPK FASCINO 125CC DISK Series CYLINDER'   -> 'FASCINO 125CC DISK'
+      '"FASCINO 125CC DISK"'                             -> 'FASCINO 125CC DISK'
+      'FASCINO 125CC DISK'                               -> 'FASCINO 125CC DISK'
+      'YAMAHA BJPK Series CYLINDER'                      -> ''
+      'FZ-S FI'                                          -> 'FZ-S FI'
     """
     if val is None:
         return ""
@@ -74,26 +96,26 @@ def extract_raw_model_name(val: Any, model_code: str = "") -> str:
     if not s:
         return ""
 
-    has_series = bool(re.search(r"\bSeries\b", s, flags=re.IGNORECASE))
-    has_yamaha = bool(re.match(r"^YAMAHA\b", s, flags=re.IGNORECASE))
+    # 1. If it contains 'Series', take everything before 'Series'
+    series_match = re.search(r"\bSeries\b", s, flags=re.IGNORECASE)
+    if series_match:
+        s = s[: series_match.start()].strip()
 
-    if has_series:
-        parts = re.split(r"\bSeries\b", s, maxsplit=1, flags=re.IGNORECASE)
-        s = parts[0].strip()
-        s = re.sub(r"^YAMAHA\s+", "", s, flags=re.IGNORECASE).strip()
-        if model_code:
-            mc = re.escape(model_code.strip())
-            s = re.sub(rf"^{mc}(?:\s+|$)", "", s, flags=re.IGNORECASE).strip()
-        else:
-            s = re.sub(r"^[A-Z0-9]{3,8}(?:\s+|$)", "", s).strip()
-        return s.strip()
+    # 2. Strip leading Brand: YAMAHA or YAHAMA
+    s = re.sub(r"^(?:YAMAHA|YAHAMA)\s+", "", s, flags=re.IGNORECASE).strip()
 
-    if has_yamaha:
-        s = re.sub(r"^YAMAHA\s+", "", s, flags=re.IGNORECASE).strip()
-        if model_code:
-            mc = re.escape(model_code.strip())
-            s = re.sub(rf"^{mc}(?:\s+|$)", "", s, flags=re.IGNORECASE).strip()
-        return s.strip()
+    # 3. Strip leading model_code if provided
+    if model_code:
+        mc = re.escape(model_code.strip())
+        s = re.sub(rf"^{mc}(?:\s+|$)", "", s, flags=re.IGNORECASE).strip()
+
+    # Also strip any 4-char alphanumeric code followed by the model name (e.g. if code was different)
+    s = re.sub(r"^[A-Z0-9]{4}\s+(?=[\"A-Za-z0-9])", "", s).strip()
+
+    # 4. Strip surrounding quotes if present so user model is clean
+    m_quotes = re.match(r'^"([^"]+)"$', s)
+    if m_quotes:
+        s = m_quotes.group(1).strip()
 
     return s.strip()
 
@@ -105,17 +127,17 @@ def format_parent_model_name(
     brand: str = "YAMAHA",
 ) -> str:
     """Format the parent row model name to standard:
-    YAMAHA {MODEL_CODE} {USER_MODEL} Series {PARTS_NAME}
+    YAMAHA {MODEL_CODE} "{USER_MODEL}" Series {PARTS_NAME}
     or YAMAHA {MODEL_CODE} Series {PARTS_NAME} if no user model.
     """
     raw_model = extract_raw_model_name(val, model_code)
+    b = detect_brand(val, brand or "YAMAHA").strip().upper()
     mc = (model_code or "MODEL").strip().upper()
     fn = re.sub(r"\s+", " ", (fig_name or "").strip()).upper()
     if not fn:
         fn = "PARTS"
-    b = (brand or "YAMAHA").strip().upper()
     if raw_model:
-        return f"{b} {mc} {raw_model} Series {fn}"
+        return f'{b} {mc} "{raw_model}" Series {fn}'
     return f"{b} {mc} Series {fn}"
 
 
@@ -253,12 +275,9 @@ def generate_excel_workbook(
             curr_fig_name = raw_fig_name
             curr_cat_code = row_data.get("catalogue_code") or build_catalogue_code(row_model_code, raw_fig_name, raw_fig_no)
             curr_pic = row_data.get("pic") or row_data.get("image") or (f"{curr_cat_code}.jpeg" if curr_cat_code else "")
-            # Model name: preserve pre-composed YAMAHA ... Series record or format raw model input
+            # Model name: format parent model name standard record
             raw_mn = str(row_data.get("model_name") or "").strip()
-            if raw_mn and re.search(r"\bSeries\b", raw_mn, flags=re.IGNORECASE) and re.match(r"^YAMAHA\b", raw_mn, flags=re.IGNORECASE):
-                curr_model_name = raw_mn
-            else:
-                curr_model_name = format_parent_model_name(raw_mn, row_model_code, raw_fig_name)
+            curr_model_name = format_parent_model_name(raw_mn, row_model_code, raw_fig_name)
         else:
             # Child cell: page, fig_no, fig_name, catalogue_code, model_name, and pic do NOT repeat — remain blank
             curr_page = ""

@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import type { ExtractionStatus } from '../types';
 import { PartsTable } from './PartsTable';
-import { extractRawModelName, buildComposedModelName } from '../utils/modelNameHelper';
+import { extractRawModelName, buildComposedModelName, detectBrand } from '../utils/modelNameHelper';
 
 interface ResultsDashboardProps {
   status: ExtractionStatus;
@@ -59,9 +59,14 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
       if (editedVal !== undefined) {
         return { ...row, model_name: buildComposedModelName(editedVal, figModelCode, figName) };
       }
+      if (globalModelInput.trim()) {
+        const rawGlobal = extractRawModelName(globalModelInput);
+        const globalBrand = detectBrand(globalModelInput);
+        return { ...row, model_name: buildComposedModelName(rawGlobal, figModelCode, figName, globalBrand) };
+      }
       return row;
     });
-  }, [rows, editedModelNames, hasEdits, model_columns]);
+  }, [rows, editedModelNames, hasEdits, model_columns, globalModelInput]);
 
   const handleModelNameEdit = useCallback((figKey: string, newValue: string) => {
     setEditedModelNames((prev) => ({ ...prev, [figKey]: newValue }));
@@ -70,6 +75,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
   const handleApplyGlobalModelName = () => {
     const rawGlobal = extractRawModelName(globalModelInput);
     if (!rawGlobal || !rows) return;
+    const globalBrand = detectBrand(globalModelInput);
     const newEdits: Record<string, string> = { ...editedModelNames };
     rows.forEach((row) => {
       const isParent = (row as any).is_parent || String(row.ref_no).trim() === '1';
@@ -77,7 +83,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
         const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
         const figModelCode = (row as any).model_code || model_columns[0] || 'MODEL';
         const figName = (row as any).parent_fig_name || row.fig_name || 'PARTS';
-        newEdits[figKey] = buildComposedModelName(rawGlobal, figModelCode, figName);
+        newEdits[figKey] = buildComposedModelName(rawGlobal, figModelCode, figName, globalBrand);
       }
     });
     setEditedModelNames(newEdits);
@@ -356,7 +362,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleApplyGlobalModelName();
             }}
-            placeholder="Enter Model for all figures (e.g. FZ-S FI, R15, RAY ZR) — Brand, Code & Series apply automatically..."
+            placeholder='Enter Model for all figures (e.g. FASCINO 125CC DISK, FZ-S FI) — format: BRAND CODE "MODEL" Series FIG apply automatically...'
             className="flex-1 px-3.5 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button

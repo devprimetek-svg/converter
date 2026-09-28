@@ -472,8 +472,8 @@ def test_custom_edited_model_name_in_excel():
 
     # Col 5 is Model Name
     assert ws.cell(row=1, column=5).value == "Model Name"
-    # Row 2 (Parent): exact edited string preserved
-    assert ws.cell(row=2, column=5).value == "YAMAHA BJPK R15 V4 Series CYLINDER"
+    # Row 2 (Parent): formatted with figure model code and quotes around model
+    assert ws.cell(row=2, column=5).value == 'YAMAHA BGPK "R15 V4" Series CYLINDER'
     # Row 3 (Child): blank
     assert (ws.cell(row=3, column=5).value or "") == ""
 
@@ -481,16 +481,17 @@ def test_custom_edited_model_name_in_excel():
 def test_raw_model_input_auto_formats_to_brand_code_series():
     """Verify that when a user only enters the raw model (e.g. 'FZ-S FI'),
     the parent cell in Excel is automatically composed as:
-    YAMAHA {MODEL_CODE} {USER_MODEL} Series {PARTS_NAME}
+    YAMAHA {MODEL_CODE} "{USER_MODEL}" Series {PARTS_NAME}
     and child cells remain blank."""
     from app.excel_export import extract_raw_model_name, format_parent_model_name
 
     assert extract_raw_model_name("FZ-S FI", "BGPJ") == "FZ-S FI"
+    assert extract_raw_model_name('YAMAHA BGPJ "FZ-S FI" Series CYLINDER HEAD', "BGPJ") == "FZ-S FI"
     assert extract_raw_model_name("YAMAHA BGPJ FZ-S FI Series CYLINDER HEAD", "BGPJ") == "FZ-S FI"
     assert extract_raw_model_name("YAMAHA BGPJ Series CYLINDER HEAD", "BGPJ") == ""
     assert extract_raw_model_name("YAMAHA FZ-S FI Series", "BGPJ") == "FZ-S FI"
 
-    assert format_parent_model_name("FZ-S FI", "BGPJ", "CYLINDER HEAD") == "YAMAHA BGPJ FZ-S FI Series CYLINDER HEAD"
+    assert format_parent_model_name("FZ-S FI", "BGPJ", "CYLINDER HEAD") == 'YAMAHA BGPJ "FZ-S FI" Series CYLINDER HEAD'
     assert format_parent_model_name("", "BGPJ", "CYLINDER HEAD") == "YAMAHA BGPJ Series CYLINDER HEAD"
 
     rows = [
@@ -524,10 +525,39 @@ def test_raw_model_input_auto_formats_to_brand_code_series():
     wb = openpyxl.load_workbook(buf)
     ws = wb.active
 
-    # Row 2 (Parent): BRAND, MODELCODE, Series automatically composed around user model!
-    assert ws.cell(row=2, column=5).value == "YAMAHA BGPK FZ-S FI Series CYLINDER"
+    # Row 2 (Parent): BRAND, MODELCODE, Series automatically composed around user model with quotes!
+    assert ws.cell(row=2, column=5).value == 'YAMAHA BGPK "FZ-S FI" Series CYLINDER'
     # Row 3 (Child): blank
     assert (ws.cell(row=3, column=5).value or "") == ""
+
+
+def test_fascino_user_format_example():
+    """Verify that exact user example formats properly:
+    YAHAMA BJPK "FASCINO 125CC DISK" Series CYLINDER
+    as well as when entered as raw model 'FASCINO 125CC DISK'."""
+    from app.excel_export import extract_raw_model_name, format_parent_model_name, detect_brand
+
+    # 1. Exact string from user with YAHAMA and quotes
+    s1 = 'YAHAMA BJPK "FASCINO 125CC DISK" Series CYLINDER'
+    assert extract_raw_model_name(s1, "BJPK") == "FASCINO 125CC DISK"
+    assert detect_brand(s1) == "YAHAMA"
+    assert format_parent_model_name(s1, "BJPK", "CYLINDER") == 'YAHAMA BJPK "FASCINO 125CC DISK" Series CYLINDER'
+
+    # 2. String with YAMAHA and quotes
+    s2 = 'YAMAHA BJPK "FASCINO 125CC DISK" Series CYLINDER'
+    assert extract_raw_model_name(s2, "BJPK") == "FASCINO 125CC DISK"
+    assert detect_brand(s2) == "YAMAHA"
+    assert format_parent_model_name(s2, "BJPK", "CYLINDER") == 'YAMAHA BJPK "FASCINO 125CC DISK" Series CYLINDER'
+
+    # 3. User enters only 'FASCINO 125CC DISK'
+    s3 = 'FASCINO 125CC DISK'
+    assert extract_raw_model_name(s3, "BJPK") == "FASCINO 125CC DISK"
+    assert format_parent_model_name(s3, "BJPK", "CYLINDER") == 'YAMAHA BJPK "FASCINO 125CC DISK" Series CYLINDER'
+
+    # 4. User enters '"FASCINO 125CC DISK"'
+    s4 = '"FASCINO 125CC DISK"'
+    assert extract_raw_model_name(s4, "BJPK") == "FASCINO 125CC DISK"
+    assert format_parent_model_name(s4, "BJPK", "CYLINDER") == 'YAMAHA BJPK "FASCINO 125CC DISK" Series CYLINDER'
 
 
 def test_clean_remarks():

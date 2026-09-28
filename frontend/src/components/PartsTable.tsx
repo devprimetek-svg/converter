@@ -3,7 +3,7 @@ import { ChevronDown, ChevronUp, ChevronsUpDown, ChevronLeft, ChevronRight, Imag
 import type { PartRow } from '../types';
 import { cleanPartNumber } from '../utils/cleanPartNo';
 import { cleanRemarks } from '../utils/cleanRemarks';
-import { extractRawModelName, buildComposedModelName } from '../utils/modelNameHelper';
+import { extractRawModelName, buildComposedModelName, detectBrand } from '../utils/modelNameHelper';
 
 interface PartsTableProps {
   rows: PartRow[];
@@ -42,10 +42,11 @@ export const PartsTable: React.FC<PartsTableProps> = ({
     setTimeout(() => inputRef.current?.focus(), 0);
   }, []);
 
-  const commitEdit = useCallback((figKey: string, figModelCode: string, cleanFig: string) => {
+  const commitEdit = useCallback((figKey: string, figModelCode: string, cleanFig: string, brand?: string) => {
     if (onModelNameEdit) {
       const cleanRaw = extractRawModelName(draftValue, figModelCode);
-      const composed = buildComposedModelName(cleanRaw, figModelCode, cleanFig);
+      const b = detectBrand(draftValue, brand || 'YAMAHA');
+      const composed = buildComposedModelName(cleanRaw, figModelCode, cleanFig, b);
       onModelNameEdit(figKey, composed);
     }
     setEditingFigKey(null);
@@ -261,12 +262,12 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                 // Resolve model name: extract raw user model and compose standard record
                 const extractedModelName = (row as any).model_name || '';
                 const rawOverride = editedModelNames[figKey];
-                const rawModelVal = rawOverride !== undefined
-                  ? extractRawModelName(rawOverride, figModelCode)
-                  : extractRawModelName(extractedModelName, figModelCode);
+                const activeVal = rawOverride !== undefined ? rawOverride : extractedModelName;
+                const figBrand = detectBrand(activeVal);
+                const rawModelVal = extractRawModelName(activeVal, figModelCode);
 
                 const composedModelName = isFirstOfFig
-                  ? buildComposedModelName(rawModelVal, figModelCode, cleanFig)
+                  ? buildComposedModelName(rawModelVal, figModelCode, cleanFig, figBrand)
                   : '';
 
                 const isEditing = isFirstOfFig && editingFigKey === figKey;
@@ -296,17 +297,17 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                     </td>
 
                     {/* ── Inline-editable Model Name cell (User edits Model only; Brand, Code, Series are automatic) ── */}
-                    <td className="px-2 py-1.5 min-w-[280px] max-w-[380px]">
+                    <td className="px-2 py-1.5 min-w-[300px] max-w-[420px]">
                       {isFirstOfFig ? (
                         isEditing ? (
                           <div className="flex flex-col gap-1 p-1.5 rounded-xl border-2 border-emerald-500 bg-white dark:bg-slate-900 shadow-md">
                             <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400 px-0.5">
-                              <span className="font-semibold text-slate-700 dark:text-slate-300">YAMAHA {figModelCode}</span>
+                              <span className="font-semibold text-slate-700 dark:text-slate-300">{figBrand} {figModelCode} &quot;</span>
                               <span className="text-emerald-600 dark:text-emerald-400 font-bold uppercase text-[9px] bg-emerald-50 dark:bg-emerald-950/60 px-1 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
                                 Model Only
                               </span>
-                              <span className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[120px]" title={cleanFig}>
-                                Series {cleanFig}
+                              <span className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[130px]" title={cleanFig}>
+                                &quot; Series {cleanFig}
                               </span>
                             </div>
                             <div className="flex items-center gap-1.5">
@@ -315,16 +316,16 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                                 type="text"
                                 value={draftValue}
                                 onChange={(e) => setDraftValue(e.target.value)}
-                                onBlur={() => commitEdit(figKey, figModelCode, cleanFig)}
+                                onBlur={() => commitEdit(figKey, figModelCode, cleanFig, figBrand)}
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') commitEdit(figKey, figModelCode, cleanFig);
+                                  if (e.key === 'Enter') commitEdit(figKey, figModelCode, cleanFig, figBrand);
                                   if (e.key === 'Escape') setEditingFigKey(null);
                                 }}
-                                placeholder="Enter Model (e.g. FZ-S FI, R15)..."
+                                placeholder='Enter Model (e.g. "FASCINO 125CC DISK", "FZ-S FI")...'
                                 className="flex-1 min-w-0 px-2 py-1 text-xs font-bold rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
                               />
                               <button
-                                onMouseDown={(e) => { e.preventDefault(); commitEdit(figKey, figModelCode, cleanFig); }}
+                                onMouseDown={(e) => { e.preventDefault(); commitEdit(figKey, figModelCode, cleanFig, figBrand); }}
                                 className="shrink-0 p-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white transition-colors cursor-pointer shadow-xs"
                                 title="Save Model"
                               >
@@ -343,10 +344,10 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                             title={onModelNameEdit ? `Click to edit Model only. Full Record: ${composedModelName}` : composedModelName}
                           >
                             <div className="flex items-center gap-1 text-xs truncate">
-                              <span className="font-semibold text-slate-500 dark:text-slate-400">YAMAHA {figModelCode}</span>
+                              <span className="font-semibold text-slate-500 dark:text-slate-400">{figBrand} {figModelCode}</span>
                               {rawModelVal ? (
                                 <span className="font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.5 rounded text-[11px] font-mono">
-                                  {rawModelVal}
+                                  &quot;{rawModelVal}&quot;
                                 </span>
                               ) : (
                                 <span className="italic text-amber-600 dark:text-amber-400 font-medium text-[11px] bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">

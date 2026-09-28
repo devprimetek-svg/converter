@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import type { PartRow } from '../types';
 import { PartsTable } from './PartsTable';
-import { extractRawModelName, buildComposedModelName } from '../utils/modelNameHelper';
+import { extractRawModelName, buildComposedModelName, detectBrand } from '../utils/modelNameHelper';
 
 interface PipelineStatus {
   job_id: string;
@@ -119,6 +119,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
     const baseRows: PartRow[] = status?.rows || status?.rows_sample || [];
     if (Object.keys(editedModelNames).length === 0 && !globalModelInput.trim()) return baseRows;
     const rawGlobal = extractRawModelName(globalModelInput);
+    const globalBrand = detectBrand(globalModelInput);
 
     return baseRows.map((row) => {
       const isParent = (row as any).is_parent || String(row.ref_no).trim() === '1';
@@ -134,7 +135,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
         return { ...row, model_name: buildComposedModelName(editedVal, figModelCode, figName) };
       }
       if (rawGlobal) {
-        return { ...row, model_name: buildComposedModelName(rawGlobal, figModelCode, figName) };
+        return { ...row, model_name: buildComposedModelName(rawGlobal, figModelCode, figName, globalBrand) };
       }
       return row;
     });
@@ -147,6 +148,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
   const handleApplyGlobalModelName = () => {
     const rawGlobal = extractRawModelName(globalModelInput);
     if (!rawGlobal || !status?.rows) return;
+    const globalBrand = detectBrand(globalModelInput);
     const newEdits: Record<string, string> = { ...editedModelNames };
     status.rows.forEach((row) => {
       const isParent = (row as any).is_parent || String(row.ref_no).trim() === '1';
@@ -154,7 +156,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
         const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
         const figModelCode = (row as any).model_code || status?.model_columns?.[0] || 'MODEL';
         const figName = (row as any).parent_fig_name || row.fig_name || 'PARTS';
-        newEdits[figKey] = buildComposedModelName(rawGlobal, figModelCode, figName);
+        newEdits[figKey] = buildComposedModelName(rawGlobal, figModelCode, figName, globalBrand);
       }
     });
     setEditedModelNames(newEdits);
@@ -166,6 +168,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
     setErrorMessage(null);
 
     const rawGlobal = extractRawModelName(globalModelInput);
+    const globalBrand = detectBrand(globalModelInput);
     const effectiveEdits = { ...editedModelNames };
     if (rawGlobal && Object.keys(effectiveEdits).length === 0 && status.rows) {
       status.rows.forEach((row) => {
@@ -174,7 +177,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
           const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
           const figModelCode = (row as any).model_code || status?.model_columns?.[0] || 'MODEL';
           const figName = (row as any).parent_fig_name || row.fig_name || 'PARTS';
-          effectiveEdits[figKey] = buildComposedModelName(rawGlobal, figModelCode, figName);
+          effectiveEdits[figKey] = buildComposedModelName(rawGlobal, figModelCode, figName, globalBrand);
         }
       });
     }
@@ -727,13 +730,13 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
 
                 <div className="col-span-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                   <label className="block text-slate-500 font-semibold mb-1 text-xs">
-                    Pre-set Model (Optional — e.g. FZ-S FI. Brand, Code & Series will apply automatically to all parents)
+                    Pre-set Model (Optional — e.g. FASCINO 125CC DISK, FZ-S FI. Brand, Code &amp; Series will apply automatically to all parents)
                   </label>
                   <input
                     type="text"
                     value={defaultModelName}
                     onChange={(e) => setDefaultModelName(e.target.value)}
-                    placeholder="e.g. FZ-S FI, R15, RAY ZR (optional)"
+                    placeholder='e.g. FASCINO 125CC DISK, FZ-S FI (optional)'
                     className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono text-xs"
                   />
                 </div>
@@ -886,7 +889,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                   Review & Enter Model
                 </h3>
                 <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">
-                  Catalogue extracted ({status.total_rows} parts across {status.figures_count || status.figures?.length || 0} figures). Enter your <strong>Model</strong> (e.g. <code>FZ-S FI</code>, <code>R15</code>) below — <strong>Brand (YAMAHA), Model Code, and Series</strong> apply automatically according to each parent figure row.
+                  Catalogue extracted ({status.total_rows} parts across {status.figures_count || status.figures?.length || 0} figures). Enter your <strong>Model</strong> (e.g. <code>FASCINO 125CC DISK</code>, <code>FZ-S FI</code>) below — format: <strong>BRAND {status.model_columns?.[0] || 'MODEL'} &quot;MODEL&quot; Series FIG_NAME</strong> applies automatically to all parent figure rows.
                 </p>
               </div>
 
@@ -942,7 +945,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleApplyGlobalModelName();
                   }}
-                  placeholder="Enter Model only (e.g. FZ-S FI, R15, RAY ZR) — Brand, Code & Series apply automatically..."
+                  placeholder='Enter Model only (e.g. FASCINO 125CC DISK, FZ-S FI) — format: BRAND CODE "MODEL" Series FIG apply automatically...'
                   className="flex-1 px-3.5 py-2 text-xs font-mono font-bold rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
