@@ -70,6 +70,9 @@ class PipelineJob:
         self.error: Optional[str] = None
         self.created_at = time.time()
         self.lock = threading.Lock()
+        self.proceed_event = threading.Event()
+        self.edited_model_names: dict[str, str] = {}
+        self.default_model_name: Optional[str] = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert job state to JSON-serializable status payload."""
@@ -109,8 +112,9 @@ class PipelineJob:
                     }
                     for m in self.model_columns
                 ] if len(self.model_columns) >= 1 else [],
+                "edited_model_names": self.edited_model_names,
             }
-            if self.status == "completed" or self.step_index >= 2:
+            if self.status in ("completed", "awaiting_model_name") or self.step_index >= 1:
                 payload["rows"] = self.rows
                 payload["figures"] = self.figures
             return payload
@@ -187,6 +191,32 @@ def run_pipeline_worker(
             job.rows = parts_result.get("rows", [])
             job.total_rows = len(job.rows)
             job.figures = parts_result.get("figures", [])
+
+            # Apply pre-set default_model_name if provided at start
+            if job.default_model_name:
+                for r in job.rows:
+                    r["model_name"] = job.default_model_name
+
+            job.status = "awaiting_model_name"
+            job.step_index = 1
+            job.step_name = "Edit Model Name"
+            job.progress_pct = 35
+            job.details = "Parts catalogue extracted. Please review and edit the 'Model Name' column to proceed."
+
+        # Wait for user to input/edit model name and trigger proceed
+        logger.info(f"Pipeline job {job.job_id} waiting for model name input...")
+        proceeded = job.proceed_event.wait(timeout=3600)
+
+        if not proceeded or job.status == "error":
+            logger.warning(f"Pipeline job {job.job_id} timed out or cancelled waiting for model name confirmation.")
+            with job.lock:
+                if job.status != "error":
+                    job.status = "error"
+                    job.error = "Pipeline timed out waiting for Model Name input."
+            return
+
+        with job.lock:
+            job.status = "processing"
             job.step_index = 2
             job.step_name = "Generating Excel Workbook..."
             job.progress_pct = 45

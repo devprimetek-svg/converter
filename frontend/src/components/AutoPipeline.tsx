@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useCallback } from 'react';
 import {
   UploadCloud,
   FileSpreadsheet,
@@ -16,13 +16,16 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Pencil,
+  ArrowRight,
 } from 'lucide-react';
-import { cleanRemarks } from '../utils/cleanRemarks';
+import type { PartRow } from '../types';
+import { PartsTable } from './PartsTable';
 
 interface PipelineStatus {
   job_id: string;
   filename: string;
-  status: 'queued' | 'processing' | 'completed' | 'error';
+  status: 'queued' | 'processing' | 'awaiting_model_name' | 'completed' | 'error';
   step_index: number;
   total_steps: number;
   step_name: string;
@@ -51,8 +54,8 @@ interface PipelineStatus {
     fig_name?: string;
     models?: string[];
   }>;
-  rows_sample: Array<Record<string, any>>;
-  rows?: Array<Record<string, any>>;
+  rows_sample?: PartRow[];
+  rows?: PartRow[];
   figures?: Array<{ fig_no: string; fig_name: string; first_page?: number }>;
   model_folders?: Array<{
     model_code: string;
@@ -102,6 +105,79 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeResultTab, setActiveResultTab] = useState<'images' | 'parts'>('images');
   const [selectedModelFilter, setSelectedModelFilter] = useState<string>('ALL');
+
+  // Model Name Editing States (Parity with PDF-to-Excel extractor module)
+  const [defaultModelName, setDefaultModelName] = useState<string>('');
+  const [editedModelNames, setEditedModelNames] = useState<Record<string, string>>({});
+  const [globalModelInput, setGlobalModelInput] = useState<string>('');
+  const [isProceeding, setIsProceeding] = useState<boolean>(false);
+
+  const hasEdits = Object.keys(editedModelNames).length > 0 || globalModelInput.trim().length > 0;
+
+  const rowsWithEdits: PartRow[] = useMemo(() => {
+    const baseRows: PartRow[] = status?.rows || status?.rows_sample || [];
+    if (Object.keys(editedModelNames).length === 0 && !globalModelInput.trim()) return baseRows;
+    return baseRows.map((row) => {
+      const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
+      const editedVal = editedModelNames[figKey];
+      if (editedVal !== undefined) {
+        return { ...row, model_name: editedVal };
+      }
+      if (globalModelInput.trim()) {
+        return { ...row, model_name: globalModelInput.trim() };
+      }
+      return row;
+    });
+  }, [status?.rows, status?.rows_sample, editedModelNames, globalModelInput]);
+
+  const handleModelNameEdit = useCallback((figKey: string, newValue: string) => {
+    setEditedModelNames((prev) => ({ ...prev, [figKey]: newValue }));
+  }, []);
+
+  const handleApplyGlobalModelName = () => {
+    if (!globalModelInput.trim() || !status?.rows) return;
+    const newEdits: Record<string, string> = { ...editedModelNames };
+    status.rows.forEach((row) => {
+      const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
+      newEdits[figKey] = globalModelInput.trim();
+    });
+    setEditedModelNames(newEdits);
+  };
+
+  const handleProceedPipeline = async () => {
+    if (!status?.job_id) return;
+    setIsProceeding(true);
+    setErrorMessage(null);
+
+    const effectiveEdits = { ...editedModelNames };
+    if (globalModelInput.trim() && Object.keys(effectiveEdits).length === 0 && status.rows) {
+      status.rows.forEach((row) => {
+        const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
+        effectiveEdits[figKey] = globalModelInput.trim();
+      });
+    }
+
+    try {
+      const res = await fetch(`/api/pipeline/proceed/${status.job_id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          edited_model_names: effectiveEdits,
+          global_model_name: globalModelInput.trim() || undefined,
+          rows: rowsWithEdits,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to proceed with automated pipeline.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to proceed with automated pipeline.');
+    } finally {
+      setIsProceeding(false);
+    }
+  };
 
   const visibleThumbnails = useMemo(() => {
     if (!status?.processed_thumbnails) return [];
@@ -161,6 +237,9 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
     formData.append('target_min_kb', String(targetMinKb || 59));
     formData.append('target_max_kb', String(targetMaxKb || 69));
     formData.append('clean_part_numbers', String(cleanParts));
+    if (defaultModelName.trim()) {
+      formData.append('default_model_name', defaultModelName.trim());
+    }
 
     try {
       if (onJobCompleted) {
@@ -210,7 +289,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
           const data: PipelineStatus = JSON.parse(event.data);
           setStatus(data);
 
-          // As soon as catalogue rows are extracted, sync immediately to SEO & Metadata module
+          // As soon as catalogue rows are extracted, sync immediately
           if (data.rows && data.rows.length > 0 && onJobCompleted) {
             onJobCompleted({
               jobId: data.job_id,
@@ -221,7 +300,9 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
             });
           }
 
-          if (data.status === 'completed') {
+          if (data.status === 'awaiting_model_name') {
+            setIsProcessing(false);
+          } else if (data.status === 'completed') {
             setIsProcessing(false);
             if (onJobCompleted) {
               onJobCompleted({
@@ -273,7 +354,9 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
           });
         }
 
-        if (data.status === 'completed') {
+        if (data.status === 'awaiting_model_name') {
+          setIsProcessing(false);
+        } else if (data.status === 'completed') {
           setIsProcessing(false);
           if (onJobCompleted) {
             onJobCompleted({
@@ -325,6 +408,9 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
     setFile(null);
     setIsProcessing(false);
     setErrorMessage(null);
+    setEditedModelNames({});
+    setGlobalModelInput('');
+    setIsProceeding(false);
   };
 
   const formatBytes = (bytes: number): string => {
@@ -616,6 +702,19 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                     <span className="text-slate-600 dark:text-slate-400 font-semibold">Clean Yamaha Part Numbers (e.g. 950220601000)</span>
                   </label>
                 </div>
+
+                <div className="col-span-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <label className="block text-slate-500 font-semibold mb-1 text-xs">
+                    Pre-set Model Name (Optional — will prefill 'Model Name' column)
+                  </label>
+                  <input
+                    type="text"
+                    value={defaultModelName}
+                    onChange={(e) => setDefaultModelName(e.target.value)}
+                    placeholder="e.g. YAMAHA FZ-S FI Series (optional)"
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono text-xs"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -716,8 +815,8 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
           <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 pt-2">
             {[
               { idx: 1, label: 'Parts Extraction', icon: FileSpreadsheet },
-              { idx: 2, label: 'Excel Generation', icon: FileSpreadsheet },
-              { idx: 3, label: 'Image Extraction', icon: ImageIcon },
+              { idx: 2, label: 'Edit Model Name', icon: Pencil },
+              { idx: 3, label: 'Excel Generation', icon: FileSpreadsheet },
               { idx: 4, label: 'Preset Watermark', icon: Droplet },
               { idx: 5, label: 'Resize & Master ZIP', icon: FileArchive },
             ].map((s) => {
@@ -746,6 +845,143 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* State 2.5: Awaiting Model Name Input / Review (Parity with PDF-to-Excel extractor module) */}
+      {status && status.status === 'awaiting_model_name' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Stepper & Action Card */}
+          <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                  <Pencil className="w-3.5 h-3.5" />
+                  Step 2 of 5: Edit Model Name
+                </div>
+                <h3 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">
+                  Review & Edit Model Name Column
+                </h3>
+                <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">
+                  Catalogue extracted ({status.total_rows} parts across {status.figures_count || status.figures?.length || 0} figures). Edit the <strong>Model Name</strong> column in the table below or apply a model name to all figures, then click Proceed to generate Excel and Master ZIP.
+                </p>
+              </div>
+
+              {/* Status Badge */}
+              <div className="shrink-0">
+                {hasEdits ? (
+                  <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-3.5 py-1.5 rounded-full border border-emerald-200 dark:border-emerald-800 text-xs font-mono">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    {Object.keys(editedModelNames).length > 0
+                      ? `${Object.keys(editedModelNames).length} Model Name${Object.keys(editedModelNames).length !== 1 ? 's' : ''} edited — Ready to Proceed`
+                      : 'Model Name Ready to Proceed'}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-3.5 py-1.5 rounded-full border border-amber-200 dark:border-amber-800 text-xs font-mono">
+                    <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    Click any Model Name cell below to edit
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Step Badges */}
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+              <div className="p-3 rounded-xl border bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs font-medium flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-zinc-900 dark:text-white shrink-0" />
+                <span className="truncate">1. Parts Extraction</span>
+              </div>
+              <div className="p-3 rounded-xl border bg-blue-50 dark:bg-blue-950/50 border-blue-400 dark:border-blue-700 text-blue-900 dark:text-blue-200 text-xs font-bold flex items-center gap-2.5 shadow-xs">
+                <Pencil className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 animate-bounce" />
+                <span className="truncate">2. Edit Model Name</span>
+              </div>
+              <div className="p-3 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2.5">
+                <FileSpreadsheet className="w-4 h-4 text-zinc-400 shrink-0" />
+                <span className="truncate">3. Excel Generation</span>
+              </div>
+              <div className="p-3 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2.5">
+                <Droplet className="w-4 h-4 text-zinc-400 shrink-0" />
+                <span className="truncate">4. Preset Watermark</span>
+              </div>
+              <div className="p-3 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2.5">
+                <FileArchive className="w-4 h-4 text-zinc-400 shrink-0" />
+                <span className="truncate">5. Master ZIP</span>
+              </div>
+            </div>
+
+            {/* Quick Batch Editor & Proceed Button Bar */}
+            <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+              <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <input
+                  type="text"
+                  value={globalModelInput}
+                  onChange={(e) => setGlobalModelInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleApplyGlobalModelName();
+                  }}
+                  placeholder="Set Model Name for all figures (e.g. YAMAHA FZ-S FI Series)..."
+                  className="flex-1 px-3.5 py-2 text-xs font-mono rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyGlobalModelName}
+                  disabled={!globalModelInput.trim()}
+                  className="px-4 py-2 rounded-xl bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold whitespace-nowrap disabled:opacity-40 transition-colors cursor-pointer"
+                >
+                  Apply to All
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleProceedPipeline}
+                  disabled={isProceeding}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs sm:text-sm font-bold shadow-md shadow-blue-600/25 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                  title="Save model names and proceed with Excel generation and image processing"
+                >
+                  {isProceeding ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      Proceeding...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 text-white" />
+                      Proceed Auto-Pipeline
+                      <ArrowRight className="w-4 h-4 text-white" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Parts Table with Inline Model Name Editing */}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
+                Tip: Click any cell in the <strong>Model Name</strong> column to edit directly inline. Press Enter or click Check to save.
+              </span>
+              <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={cleanParts}
+                  onChange={(e) => setCleanParts(e.target.checked)}
+                  className="rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-zinc-700 dark:text-zinc-300 font-medium">Clean Part Numbers</span>
+              </label>
+            </div>
+
+            <PartsTable
+              rows={rowsWithEdits}
+              modelColumns={status.model_columns || []}
+              cleanParts={cleanParts}
+              editedModelNames={editedModelNames}
+              onModelNameEdit={handleModelNameEdit}
+            />
           </div>
         </div>
       )}
@@ -1028,64 +1264,13 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 font-semibold border-b border-zinc-200 dark:border-zinc-800">
-                    <tr>
-                      <th className="p-2.5">Fig</th>
-                      <th className="p-2.5">Parts Name</th>
-                      <th className="p-2.5">Catalogue Code</th>
-                      <th className="p-2.5 min-w-[200px]">Model Name</th>
-                      <th className="p-2.5">Pic</th>
-                      <th className="p-2.5">Ref</th>
-                      <th className="p-2.5">Part No.</th>
-                      <th className="p-2.5">Description</th>
-                      {status.model_columns?.map((m) => (
-                        <th key={m} className="p-2.5 font-mono text-center text-zinc-900 dark:text-white">{m}</th>
-                      ))}
-                      <th className="p-2.5">Remarks</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/80">
-                    {status.rows_sample?.map((r, i) => {
-                      const isFirstOfFig = i === 0 || (status.rows_sample![i - 1].fig_no !== r.fig_no) || (status.rows_sample![i - 1].fig_name !== r.fig_name);
-                      const cleanFig = (r.fig_name || 'PARTS').replace(/[^A-Za-z0-9]+/g, ' ').trim().toUpperCase();
-                      const mc = status.model_columns && status.model_columns.length > 0 ? status.model_columns[0] : 'MODEL';
-                      const catCode = (r as any).catalogue_code || `YAM_${mc}_${cleanFig}`;
-                      const picVal = (r as any).pic || (r as any).image || (catCode ? `${catCode}.jpeg` : '');
-                      const modelNameVal = (r as any).model_name || '';
-
-                      return (
-                        <tr key={i} className="hover:bg-zinc-50 dark:hover:bg-zinc-900/50">
-                          <td className="p-2.5 font-semibold text-zinc-500">{isFirstOfFig ? r.fig_no : ''}</td>
-                          <td className="p-2.5 text-zinc-700 dark:text-zinc-300 font-medium">{isFirstOfFig ? (r.fig_name || '-') : ''}</td>
-                          <td className="p-2.5 font-mono font-bold text-zinc-700 dark:text-zinc-300">{isFirstOfFig ? catCode : ''}</td>
-                          <td className="p-2.5 text-xs text-emerald-700 dark:text-emerald-300 font-semibold max-w-[220px] truncate" title={isFirstOfFig ? modelNameVal : ''}>
-                            {isFirstOfFig && modelNameVal ? modelNameVal : ''}
-                          </td>
-                          <td className="p-2.5 font-mono text-[11px] text-zinc-600 dark:text-zinc-400">
-                            {isFirstOfFig && picVal ? (
-                              <div className="flex items-center gap-1 font-medium text-blue-600 dark:text-blue-400">
-                                <ImageIcon className="w-3 h-3 shrink-0" />
-                                <span className="truncate max-w-[140px]" title={picVal}>{picVal}</span>
-                              </div>
-                            ) : ''}
-                          </td>
-                          <td className="p-2.5 font-mono text-zinc-500">{r.ref_no}</td>
-                          <td className="p-2.5 font-mono font-bold text-zinc-900 dark:text-white">{r.part_no}</td>
-                          <td className="p-2.5 text-zinc-800 dark:text-zinc-200">{r.description}</td>
-                          {status.model_columns?.map((m) => (
-                            <td key={m} className="p-2.5 font-mono text-center font-bold text-zinc-800 dark:text-zinc-200">
-                              {r[m] || '-'}
-                            </td>
-                          ))}
-                          <td className="p-2.5 text-zinc-500">{cleanRemarks(r.remarks) || '-'}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <PartsTable
+                rows={rowsWithEdits.length > 0 ? rowsWithEdits : (status.rows || [])}
+                modelColumns={status.model_columns || []}
+                cleanParts={cleanParts}
+                editedModelNames={editedModelNames}
+                onModelNameEdit={handleModelNameEdit}
+              />
             </div>
           )}
         </div>

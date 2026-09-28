@@ -609,6 +609,7 @@ async def start_pipeline_endpoint(
     target_min_kb: int = Form(59),
     target_max_kb: int = Form(69),
     clean_part_numbers: bool = Form(True),
+    default_model_name: Optional[str] = Form(None),
 ):
     """Start the automated end-to-end studio pipeline."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
@@ -656,6 +657,8 @@ async def start_pipeline_endpoint(
     }
 
     job = pipeline_manager.create_job(file.filename)
+    if default_model_name and default_model_name.strip():
+        job.default_model_name = default_model_name.strip()
 
     thread = threading.Thread(
         target=run_pipeline_worker,
@@ -667,6 +670,48 @@ async def start_pipeline_endpoint(
     return {"job_id": job.job_id, "filename": file.filename}
 
 
+class PipelineProceedRequest(BaseModel):
+    edited_model_names: Optional[dict[str, str]] = None
+    global_model_name: Optional[str] = None
+    rows: Optional[list[dict[str, Any]]] = None
+
+
+@app.post("/api/pipeline/proceed/{job_id}")
+def proceed_pipeline_endpoint(job_id: str, payload: Optional[PipelineProceedRequest] = None):
+    """Submit edited model names and resume the automated pipeline to Excel and Master ZIP."""
+    job = pipeline_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found or expired.")
+
+    with job.lock:
+        if payload:
+            if payload.rows and len(payload.rows) > 0:
+                job.rows = payload.rows
+                job.total_rows = len(job.rows)
+
+            if payload.edited_model_names:
+                job.edited_model_names.update(payload.edited_model_names)
+                for r in job.rows:
+                    fig_key = f"{r.get('parent_fig_no') or r.get('fig_no')}__{r.get('parent_fig_name') or r.get('fig_name')}"
+                    if fig_key in payload.edited_model_names:
+                        r["model_name"] = payload.edited_model_names[fig_key]
+                    elif payload.global_model_name:
+                        r["model_name"] = payload.global_model_name
+            elif payload.global_model_name:
+                job.default_model_name = payload.global_model_name
+                for r in job.rows:
+                    r["model_name"] = payload.global_model_name
+
+        job.status = "processing"
+        job.step_index = 2
+        job.step_name = "Generating Excel Workbook..."
+        job.progress_pct = 45
+        job.details = "Model names applied. Generating Excel workbook..."
+        job.proceed_event.set()
+
+    return {"status": "resumed", "job_id": job.job_id}
+
+
 @app.get("/api/pipeline/stream/{job_id}")
 async def stream_pipeline_progress(job_id: str):
     """Server-Sent Events stream for real-time pipeline progress."""
@@ -676,13 +721,15 @@ async def stream_pipeline_progress(job_id: str):
 
     async def event_generator():
         last_pct = -1
+        last_status = ""
         while True:
             status_dict = job.to_dict()
             cur_pct = status_dict["progress_pct"]
             cur_status = status_dict["status"]
 
-            if cur_pct != last_pct or cur_status in ("completed", "error"):
+            if cur_pct != last_pct or cur_status != last_status or cur_status in ("completed", "error"):
                 last_pct = cur_pct
+                last_status = cur_status
                 yield f"data: {json.dumps(status_dict)}\n\n"
 
             if cur_status in ("completed", "error"):
