@@ -101,6 +101,7 @@ def test_pipeline_worker_execution():
         watermark_config=wm_config,
         resize_config=resize_config,
         clean_parts=True,
+        auto_proceed=True,
     )
 
     assert job.status == "completed", f"Job failed with: {job.error}"
@@ -163,14 +164,23 @@ def test_pipeline_api_flow():
     assert "job_id" in res_data
     job_id = res_data["job_id"]
 
-    # 2. Poll status until completed
+    # 2. Poll status until completed (handling awaiting_model_name and testing model-only input)
     start_time = time.time()
     status_data = None
-    while time.time() - start_time < 15:
+    proceed_called = False
+    while time.time() - start_time < 20:
         st_res = client.get(f"/api/pipeline/status/{job_id}")
         assert st_res.status_code == 200
         status_data = st_res.json()
-        if status_data["status"] in ("completed", "error"):
+        if status_data["status"] == "awaiting_model_name" and not proceed_called:
+            # User enters ONLY model 'FZ-S FI'
+            proc_res = client.post(
+                f"/api/pipeline/proceed/{job_id}",
+                json={"global_model_name": "FZ-S FI"},
+            )
+            assert proc_res.status_code == 200
+            proceed_called = True
+        elif status_data["status"] in ("completed", "error"):
             break
         time.sleep(0.2)
 
@@ -186,11 +196,14 @@ def test_pipeline_api_flow():
     assert "attachment; filename=" in dl_res.headers.get("content-disposition", "")
     assert dl_res.content[:4] == b"PK\x03\x04"
 
-    # 4. Test Excel-only download
+    # 4. Test Excel-only download and verify composed model name
     excel_res = client.get(f"/api/pipeline/download-excel/{job_id}")
     assert excel_res.status_code == 200
     assert excel_res.headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     assert excel_res.content[:4] == b"PK\x03\x04"
+    wb = openpyxl.load_workbook(io.BytesIO(excel_res.content))
+    ws = wb.active
+    assert ws.cell(row=2, column=5).value == "YAMAHA BGP1 FZ-S FI Series CYLINDER HEAD"
 
 
 def test_parts_only_deduplication_and_figure_naming():
@@ -286,6 +299,7 @@ def test_parts_only_deduplication_and_figure_naming():
             "quality": 100,
         },
         clean_parts=True,
+        auto_proceed=True,
     )
 
     assert job.status == "completed", f"Job failed: {job.error}"
@@ -405,6 +419,7 @@ def test_pipeline_multi_model_separate_folders():
         watermark_config=wm_config,
         resize_config=resize_config,
         clean_parts=True,
+        auto_proceed=True,
     )
 
     assert job.status == "completed", f"Job failed: {job.error}"

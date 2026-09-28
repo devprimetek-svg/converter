@@ -23,7 +23,12 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app.excel_export import generate_excel_workbook, is_valid_quantity
+from app.excel_export import (
+    generate_excel_workbook,
+    is_valid_quantity,
+    format_parent_model_name,
+    extract_raw_model_name,
+)
 from app.parts_extractor import (
     ExtractionError,
     NoTextLayerError,
@@ -689,18 +694,29 @@ def proceed_pipeline_endpoint(job_id: str, payload: Optional[PipelineProceedRequ
                 job.rows = payload.rows
                 job.total_rows = len(job.rows)
 
+            global_raw = extract_raw_model_name(payload.global_model_name or "")
+            if global_raw:
+                job.default_model_name = global_raw
+
             if payload.edited_model_names:
                 job.edited_model_names.update(payload.edited_model_names)
-                for r in job.rows:
-                    fig_key = f"{r.get('parent_fig_no') or r.get('fig_no')}__{r.get('parent_fig_name') or r.get('fig_name')}"
-                    if fig_key in payload.edited_model_names:
-                        r["model_name"] = payload.edited_model_names[fig_key]
-                    elif payload.global_model_name:
-                        r["model_name"] = payload.global_model_name
-            elif payload.global_model_name:
-                job.default_model_name = payload.global_model_name
-                for r in job.rows:
-                    r["model_name"] = payload.global_model_name
+
+            for r in job.rows:
+                fig_key = f"{r.get('parent_fig_no') or r.get('fig_no')}__{r.get('parent_fig_name') or r.get('fig_name')}"
+                is_parent = r.get("is_parent", False) or str(r.get("ref_no", "")).strip() in ("1", "01")
+                mc = r.get("model_code") or (job.model_columns[0] if job.model_columns else "MODEL")
+                fn = r.get("parent_fig_name") or r.get("fig_name") or ""
+                if is_parent:
+                    if payload.edited_model_names and fig_key in payload.edited_model_names:
+                        r["model_name"] = format_parent_model_name(payload.edited_model_names[fig_key], mc, fn)
+                    elif global_raw:
+                        r["model_name"] = format_parent_model_name(global_raw, mc, fn)
+                    elif r.get("model_name"):
+                        r["model_name"] = format_parent_model_name(r.get("model_name"), mc, fn)
+                    else:
+                        r["model_name"] = format_parent_model_name("", mc, fn)
+                else:
+                    r["model_name"] = ""
 
         job.status = "processing"
         job.step_index = 2

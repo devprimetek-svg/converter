@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { ExtractionStatus } from '../types';
 import { PartsTable } from './PartsTable';
+import { extractRawModelName, buildComposedModelName } from '../utils/modelNameHelper';
 
 interface ResultsDashboardProps {
   status: ExtractionStatus;
@@ -37,6 +38,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
   const [exportingModel, setExportingModel] = useState<string | null>(null);
   /** Map of figKey → user-edited model name. Export is only enabled once this has entries. */
   const [editedModelNames, setEditedModelNames] = useState<Record<string, string>>({});
+  const [globalModelInput, setGlobalModelInput] = useState<string>('');
 
   const { rows = [], model_columns = [], figures = [], total_pages = 0 } = status;
 
@@ -46,18 +48,40 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
   const rowsWithEdits = useMemo(() => {
     if (!hasEdits) return rows;
     return rows.map((row) => {
+      const isParent = (row as any).is_parent || String(row.ref_no).trim() === '1';
+      if (!isParent) {
+        return { ...row, model_name: '' };
+      }
       const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
+      const figModelCode = (row as any).model_code || model_columns[0] || 'MODEL';
+      const figName = (row as any).parent_fig_name || row.fig_name || 'PARTS';
       const editedVal = editedModelNames[figKey];
       if (editedVal !== undefined) {
-        return { ...row, model_name: editedVal };
+        return { ...row, model_name: buildComposedModelName(editedVal, figModelCode, figName) };
       }
       return row;
     });
-  }, [rows, editedModelNames, hasEdits]);
+  }, [rows, editedModelNames, hasEdits, model_columns]);
 
   const handleModelNameEdit = useCallback((figKey: string, newValue: string) => {
     setEditedModelNames((prev) => ({ ...prev, [figKey]: newValue }));
   }, []);
+
+  const handleApplyGlobalModelName = () => {
+    const rawGlobal = extractRawModelName(globalModelInput);
+    if (!rawGlobal || !rows) return;
+    const newEdits: Record<string, string> = { ...editedModelNames };
+    rows.forEach((row) => {
+      const isParent = (row as any).is_parent || String(row.ref_no).trim() === '1';
+      if (isParent) {
+        const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
+        const figModelCode = (row as any).model_code || model_columns[0] || 'MODEL';
+        const figName = (row as any).parent_fig_name || row.fig_name || 'PARTS';
+        newEdits[figKey] = buildComposedModelName(rawGlobal, figModelCode, figName);
+      }
+    });
+    setEditedModelNames(newEdits);
+  };
 
   // Compute part count per model code
   const modelPartCounts = useMemo(() => {
@@ -303,12 +327,12 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
             {hasEdits ? (
               <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                {Object.keys(editedModelNames).length} Model Name{Object.keys(editedModelNames).length !== 1 ? 's' : ''} edited — Export enabled
+                {Object.keys(editedModelNames).length} Model{Object.keys(editedModelNames).length !== 1 ? 's' : ''} edited — Export enabled
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-800">
                 <AlertCircle className="w-3.5 h-3.5" />
-                Click any Model Name cell below to edit — then Export unlocks
+                Click any Model cell below or enter model above — then Export unlocks
                 <Pencil className="w-3 h-3" />
               </span>
             )}
@@ -319,6 +343,31 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
               </span>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Batch Model Input Bar */}
+      <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <input
+            type="text"
+            value={globalModelInput}
+            onChange={(e) => setGlobalModelInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleApplyGlobalModelName();
+            }}
+            placeholder="Enter Model for all figures (e.g. FZ-S FI, R15, RAY ZR) — Brand, Code & Series apply automatically..."
+            className="flex-1 px-3.5 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            type="button"
+            onClick={handleApplyGlobalModelName}
+            disabled={!globalModelInput.trim()}
+            className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold whitespace-nowrap disabled:opacity-40 transition-colors cursor-pointer"
+            title="Apply this model to all figure parent rows"
+          >
+            Apply to All Figures
+          </button>
         </div>
       </div>
 

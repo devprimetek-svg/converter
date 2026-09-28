@@ -733,6 +733,7 @@ def extract_parts_from_pdf(
                     "parent_fig_no": current_fig_no,
                     "parent_fig_name": current_fig_name,
                     "is_parent": is_parent,
+                    "model_code": effective_model_code,
                     "catalogue_code": cat_code,
                     "model_name": model_name_val,
                     "pic": pic_val,

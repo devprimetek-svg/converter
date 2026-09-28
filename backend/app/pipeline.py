@@ -23,7 +23,12 @@ from typing import Any, Optional
 
 from PIL import Image
 
-from app.excel_export import generate_excel_workbook, is_valid_quantity
+from app.excel_export import (
+    generate_excel_workbook,
+    is_valid_quantity,
+    format_parent_model_name,
+    extract_raw_model_name,
+)
 from app.image_tools import extract_images_from_pdf, process_watermark_and_resize
 from app.parts_extractor import extract_parts_from_pdf
 
@@ -156,6 +161,7 @@ def run_pipeline_worker(
     watermark_config: dict[str, Any],
     resize_config: dict[str, Any],
     clean_parts: bool = True,
+    auto_proceed: bool = False,
 ):
     """Background worker executing the complete pipeline."""
     base_name = re.sub(r"\.pdf$", "", job.filename, flags=re.IGNORECASE)
@@ -194,8 +200,14 @@ def run_pipeline_worker(
 
             # Apply pre-set default_model_name if provided at start
             if job.default_model_name:
+                raw_default = extract_raw_model_name(job.default_model_name)
                 for r in job.rows:
-                    r["model_name"] = job.default_model_name
+                    if r.get("is_parent", False):
+                        mc = r.get("model_code") or (job.model_columns[0] if job.model_columns else "MODEL")
+                        fn = r.get("parent_fig_name") or r.get("fig_name") or ""
+                        r["model_name"] = format_parent_model_name(raw_default, mc, fn)
+                    else:
+                        r["model_name"] = ""
 
             job.status = "awaiting_model_name"
             job.step_index = 1
@@ -205,7 +217,10 @@ def run_pipeline_worker(
 
         # Wait for user to input/edit model name and trigger proceed
         logger.info(f"Pipeline job {job.job_id} waiting for model name input...")
-        proceeded = job.proceed_event.wait(timeout=3600)
+        if not auto_proceed and not job.proceed_event.is_set():
+            proceeded = job.proceed_event.wait(timeout=3600)
+        else:
+            proceeded = True
 
         if not proceeded or job.status == "error":
             logger.warning(f"Pipeline job {job.job_id} timed out or cancelled waiting for model name confirmation.")

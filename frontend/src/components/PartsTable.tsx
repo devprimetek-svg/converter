@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, ChevronsUpDown, ChevronLeft, ChevronRight, Imag
 import type { PartRow } from '../types';
 import { cleanPartNumber } from '../utils/cleanPartNo';
 import { cleanRemarks } from '../utils/cleanRemarks';
+import { extractRawModelName, buildComposedModelName } from '../utils/modelNameHelper';
 
 interface PartsTableProps {
   rows: PartRow[];
@@ -34,16 +35,18 @@ export const PartsTable: React.FC<PartsTableProps> = ({
   const [draftValue, setDraftValue] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const startEditing = useCallback((figKey: string, currentVal: string) => {
+  const startEditing = useCallback((figKey: string, currentRawModel: string) => {
     setEditingFigKey(figKey);
-    setDraftValue(currentVal);
+    setDraftValue(currentRawModel);
     // Auto-focus the input after render
     setTimeout(() => inputRef.current?.focus(), 0);
   }, []);
 
-  const commitEdit = useCallback((figKey: string) => {
-    if (onModelNameEdit && draftValue.trim() !== '') {
-      onModelNameEdit(figKey, draftValue.trim());
+  const commitEdit = useCallback((figKey: string, figModelCode: string, cleanFig: string) => {
+    if (onModelNameEdit) {
+      const cleanRaw = extractRawModelName(draftValue, figModelCode);
+      const composed = buildComposedModelName(cleanRaw, figModelCode, cleanFig);
+      onModelNameEdit(figKey, composed);
     }
     setEditingFigKey(null);
   }, [draftValue, onModelNameEdit]);
@@ -246,21 +249,28 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                 const displayPartNo = cleanParts ? cleanPartNumber(row.part_no) : row.part_no;
                 const isContinuation = idx > 0 && displayedRows[idx - 1].ref_no === row.ref_no && displayedRows[idx - 1].fig_no === row.fig_no;
                 const isFirstOfFig = idx === 0 || (displayedRows[idx - 1].fig_no !== row.fig_no) || (displayedRows[idx - 1].fig_name !== row.fig_name);
-                const cleanFig = (row.fig_name || 'PARTS').replace(/[^A-Za-z0-9]+/g, ' ').trim().toUpperCase();
                 const primaryModel = modelColumns && modelColumns.length > 0 ? modelColumns[0] : 'MODEL';
-                const catCode = (row as any).catalogue_code || `YAM_${primaryModel}_${cleanFig}`;
+                const figModelCode = (row as any).model_code || primaryModel || 'MODEL';
+                const figNameStr = (row as any).parent_fig_name || row.fig_name || 'PARTS';
+                const cleanFig = figNameStr.replace(/[^A-Za-z0-9]+/g, ' ').trim().toUpperCase() || 'PARTS';
+                const catCode = (row as any).catalogue_code || `YAM_${figModelCode}_${cleanFig}`;
                 const picVal = (row as any).pic || (row as any).image || (catCode ? `${catCode}.jpeg` : '');
 
                 // Build a stable key per figure for editing
                 const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
-                // Resolve model name: edited value overrides the extracted value
+                // Resolve model name: extract raw user model and compose standard record
                 const extractedModelName = (row as any).model_name || '';
-                const modelNameVal = isFirstOfFig
-                  ? (editedModelNames[figKey] !== undefined ? editedModelNames[figKey] : extractedModelName)
+                const rawOverride = editedModelNames[figKey];
+                const rawModelVal = rawOverride !== undefined
+                  ? extractRawModelName(rawOverride, figModelCode)
+                  : extractRawModelName(extractedModelName, figModelCode);
+
+                const composedModelName = isFirstOfFig
+                  ? buildComposedModelName(rawModelVal, figModelCode, cleanFig)
                   : '';
 
                 const isEditing = isFirstOfFig && editingFigKey === figKey;
-                const isEdited = editedModelNames[figKey] !== undefined;
+                const isEdited = Boolean(rawOverride !== undefined || (extractedModelName && rawModelVal));
 
                 return (
                   <tr
@@ -285,54 +295,69 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                       {isFirstOfFig ? catCode : ''}
                     </td>
 
-                    {/* ── Inline-editable Model Name cell ── */}
-                    <td className="px-2 py-1.5 max-w-[300px]">
+                    {/* ── Inline-editable Model Name cell (User edits Model only; Brand, Code, Series are automatic) ── */}
+                    <td className="px-2 py-1.5 min-w-[280px] max-w-[380px]">
                       {isFirstOfFig ? (
                         isEditing ? (
-                          <div className="flex items-center gap-1">
-                            <input
-                              ref={inputRef}
-                              type="text"
-                              value={draftValue}
-                              onChange={(e) => setDraftValue(e.target.value)}
-                              onBlur={() => commitEdit(figKey)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') commitEdit(figKey);
-                                if (e.key === 'Escape') setEditingFigKey(null);
-                              }}
-                              className="flex-1 min-w-0 px-2 py-1 text-xs font-semibold rounded-lg border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-900 dark:text-emerald-100 outline-none focus:ring-2 focus:ring-emerald-400"
-                              title="Press Enter or click away to save"
-                            />
-                            <button
-                              onMouseDown={(e) => { e.preventDefault(); commitEdit(figKey); }}
-                              className="shrink-0 p-1 rounded-md bg-emerald-500 hover:bg-emerald-600 text-white transition-colors"
-                              title="Save"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
+                          <div className="flex flex-col gap-1 p-1.5 rounded-xl border-2 border-emerald-500 bg-white dark:bg-slate-900 shadow-md">
+                            <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400 px-0.5">
+                              <span className="font-semibold text-slate-700 dark:text-slate-300">YAMAHA {figModelCode}</span>
+                              <span className="text-emerald-600 dark:text-emerald-400 font-bold uppercase text-[9px] bg-emerald-50 dark:bg-emerald-950/60 px-1 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                                Model Only
+                              </span>
+                              <span className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[120px]" title={cleanFig}>
+                                Series {cleanFig}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                ref={inputRef}
+                                type="text"
+                                value={draftValue}
+                                onChange={(e) => setDraftValue(e.target.value)}
+                                onBlur={() => commitEdit(figKey, figModelCode, cleanFig)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') commitEdit(figKey, figModelCode, cleanFig);
+                                  if (e.key === 'Escape') setEditingFigKey(null);
+                                }}
+                                placeholder="Enter Model (e.g. FZ-S FI, R15)..."
+                                className="flex-1 min-w-0 px-2 py-1 text-xs font-bold rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+                              />
+                              <button
+                                onMouseDown={(e) => { e.preventDefault(); commitEdit(figKey, figModelCode, cleanFig); }}
+                                className="shrink-0 p-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white transition-colors cursor-pointer shadow-xs"
+                                title="Save Model"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         ) : (
                           <div
-                            className={`group flex items-center gap-1.5 cursor-pointer rounded-lg px-2 py-1 transition-all ${
+                            className={`group flex items-center justify-between gap-1.5 cursor-pointer rounded-lg px-2.5 py-1.5 transition-all ${
                               isEdited
-                                ? 'bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-300 dark:border-emerald-700'
-                                : 'hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800'
+                                ? 'bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-700'
+                                : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 border border-slate-200/60 dark:border-slate-800'
                             }`}
-                            onClick={() => onModelNameEdit !== undefined && startEditing(figKey, modelNameVal)}
-                            title={onModelNameEdit ? 'Click to edit model name' : undefined}
+                            onClick={() => onModelNameEdit !== undefined && startEditing(figKey, rawModelVal)}
+                            title={onModelNameEdit ? `Click to edit Model only. Full Record: ${composedModelName}` : composedModelName}
                           >
-                            <span className={`text-xs font-semibold truncate ${
-                              isEdited
-                                ? 'text-emerald-700 dark:text-emerald-300'
-                                : 'text-emerald-800 dark:text-emerald-300'
-                            }`}>
-                              {modelNameVal || <span className="italic text-slate-400 dark:text-slate-500 font-normal">—</span>}
-                            </span>
+                            <div className="flex items-center gap-1 text-xs truncate">
+                              <span className="font-semibold text-slate-500 dark:text-slate-400">YAMAHA {figModelCode}</span>
+                              {rawModelVal ? (
+                                <span className="font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.5 rounded text-[11px] font-mono">
+                                  {rawModelVal}
+                                </span>
+                              ) : (
+                                <span className="italic text-amber-600 dark:text-amber-400 font-medium text-[11px] bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                                  [Click to enter Model]
+                                </span>
+                              )}
+                              <span className="font-semibold text-slate-500 dark:text-slate-400 truncate">Series {cleanFig}</span>
+                            </div>
                             {onModelNameEdit && (
-                              <Pencil className={`w-3 h-3 shrink-0 transition-opacity ${
-                                isEdited
-                                  ? 'text-emerald-500 opacity-70'
-                                  : 'text-slate-400 dark:text-slate-500 opacity-0 group-hover:opacity-100'
+                              <Pencil className={`w-3.5 h-3.5 shrink-0 transition-opacity ${
+                                isEdited ? 'text-emerald-600 opacity-80' : 'text-slate-400 opacity-0 group-hover:opacity-100'
                               }`} />
                             )}
                           </div>

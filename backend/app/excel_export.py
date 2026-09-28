@@ -60,6 +60,65 @@ def build_model_name_record(model_code: str, model_name: str, fig_name: str) -> 
     return f"YAMAHA {mc} Series {fn}"
 
 
+def extract_raw_model_name(val: Any, model_code: str = "") -> str:
+    """Extract only the vehicle/product model portion from a model name string.
+    e.g. 'YAMAHA BGPJ FZ-S FI Series CYLINDER HEAD' -> 'FZ-S FI'
+         'YAMAHA BGPJ Series CYLINDER HEAD' -> ''
+         'FZ-S FI' -> 'FZ-S FI'
+         'YAMAHA FZ-S FI Series' -> 'FZ-S FI'
+         'R15 V4' -> 'R15 V4'
+    """
+    if val is None:
+        return ""
+    s = str(val).strip()
+    if not s:
+        return ""
+
+    has_series = bool(re.search(r"\bSeries\b", s, flags=re.IGNORECASE))
+    has_yamaha = bool(re.match(r"^YAMAHA\b", s, flags=re.IGNORECASE))
+
+    if has_series:
+        parts = re.split(r"\bSeries\b", s, maxsplit=1, flags=re.IGNORECASE)
+        s = parts[0].strip()
+        s = re.sub(r"^YAMAHA\s+", "", s, flags=re.IGNORECASE).strip()
+        if model_code:
+            mc = re.escape(model_code.strip())
+            s = re.sub(rf"^{mc}(?:\s+|$)", "", s, flags=re.IGNORECASE).strip()
+        else:
+            s = re.sub(r"^[A-Z0-9]{3,8}(?:\s+|$)", "", s).strip()
+        return s.strip()
+
+    if has_yamaha:
+        s = re.sub(r"^YAMAHA\s+", "", s, flags=re.IGNORECASE).strip()
+        if model_code:
+            mc = re.escape(model_code.strip())
+            s = re.sub(rf"^{mc}(?:\s+|$)", "", s, flags=re.IGNORECASE).strip()
+        return s.strip()
+
+    return s.strip()
+
+
+def format_parent_model_name(
+    val: Any,
+    model_code: str = "MODEL",
+    fig_name: str = "PARTS",
+    brand: str = "YAMAHA",
+) -> str:
+    """Format the parent row model name to standard:
+    YAMAHA {MODEL_CODE} {USER_MODEL} Series {PARTS_NAME}
+    or YAMAHA {MODEL_CODE} Series {PARTS_NAME} if no user model.
+    """
+    raw_model = extract_raw_model_name(val, model_code)
+    mc = (model_code or "MODEL").strip().upper()
+    fn = re.sub(r"\s+", " ", (fig_name or "").strip()).upper()
+    if not fn:
+        fn = "PARTS"
+    b = (brand or "YAMAHA").strip().upper()
+    if raw_model:
+        return f"{b} {mc} {raw_model} Series {fn}"
+    return f"{b} {mc} Series {fn}"
+
+
 def is_valid_quantity(val: Any) -> bool:
     """Return True if quantity is non-empty, non-zero, and not a blank placeholder."""
     if val is None:
@@ -185,16 +244,21 @@ def generate_excel_workbook(
         else:
             fig_key = ("page", str(row_data.get("page", "")))
 
+        row_model_code = str(row_data.get("model_code") or "").strip().upper() or active_model_code
         is_parent_cell = (fig_key != last_fig_key)
         if is_parent_cell:
             last_fig_key = fig_key
             curr_page = str(row_data.get("page", ""))
             curr_fig_no = raw_fig_no
             curr_fig_name = raw_fig_name
-            curr_cat_code = row_data.get("catalogue_code") or build_catalogue_code(active_model_code, raw_fig_name, raw_fig_no)
+            curr_cat_code = row_data.get("catalogue_code") or build_catalogue_code(row_model_code, raw_fig_name, raw_fig_no)
             curr_pic = row_data.get("pic") or row_data.get("image") or (f"{curr_cat_code}.jpeg" if curr_cat_code else "")
-            # Model name: prefer the pre-computed value from extraction; build fallback otherwise
-            curr_model_name = row_data.get("model_name") or build_model_name_record(active_model_code, "", raw_fig_name)
+            # Model name: preserve pre-composed YAMAHA ... Series record or format raw model input
+            raw_mn = str(row_data.get("model_name") or "").strip()
+            if raw_mn and re.search(r"\bSeries\b", raw_mn, flags=re.IGNORECASE) and re.match(r"^YAMAHA\b", raw_mn, flags=re.IGNORECASE):
+                curr_model_name = raw_mn
+            else:
+                curr_model_name = format_parent_model_name(raw_mn, row_model_code, raw_fig_name)
         else:
             # Child cell: page, fig_no, fig_name, catalogue_code, model_name, and pic do NOT repeat — remain blank
             curr_page = ""

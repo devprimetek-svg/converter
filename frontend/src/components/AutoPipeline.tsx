@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import type { PartRow } from '../types';
 import { PartsTable } from './PartsTable';
+import { extractRawModelName, buildComposedModelName } from '../utils/modelNameHelper';
 
 interface PipelineStatus {
   job_id: string;
@@ -117,29 +118,44 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
   const rowsWithEdits: PartRow[] = useMemo(() => {
     const baseRows: PartRow[] = status?.rows || status?.rows_sample || [];
     if (Object.keys(editedModelNames).length === 0 && !globalModelInput.trim()) return baseRows;
+    const rawGlobal = extractRawModelName(globalModelInput);
+
     return baseRows.map((row) => {
+      const isParent = (row as any).is_parent || String(row.ref_no).trim() === '1';
+      if (!isParent) {
+        return { ...row, model_name: '' };
+      }
       const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
+      const figModelCode = (row as any).model_code || status?.model_columns?.[0] || 'MODEL';
+      const figName = (row as any).parent_fig_name || row.fig_name || 'PARTS';
+
       const editedVal = editedModelNames[figKey];
       if (editedVal !== undefined) {
-        return { ...row, model_name: editedVal };
+        return { ...row, model_name: buildComposedModelName(editedVal, figModelCode, figName) };
       }
-      if (globalModelInput.trim()) {
-        return { ...row, model_name: globalModelInput.trim() };
+      if (rawGlobal) {
+        return { ...row, model_name: buildComposedModelName(rawGlobal, figModelCode, figName) };
       }
       return row;
     });
-  }, [status?.rows, status?.rows_sample, editedModelNames, globalModelInput]);
+  }, [status?.rows, status?.rows_sample, status?.model_columns, editedModelNames, globalModelInput]);
 
   const handleModelNameEdit = useCallback((figKey: string, newValue: string) => {
     setEditedModelNames((prev) => ({ ...prev, [figKey]: newValue }));
   }, []);
 
   const handleApplyGlobalModelName = () => {
-    if (!globalModelInput.trim() || !status?.rows) return;
+    const rawGlobal = extractRawModelName(globalModelInput);
+    if (!rawGlobal || !status?.rows) return;
     const newEdits: Record<string, string> = { ...editedModelNames };
     status.rows.forEach((row) => {
-      const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
-      newEdits[figKey] = globalModelInput.trim();
+      const isParent = (row as any).is_parent || String(row.ref_no).trim() === '1';
+      if (isParent) {
+        const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
+        const figModelCode = (row as any).model_code || status?.model_columns?.[0] || 'MODEL';
+        const figName = (row as any).parent_fig_name || row.fig_name || 'PARTS';
+        newEdits[figKey] = buildComposedModelName(rawGlobal, figModelCode, figName);
+      }
     });
     setEditedModelNames(newEdits);
   };
@@ -149,11 +165,17 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
     setIsProceeding(true);
     setErrorMessage(null);
 
+    const rawGlobal = extractRawModelName(globalModelInput);
     const effectiveEdits = { ...editedModelNames };
-    if (globalModelInput.trim() && Object.keys(effectiveEdits).length === 0 && status.rows) {
+    if (rawGlobal && Object.keys(effectiveEdits).length === 0 && status.rows) {
       status.rows.forEach((row) => {
-        const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
-        effectiveEdits[figKey] = globalModelInput.trim();
+        const isParent = (row as any).is_parent || String(row.ref_no).trim() === '1';
+        if (isParent) {
+          const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
+          const figModelCode = (row as any).model_code || status?.model_columns?.[0] || 'MODEL';
+          const figName = (row as any).parent_fig_name || row.fig_name || 'PARTS';
+          effectiveEdits[figKey] = buildComposedModelName(rawGlobal, figModelCode, figName);
+        }
       });
     }
 
@@ -163,7 +185,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           edited_model_names: effectiveEdits,
-          global_model_name: globalModelInput.trim() || undefined,
+          global_model_name: rawGlobal || undefined,
           rows: rowsWithEdits,
         }),
       });
@@ -705,13 +727,13 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
 
                 <div className="col-span-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                   <label className="block text-slate-500 font-semibold mb-1 text-xs">
-                    Pre-set Model Name (Optional — will prefill 'Model Name' column)
+                    Pre-set Model (Optional — e.g. FZ-S FI. Brand, Code & Series will apply automatically to all parents)
                   </label>
                   <input
                     type="text"
                     value={defaultModelName}
                     onChange={(e) => setDefaultModelName(e.target.value)}
-                    placeholder="e.g. YAMAHA FZ-S FI Series (optional)"
+                    placeholder="e.g. FZ-S FI, R15, RAY ZR (optional)"
                     className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono text-xs"
                   />
                 </div>
@@ -858,13 +880,13 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
               <div className="space-y-1">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
                   <Pencil className="w-3.5 h-3.5" />
-                  Step 2 of 5: Edit Model Name
+                  Step 2 of 5: Edit Model
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">
-                  Review & Edit Model Name Column
+                  Review & Enter Model
                 </h3>
                 <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">
-                  Catalogue extracted ({status.total_rows} parts across {status.figures_count || status.figures?.length || 0} figures). Edit the <strong>Model Name</strong> column in the table below or apply a model name to all figures, then click Proceed to generate Excel and Master ZIP.
+                  Catalogue extracted ({status.total_rows} parts across {status.figures_count || status.figures?.length || 0} figures). Enter your <strong>Model</strong> (e.g. <code>FZ-S FI</code>, <code>R15</code>) below — <strong>Brand (YAMAHA), Model Code, and Series</strong> apply automatically according to each parent figure row.
                 </p>
               </div>
 
@@ -874,13 +896,13 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                   <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-3.5 py-1.5 rounded-full border border-emerald-200 dark:border-emerald-800 text-xs font-mono">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                     {Object.keys(editedModelNames).length > 0
-                      ? `${Object.keys(editedModelNames).length} Model Name${Object.keys(editedModelNames).length !== 1 ? 's' : ''} edited — Ready to Proceed`
-                      : 'Model Name Ready to Proceed'}
+                      ? `${Object.keys(editedModelNames).length} Model${Object.keys(editedModelNames).length !== 1 ? 's' : ''} edited — Ready to Proceed`
+                      : 'Model Ready to Proceed'}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-3.5 py-1.5 rounded-full border border-amber-200 dark:border-amber-800 text-xs font-mono">
                     <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                    Click any Model Name cell below to edit
+                    Click any Model cell below or apply to all figures
                   </span>
                 )}
               </div>
@@ -894,7 +916,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
               </div>
               <div className="p-3 rounded-xl border bg-blue-50 dark:bg-blue-950/50 border-blue-400 dark:border-blue-700 text-blue-900 dark:text-blue-200 text-xs font-bold flex items-center gap-2.5 shadow-xs">
                 <Pencil className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 animate-bounce" />
-                <span className="truncate">2. Edit Model Name</span>
+                <span className="truncate">2. Edit Model</span>
               </div>
               <div className="p-3 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2.5">
                 <FileSpreadsheet className="w-4 h-4 text-zinc-400 shrink-0" />
@@ -920,16 +942,17 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleApplyGlobalModelName();
                   }}
-                  placeholder="Set Model Name for all figures (e.g. YAMAHA FZ-S FI Series)..."
-                  className="flex-1 px-3.5 py-2 text-xs font-mono rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter Model only (e.g. FZ-S FI, R15, RAY ZR) — Brand, Code & Series apply automatically..."
+                  className="flex-1 px-3.5 py-2 text-xs font-mono font-bold rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
                   type="button"
                   onClick={handleApplyGlobalModelName}
                   disabled={!globalModelInput.trim()}
                   className="px-4 py-2 rounded-xl bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold whitespace-nowrap disabled:opacity-40 transition-colors cursor-pointer"
+                  title="Apply this model name to all figures with their respective parent code and series"
                 >
-                  Apply to All
+                  Apply to All Figures
                 </button>
               </div>
 
@@ -962,7 +985,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
-                Tip: Click any cell in the <strong>Model Name</strong> column to edit directly inline. Press Enter or click Check to save.
+                Tip: Click any cell in the <strong>Model Name</strong> column to edit Model only. Brand, Code &amp; Series are automatically preserved.
               </span>
               <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
                 <input

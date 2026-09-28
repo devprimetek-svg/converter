@@ -478,6 +478,58 @@ def test_custom_edited_model_name_in_excel():
     assert (ws.cell(row=3, column=5).value or "") == ""
 
 
+def test_raw_model_input_auto_formats_to_brand_code_series():
+    """Verify that when a user only enters the raw model (e.g. 'FZ-S FI'),
+    the parent cell in Excel is automatically composed as:
+    YAMAHA {MODEL_CODE} {USER_MODEL} Series {PARTS_NAME}
+    and child cells remain blank."""
+    from app.excel_export import extract_raw_model_name, format_parent_model_name
+
+    assert extract_raw_model_name("FZ-S FI", "BGPJ") == "FZ-S FI"
+    assert extract_raw_model_name("YAMAHA BGPJ FZ-S FI Series CYLINDER HEAD", "BGPJ") == "FZ-S FI"
+    assert extract_raw_model_name("YAMAHA BGPJ Series CYLINDER HEAD", "BGPJ") == ""
+    assert extract_raw_model_name("YAMAHA FZ-S FI Series", "BGPJ") == "FZ-S FI"
+
+    assert format_parent_model_name("FZ-S FI", "BGPJ", "CYLINDER HEAD") == "YAMAHA BGPJ FZ-S FI Series CYLINDER HEAD"
+    assert format_parent_model_name("", "BGPJ", "CYLINDER HEAD") == "YAMAHA BGPJ Series CYLINDER HEAD"
+
+    rows = [
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "catalogue_code": "YAM_BGPK_CYLINDER",
+            "model_name": "FZ-S FI",  # User only entered the model!
+            "pic": "YAM_BGPK_CYLINDER.jpeg",
+            "ref_no": "1",
+            "part_no": "BGP-E1111-00",
+            "description": "HEAD, CYLINDER 1",
+            "BGPK": "1",
+        },
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "catalogue_code": "",
+            "model_name": "",
+            "pic": "",
+            "ref_no": "2",
+            "part_no": "90105-088D1",
+            "description": "BOLT, FLANGE",
+            "BGPK": "4",
+        },
+    ]
+
+    buf = generate_excel_workbook(rows=rows, model_columns=["BGPK"], model_code="BGPK")
+    wb = openpyxl.load_workbook(buf)
+    ws = wb.active
+
+    # Row 2 (Parent): BRAND, MODELCODE, Series automatically composed around user model!
+    assert ws.cell(row=2, column=5).value == "YAMAHA BGPK FZ-S FI Series CYLINDER"
+    # Row 3 (Child): blank
+    assert (ws.cell(row=3, column=5).value or "") == ""
+
+
 def test_clean_remarks():
     """Verify that clean_remarks removes standalone tokens like UR, AB, YB (case-insensitive)
     and handles surrounding punctuation without affecting non-target words."""
