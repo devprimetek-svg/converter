@@ -6,8 +6,8 @@
  * - Brand (e.g. "YAMAHA" or "YAHAMA"), Model Code (e.g. "BJPK", "BGPJ"), "Series", and Parts Name (e.g. "CYLINDER")
  *   are automatically applied according to each figure / parent row.
  *
- * Full parent record format:
- *   YAMAHA {MODEL_CODE} "{USER_MODEL}" Series {PARTS_NAME}
+ * Full parent record format (clean, NO quotes):
+ *   YAMAHA {MODEL_CODE} {USER_MODEL} Series {PARTS_NAME}
  * or if no user model is specified:
  *   YAMAHA {MODEL_CODE} Series {PARTS_NAME}
  */
@@ -26,12 +26,10 @@ export function detectBrand(val?: string | null, fallback: string = 'YAMAHA'): s
 /**
  * Extract only the vehicle/product model portion from a model name string.
  * Strips out Brand (YAMAHA/YAHAMA), Model Code (e.g. BJPK), 'Series', and Figure Heading if present.
- * Also strips surrounding quotation marks if present.
+ * Also strips surrounding quotation marks so raw model is clean without quotes.
  *
  * Examples:
  *   'YAHAMA BJPK "FASCINO 125CC DISK" Series CYLINDER' -> "FASCINO 125CC DISK"
- *   'YAMAHA BJPK "FASCINO 125CC DISK" Series CYLINDER' -> "FASCINO 125CC DISK"
- *   'YAHAMA BJPK FASCINO 125CC DISK Series CYLINDER'   -> "FASCINO 125CC DISK"
  *   'YAMAHA BJPK FASCINO 125CC DISK Series CYLINDER'   -> "FASCINO 125CC DISK"
  *   '"FASCINO 125CC DISK"'                             -> "FASCINO 125CC DISK"
  *   'FASCINO 125CC DISK'                               -> "FASCINO 125CC DISK"
@@ -61,19 +59,16 @@ export function extractRawModelName(val?: string | null, modelCode: string = '')
   // Also strip any 4-char alphanumeric code followed by the model name (e.g. if code was different)
   s = s.replace(/^[A-Z0-9]{4}\s+(?=["A-Za-z0-9])/i, '').trim();
 
-  // Strip surrounding quotes if present
-  const quoteMatch = s.match(/^"([^"]+)"$/);
-  if (quoteMatch) {
-    s = quoteMatch[1].trim();
-  }
+  // Strip surrounding quotes if present (both double quotes and single quotes)
+  s = s.replace(/^["']+|["']+$/g, '').trim();
 
-  return s.trim();
+  return s;
 }
 
 /**
- * Build the full standardized parent model name record.
+ * Build the full standardized parent model name record without quotes.
  * Format:
- *   YAMAHA {MODEL_CODE} "{USER_MODEL}" Series {PARTS_NAME}
+ *   YAMAHA {MODEL_CODE} {USER_MODEL} Series {PARTS_NAME}
  * or
  *   YAMAHA {MODEL_CODE} Series {PARTS_NAME} (if userModel is empty)
  */
@@ -89,7 +84,7 @@ export function buildComposedModelName(
   const fn = (figName || 'PARTS').replace(/[^A-Za-z0-9]+/g, ' ').trim().toUpperCase() || 'PARTS';
 
   if (rawModel) {
-    return `${b} ${mc} "${rawModel}" Series ${fn}`;
+    return `${b} ${mc} ${rawModel} Series ${fn}`;
   }
   return `${b} ${mc} Series ${fn}`;
 }

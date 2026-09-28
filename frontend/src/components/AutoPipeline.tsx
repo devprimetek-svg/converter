@@ -889,7 +889,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                   Review & Enter Model
                 </h3>
                 <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">
-                  Catalogue extracted ({status.total_rows} parts across {status.figures_count || status.figures?.length || 0} figures). Enter your <strong>Model</strong> (e.g. <code>FASCINO 125CC DISK</code>, <code>FZ-S FI</code>) below — format: <strong>BRAND {status.model_columns?.[0] || 'MODEL'} &quot;MODEL&quot; Series FIG_NAME</strong> applies automatically to all parent figure rows.
+                  Catalogue extracted ({status.total_rows} parts across {status.figures_count || status.figures?.length || 0} figures). Enter your <strong>Model</strong> (e.g. <code>FASCINO 125CC DISK</code>, <code>FZ-S FI</code>) below — format: <strong>BRAND {status.model_columns?.[0] || 'MODEL'} MODEL Series FIG_NAME</strong> applies automatically to all parent figure rows.
                 </p>
               </div>
 
@@ -945,7 +945,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleApplyGlobalModelName();
                   }}
-                  placeholder='Enter Model only (e.g. FASCINO 125CC DISK, FZ-S FI) — format: BRAND CODE "MODEL" Series FIG apply automatically...'
+                  placeholder="Enter Model only (e.g. FASCINO 125CC DISK, FZ-S FI) — format: BRAND CODE MODEL Series FIG apply automatically..."
                   className="flex-1 px-3.5 py-2 text-xs font-mono font-bold rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button

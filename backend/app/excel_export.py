@@ -47,9 +47,9 @@ def build_image_record(model_code: str, fig_name: str, fig_no: str = "") -> str:
 
 def build_model_name_record(model_code: str, model_name: str, fig_name: str, brand: str = "YAMAHA") -> str:
     """Build the formatted model name record for a parent parts row.
-    Format: YAMAHA {MODEL_CODE} "{MODEL_NAME}" Series {PARTS_NAME}
-    e.g.    YAMAHA BJPK "FASCINO 125CC DISK" Series CYLINDER
-    or      YAMAHA BGPJ "LCX125" Series CYLINDER HEAD
+    Format: YAMAHA {MODEL_CODE} {MODEL_NAME} Series {PARTS_NAME}
+    e.g.    YAMAHA BJPK FASCINO 125CC DISK Series CYLINDER
+    or      YAMAHA BGPJ LCX125 Series CYLINDER HEAD
     """
     mc = (model_code or "MODEL").strip().upper()
     mn = (model_name or "").strip()
@@ -58,8 +58,8 @@ def build_model_name_record(model_code: str, model_name: str, fig_name: str, bra
         fn = "PARTS"
     b = (brand or "YAMAHA").strip().upper()
     if mn:
-        clean_mn = mn.strip('"')
-        return f'{b} {mc} "{clean_mn}" Series {fn}'
+        clean_mn = mn.strip('"\'').strip()
+        return f"{b} {mc} {clean_mn} Series {fn}"
     return f"{b} {mc} Series {fn}"
 
 
@@ -82,8 +82,6 @@ def extract_raw_model_name(val: Any, model_code: str = "") -> str:
 
     Examples:
       'YAHAMA BJPK "FASCINO 125CC DISK" Series CYLINDER' -> 'FASCINO 125CC DISK'
-      'YAMAHA BJPK "FASCINO 125CC DISK" Series CYLINDER' -> 'FASCINO 125CC DISK'
-      'YAHAMA BJPK FASCINO 125CC DISK Series CYLINDER'   -> 'FASCINO 125CC DISK'
       'YAMAHA BJPK FASCINO 125CC DISK Series CYLINDER'   -> 'FASCINO 125CC DISK'
       '"FASCINO 125CC DISK"'                             -> 'FASCINO 125CC DISK'
       'FASCINO 125CC DISK'                               -> 'FASCINO 125CC DISK'
@@ -113,9 +111,7 @@ def extract_raw_model_name(val: Any, model_code: str = "") -> str:
     s = re.sub(r"^[A-Z0-9]{4}\s+(?=[\"A-Za-z0-9])", "", s).strip()
 
     # 4. Strip surrounding quotes if present so user model is clean
-    m_quotes = re.match(r'^"([^"]+)"$', s)
-    if m_quotes:
-        s = m_quotes.group(1).strip()
+    s = s.strip('"\'').strip()
 
     return s.strip()
 
@@ -127,7 +123,7 @@ def format_parent_model_name(
     brand: str = "YAMAHA",
 ) -> str:
     """Format the parent row model name to standard:
-    YAMAHA {MODEL_CODE} "{USER_MODEL}" Series {PARTS_NAME}
+    YAMAHA {MODEL_CODE} {USER_MODEL} Series {PARTS_NAME}
     or YAMAHA {MODEL_CODE} Series {PARTS_NAME} if no user model.
     """
     raw_model = extract_raw_model_name(val, model_code)
@@ -137,7 +133,8 @@ def format_parent_model_name(
     if not fn:
         fn = "PARTS"
     if raw_model:
-        return f'{b} {mc} "{raw_model}" Series {fn}'
+        clean_model = raw_model.strip('"\'').strip()
+        return f"{b} {mc} {clean_model} Series {fn}"
     return f"{b} {mc} Series {fn}"
 
 

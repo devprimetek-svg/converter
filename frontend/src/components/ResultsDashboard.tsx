@@ -362,7 +362,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleApplyGlobalModelName();
             }}
-            placeholder='Enter Model for all figures (e.g. FASCINO 125CC DISK, FZ-S FI) — format: BRAND CODE "MODEL" Series FIG apply automatically...'
+            placeholder="Enter Model for all figures (e.g. FASCINO 125CC DISK, FZ-S FI) — format: BRAND CODE MODEL Series FIG apply automatically..."
             className="flex-1 px-3.5 py-2 text-xs font-mono font-bold rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button

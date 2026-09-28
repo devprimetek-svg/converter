@@ -122,13 +122,13 @@ def extract_model_info_from_pdf(pdf) -> tuple[str, str]:
 
 def build_model_name_record(model_code: str, model_name: str, fig_name: str) -> str:
     """Build the formatted model name record for a parent parts row.
-    Format: YAMAHA {MODEL_CODE} "{MODEL_NAME}" Series {PARTS_NAME}
-    e.g.    YAMAHA BJPK "FASCINO 125CC DISK" Series CYLINDER
-    or      YAMAHA BGPJ "LCX125" Series CYLINDER HEAD
+    Format: YAMAHA {MODEL_CODE} {MODEL_NAME} Series {PARTS_NAME}
+    e.g.    YAMAHA BJPK FASCINO 125CC DISK Series CYLINDER
+    or      YAMAHA BGPJ LCX125 Series CYLINDER HEAD
 
     Rules:
     - MODEL_CODE is uppercased
-    - MODEL_NAME kept inside double quotes (clean and stripped)
+    - MODEL_NAME kept clean and stripped without quotes
     - PARTS_NAME is the fig_name uppercased with extra spaces normalised
     - If model_name is blank, omit it: YAMAHA {MODEL_CODE} Series {PARTS_NAME}
     - If model_code is also blank, use MODEL as fallback
@@ -139,8 +139,8 @@ def build_model_name_record(model_code: str, model_name: str, fig_name: str) -> 
     if not fn:
         fn = "PARTS"
     if mn:
-        clean_mn = mn.strip('"')
-        return f'YAMAHA {mc} "{clean_mn}" Series {fn}'
+        clean_mn = mn.strip('"\'').strip()
+        return f"YAMAHA {mc} {clean_mn} Series {fn}"
     return f"YAMAHA {mc} Series {fn}"
 
 

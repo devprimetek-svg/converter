@@ -302,12 +302,12 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                         isEditing ? (
                           <div className="flex flex-col gap-1 p-1.5 rounded-xl border-2 border-emerald-500 bg-white dark:bg-slate-900 shadow-md">
                             <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400 px-0.5">
-                              <span className="font-semibold text-slate-700 dark:text-slate-300">{figBrand} {figModelCode} &quot;</span>
+                              <span className="font-semibold text-slate-700 dark:text-slate-300">{figBrand} {figModelCode}</span>
                               <span className="text-emerald-600 dark:text-emerald-400 font-bold uppercase text-[9px] bg-emerald-50 dark:bg-emerald-950/60 px-1 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
                                 Model Only
                               </span>
                               <span className="font-semibold text-slate-700 dark:text-slate-300 truncate max-w-[130px]" title={cleanFig}>
-                                &quot; Series {cleanFig}
+                                Series {cleanFig}
                               </span>
                             </div>
                             <div className="flex items-center gap-1.5">
@@ -321,7 +321,7 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                                   if (e.key === 'Enter') commitEdit(figKey, figModelCode, cleanFig, figBrand);
                                   if (e.key === 'Escape') setEditingFigKey(null);
                                 }}
-                                placeholder='Enter Model (e.g. "FASCINO 125CC DISK", "FZ-S FI")...'
+                                placeholder='Enter Model (e.g. FASCINO 125CC DISK, FZ-S FI)...'
                                 className="flex-1 min-w-0 px-2 py-1 text-xs font-bold rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
                               />
                               <button
@@ -347,7 +347,7 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                               <span className="font-semibold text-slate-500 dark:text-slate-400">{figBrand} {figModelCode}</span>
                               {rawModelVal ? (
                                 <span className="font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.5 rounded text-[11px] font-mono">
-                                  &quot;{rawModelVal}&quot;
+                                  {rawModelVal}
                                 </span>
                               ) : (
                                 <span className="italic text-amber-600 dark:text-amber-400 font-medium text-[11px] bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800">
