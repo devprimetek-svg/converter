@@ -491,7 +491,8 @@ async def bulk_resize_endpoint(
     width: int = Form(...),
     height: int = Form(...),
     format: str = Form("ORIGINAL"),
-    quality: int = Form(85),
+    quality: int = Form(95),
+    preserve_aspect: bool = Form(True),
 ):
     """Bulk resize uploaded images and return as an in-memory ZIP archive."""
     if not files:
@@ -513,6 +514,7 @@ async def bulk_resize_endpoint(
                 target_height=height,
                 output_format=format,
                 quality=quality,
+                preserve_aspect_ratio=preserve_aspect,
             )
             out_filename = f"{stem}_resized.{out_ext}"
             resized_items.append((out_filename, resized_bytes))
@@ -615,6 +617,8 @@ async def start_pipeline_endpoint(
     target_max_kb: int = Form(69),
     clean_part_numbers: bool = Form(True),
     default_model_name: Optional[str] = Form(None),
+    high_clarity: bool = Form(False),
+    preserve_aspect_ratio: bool = Form(True),
 ):
     """Start the automated end-to-end studio pipeline."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
@@ -657,8 +661,10 @@ async def start_pipeline_endpoint(
         "width": resize_width,
         "height": resize_height,
         "quality": resize_quality,
-        "target_min_kb": target_min_kb,
-        "target_max_kb": target_max_kb,
+        "target_min_kb": 0 if high_clarity else target_min_kb,
+        "target_max_kb": 0 if high_clarity else target_max_kb,
+        "high_clarity": high_clarity,
+        "preserve_aspect_ratio": preserve_aspect_ratio,
     }
 
     job = pipeline_manager.create_job(file.filename)
@@ -828,6 +834,34 @@ def download_pipeline_excel(job_id: str, model: Optional[str] = None):
         headers={
             "Content-Disposition": f'attachment; filename="{job.excel_filename}"',
             "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
+
+
+@app.get("/api/pipeline/images/{job_id}/{image_id}")
+def get_pipeline_image_endpoint(job_id: str, image_id: str):
+    """Retrieve full-resolution processed image by job ID and image ID/filename for crisp zoom and preview."""
+    job = pipeline_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Pipeline job not found or expired.")
+
+    with job.lock:
+        image_bytes = job.processed_images_dict.get(image_id)
+        if not image_bytes:
+            for fname, b in job.raw_processed_images:
+                if fname == image_id or fname.startswith(image_id):
+                    image_bytes = b
+                    break
+
+    if not image_bytes:
+        raise HTTPException(status_code=404, detail="Processed image not found.")
+
+    return Response(
+        content=image_bytes,
+        media_type="image/jpeg",
+        headers={
+            "Content-Disposition": f'inline; filename="{image_id}.jpeg"',
+            "Cache-Control": "public, max-age=3600",
         },
     )
 

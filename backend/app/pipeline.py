@@ -63,6 +63,7 @@ class PipelineJob:
         self.images_processed_count = 0
         self.processed_thumbnails: list[dict[str, Any]] = []
         self.raw_processed_images: list[tuple[str, bytes]] = []
+        self.processed_images_dict: dict[str, bytes] = {}
 
         # Multi-model separated data
         self.model_data: dict[str, dict[str, Any]] = {}
@@ -104,7 +105,7 @@ class PipelineJob:
                 "zip_ready": self.zip_bytes is not None,
                 "zip_filename": self.zip_filename,
                 "bundle_size_bytes": self.bundle_size_bytes,
-                "processed_thumbnails": self.processed_thumbnails[:50],  # cap for UI speed
+                "processed_thumbnails": self.processed_thumbnails,
                 "rows_sample": self.rows[:10],
                 "error": self.error,
                 "model_folders": [
@@ -339,12 +340,20 @@ def run_pipeline_worker(
                 fname = img_info.get("filename") or f"YAM_{pipeline_model_code}_PART_{idx + 1:03d}"
                 processed_items.append((fname, processed_bytes, img_info))
 
-                # Generate lightweight thumbnail for UI preview
-                thumb = Image.open(io.BytesIO(processed_bytes))
-                thumb.thumbnail((240, 240))
+                proc_pil = Image.open(io.BytesIO(processed_bytes))
+                act_w, act_h = proc_pil.size
+
+                # Generate high-resolution anti-aliased thumbnail for crisp display
+                thumb = proc_pil.copy()
+                thumb.thumbnail((500, 600), Image.Resampling.LANCZOS)
                 thumb_buf = io.BytesIO()
-                thumb.save(thumb_buf, format="JPEG", quality=80)
+                thumb.save(thumb_buf, format="JPEG", quality=92, optimize=True)
                 thumb_b64 = base64.b64encode(thumb_buf.getvalue()).decode("utf-8")
+
+                img_id = f"proc_{idx + 1}"
+                with job.lock:
+                    job.processed_images_dict[img_id] = processed_bytes
+                    job.processed_images_dict[fname] = processed_bytes
 
                 # Find which models this diagram applies to
                 img_fig_no = str(img_info.get("fig_no", "")).strip()
@@ -363,14 +372,15 @@ def run_pipeline_worker(
                     applicable_models = [pipeline_model_code]
 
                 thumbnails.append({
-                    "id": f"proc_{idx + 1}",
+                    "id": img_id,
                     "filename": fname,
                     "fig_no": img_info.get("fig_no", ""),
                     "fig_name": img_info.get("fig_name", ""),
                     "page": img_info["page"],
-                    "width": resize_config.get("width", 1000),
-                    "height": resize_config.get("height", 1200),
+                    "width": act_w,
+                    "height": act_h,
                     "thumbnail_url": f"data:image/jpeg;base64,{thumb_b64}",
+                    "full_image_url": f"/api/pipeline/images/{job.job_id}/{img_id}",
                     "size_bytes": len(processed_bytes),
                     "models": applicable_models,
                 })

@@ -7,6 +7,10 @@ import {
   Loader2,
   Trash2,
   Image as ImageIcon,
+  ZoomIn,
+  ZoomOut,
+  X,
+  Eye,
 } from 'lucide-react';
 import JSZip from 'jszip';
 
@@ -19,6 +23,7 @@ interface ImageItem {
   originalSize: number;
   dataUrl: string;
   resizedBlob?: Blob;
+  resizedDataUrl?: string;
   resizedWidth?: number;
   resizedHeight?: number;
   resizedSize?: number;
@@ -27,18 +32,60 @@ interface ImageItem {
 
 type ResizeMode = 'percentage' | 'dimensions' | 'max_edge';
 
+/** Stepped halving downsampling to guarantee crisp anti-aliased resizing on HTML5 Canvas without jagged pixelation */
+function drawImageHighQuality(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  targetW: number,
+  targetH: number
+) {
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  const currentW = img.naturalWidth;
+  const currentH = img.naturalHeight;
+
+  if (currentW > targetW * 2 || currentH > targetH * 2) {
+    const stepCanvas = document.createElement('canvas');
+    const stepCtx = stepCanvas.getContext('2d');
+    if (stepCtx) {
+      stepCtx.imageSmoothingEnabled = true;
+      stepCtx.imageSmoothingQuality = 'high';
+
+      let stepW = currentW;
+      let stepH = currentH;
+      let stepSource: CanvasImageSource = img;
+
+      while (stepW * 0.5 > targetW && stepH * 0.5 > targetH) {
+        stepW = Math.round(stepW * 0.5);
+        stepH = Math.round(stepH * 0.5);
+        stepCanvas.width = stepW;
+        stepCanvas.height = stepH;
+        stepCtx.drawImage(stepSource, 0, 0, stepW, stepH);
+        stepSource = stepCanvas;
+      }
+      ctx.drawImage(stepCanvas, 0, 0, targetW, targetH);
+      return;
+    }
+  }
+
+  ctx.drawImage(img, 0, 0, targetW, targetH);
+}
+
 export const BulkImageResizer: React.FC = () => {
   const [items, setItems] = useState<ImageItem[]>([]);
   const [mode, setMode] = useState<ResizeMode>('percentage');
-  const [percentage, setPercentage] = useState<number>(50);
-  const [targetWidth, setTargetWidth] = useState<number>(1920);
-  const [targetHeight, setTargetHeight] = useState<number>(1080);
+  const [percentage, setPercentage] = useState<number>(100);
+  const [targetWidth, setTargetWidth] = useState<number>(1000);
+  const [targetHeight, setTargetHeight] = useState<number>(1200);
   const [maintainAspect, setMaintainAspect] = useState<boolean>(true);
   const [maxEdge, setMaxEdge] = useState<number>(1920);
   const [format, setFormat] = useState<string>('ORIGINAL');
-  const [quality, setQuality] = useState<number>(85);
+  const [quality, setQuality] = useState<number>(95);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isZipping, setIsZipping] = useState<boolean>(false);
+  const [previewItem, setPreviewItem] = useState<ImageItem | null>(null);
+  const [previewZoom, setPreviewZoom] = useState<number>(1);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -127,7 +174,7 @@ export const BulkImageResizer: React.FC = () => {
           img.src = item.dataUrl;
         });
 
-        ctx.drawImage(img, 0, 0, nw, nh);
+        drawImageHighQuality(ctx, img, nw, nh);
 
         // Determine output mime type
         let mime = item.file.type;
@@ -142,6 +189,7 @@ export const BulkImageResizer: React.FC = () => {
         if (!blob) throw new Error('Failed to create image blob');
 
         item.resizedBlob = blob;
+        item.resizedDataUrl = URL.createObjectURL(blob);
         item.resizedWidth = nw;
         item.resizedHeight = nh;
         item.resizedSize = blob.size;
@@ -589,6 +637,13 @@ export const BulkImageResizer: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => { setPreviewItem(it); setPreviewZoom(1); }}
+                          className="p-2 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:text-indigo-300 transition-colors"
+                          title="Inspect / Zoom HD"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
                         {it.status === 'done' && (
                           <button
                             onClick={() => downloadSingle(it)}
@@ -609,6 +664,103 @@ export const BulkImageResizer: React.FC = () => {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* High-Resolution Inspection & Zoom Modal */}
+      {previewItem && (
+        <div
+          onClick={() => setPreviewItem(null)}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-5xl max-h-[92vh] bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+          >
+            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white font-mono">
+                  {previewItem.name}
+                </h4>
+                <p className="text-xs text-slate-500">
+                  Original: {previewItem.originalWidth} × {previewItem.originalHeight} px • Resized: {previewItem.resizedWidth || calculateNewDimensions(previewItem.originalWidth, previewItem.originalHeight)[0]} × {previewItem.resizedHeight || calculateNewDimensions(previewItem.originalWidth, previewItem.originalHeight)[1]} px
+                </p>
+              </div>
+
+              {/* Zoom & Action Controls */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 border border-slate-200 dark:border-slate-700">
+                  <button
+                    onClick={() => setPreviewZoom((z: number) => Math.max(0.5, Number((z - 0.25).toFixed(2))))}
+                    className="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded"
+                    title="Zoom Out"
+                  >
+                    <ZoomOut className="w-4 h-4" />
+                  </button>
+                  <span className="px-2 text-xs font-mono font-bold text-slate-700 dark:text-slate-200 min-w-[50px] text-center">
+                    {Math.round(previewZoom * 100)}%
+                  </span>
+                  <button
+                    onClick={() => setPreviewZoom((z: number) => Math.min(4, Number((z + 0.25).toFixed(2))))}
+                    className="p-1.5 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded"
+                    title="Zoom In"
+                  >
+                    <ZoomIn className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setPreviewZoom(1)}
+                    className="px-2 py-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded ml-1"
+                    title="Reset to 100%"
+                  >
+                    100%
+                  </button>
+                  <button
+                    onClick={() => setPreviewZoom(2)}
+                    className="px-2 py-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded"
+                    title="Zoom to 200%"
+                  >
+                    200%
+                  </button>
+                </div>
+
+                {previewItem.resizedBlob && (
+                  <button
+                    onClick={() => downloadSingle(previewItem)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-colors shadow-xs"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Download
+                  </button>
+                )}
+
+                <button
+                  onClick={() => setPreviewItem(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-white rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Viewport with smooth pan & high-definition rendering */}
+            <div className="p-4 flex-1 bg-slate-950 overflow-auto max-h-[75vh] flex items-center justify-center">
+              <div
+                style={{
+                  transform: `scale(${previewZoom})`,
+                  transformOrigin: 'center center',
+                  transition: 'transform 0.15s ease-out',
+                }}
+                className="max-w-full max-h-full flex items-center justify-center"
+              >
+                <img
+                  src={previewItem.resizedDataUrl || previewItem.dataUrl}
+                  alt={previewItem.name}
+                  className="max-w-full max-h-[68vh] object-contain rounded shadow-2xl"
+                  style={{ imageRendering: 'auto' }}
+                />
               </div>
             </div>
           </div>

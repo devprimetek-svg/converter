@@ -205,6 +205,16 @@ def test_pipeline_api_flow():
     ws = wb.active
     assert ws.cell(row=2, column=5).value == "YAMAHA BGP1 FZ-S FI Series CYLINDER HEAD"
 
+    # 5. Test high-res image preview endpoint
+    assert len(status_data["processed_thumbnails"]) > 0
+    first_thumb = status_data["processed_thumbnails"][0]
+    img_id = first_thumb["id"]
+    img_res = client.get(f"/api/pipeline/images/{job_id}/{img_id}")
+    assert img_res.status_code == 200
+    assert img_res.headers["content-type"] == "image/jpeg"
+    img_pil = Image.open(io.BytesIO(img_res.content))
+    assert img_pil.size == (1000, 1200)
+
 
 def test_parts_only_deduplication_and_figure_naming():
     """Verify that:

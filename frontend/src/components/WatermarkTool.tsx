@@ -111,6 +111,9 @@ export const WatermarkTool: React.FC = () => {
     canvas.width = baseImg.naturalWidth;
     canvas.height = baseImg.naturalHeight;
 
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+
     // Draw base image
     ctx.drawImage(baseImg, 0, 0);
 
@@ -247,8 +250,9 @@ export const WatermarkTool: React.FC = () => {
         const offscreen = document.createElement('canvas');
         await drawWatermark(offscreen, item.dataUrl);
 
+        const mime = item.file.type === 'image/png' ? 'image/png' : 'image/jpeg';
         const blob = await new Promise<Blob | null>((resolve) => {
-          offscreen.toBlob(resolve, 'image/jpeg', 0.92);
+          offscreen.toBlob(resolve, mime, 0.98);
         });
 
         if (!blob) throw new Error('Blob error');

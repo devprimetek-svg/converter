@@ -18,6 +18,9 @@ import {
   ChevronUp,
   Pencil,
   ArrowRight,
+  ZoomIn,
+  ZoomOut,
+  X,
 } from 'lucide-react';
 import type { PartRow } from '../types';
 import { PartsTable } from './PartsTable';
@@ -50,6 +53,7 @@ interface PipelineStatus {
     width: number;
     height: number;
     thumbnail_url: string;
+    full_image_url?: string;
     size_bytes: number;
     fig_no?: string;
     fig_name?: string;
@@ -93,8 +97,12 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
   const [resizeWidth, setResizeWidth] = useState<number>(1000);
   const [resizeHeight, setResizeHeight] = useState<number>(1200);
   const resizeQuality = 100;
+  const [isHighClarity, setIsHighClarity] = useState<boolean>(true);
+  const [preserveAspectRatio, setPreserveAspectRatio] = useState<boolean>(true);
   const [targetMinKb, setTargetMinKb] = useState<number>(59);
   const [targetMaxKb, setTargetMaxKb] = useState<number>(69);
+  const [previewDiagram, setPreviewDiagram] = useState<any | null>(null);
+  const [modalZoom, setModalZoom] = useState<number>(1);
 
   const [cleanParts, setCleanParts] = useState<boolean>(true);
   const [showPresetSettings, setShowPresetSettings] = useState<boolean>(false);
@@ -259,8 +267,10 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
     formData.append('resize_width', String(resizeWidth));
     formData.append('resize_height', String(resizeHeight));
     formData.append('resize_quality', String(resizeQuality));
-    formData.append('target_min_kb', String(targetMinKb || 59));
-    formData.append('target_max_kb', String(targetMaxKb || 69));
+    formData.append('target_min_kb', String(isHighClarity ? 0 : (targetMinKb || 59)));
+    formData.append('target_max_kb', String(isHighClarity ? 0 : (targetMaxKb || 69)));
+    formData.append('high_clarity', String(isHighClarity));
+    formData.append('preserve_aspect_ratio', String(preserveAspectRatio));
     formData.append('clean_part_numbers', String(cleanParts));
     if (defaultModelName.trim()) {
       formData.append('default_model_name', defaultModelName.trim());
@@ -677,44 +687,104 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                     className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono font-bold"
                   />
                 </div>
-                <div>
-                  <label className="block text-slate-500 font-semibold mb-1">Min Target Size (KB)</label>
-                  <input
-                    type="number"
-                    value={targetMinKb}
-                    min={10}
-                    max={500}
-                    onChange={(e) => setTargetMinKb(Number(e.target.value))}
-                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-500 font-semibold mb-1">Max Target Size (KB)</label>
-                  <input
-                    type="number"
-                    value={targetMaxKb}
-                    min={10}
-                    max={500}
-                    onChange={(e) => setTargetMaxKb(Number(e.target.value))}
-                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono font-bold"
-                  />
-                </div>
-
-                <div className="col-span-2 p-2.5 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/60 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
-                  <span>Target Range Preset: <strong>{targetMinKb}–{targetMaxKb} KB</strong> (~{Math.round((targetMinKb + targetMaxKb) / 2)} KB ideal sweet spot)</span>
-                  {(targetMinKb !== 59 || targetMaxKb !== 69) && (
+                <div className="col-span-2 space-y-2 pt-1 border-t border-slate-200 dark:border-slate-800">
+                  <label className="block text-slate-700 dark:text-slate-300 font-bold text-xs uppercase tracking-wider">
+                    Diagram Clarity &amp; Compression Mode
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        setTargetMinKb(59);
-                        setTargetMaxKb(69);
-                      }}
-                      className="text-[10px] font-bold underline hover:text-emerald-900 dark:hover:text-emerald-100 ml-2 cursor-pointer"
+                      onClick={() => setIsHighClarity(true)}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        isHighClarity
+                          ? 'border-indigo-600 bg-indigo-50/90 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 ring-2 ring-indigo-500/20 shadow-xs'
+                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 text-slate-600 dark:text-slate-400'
+                      }`}
                     >
-                      Reset to 59–69 KB
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-indigo-700 dark:text-indigo-300">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Crystal-Clear HD (Recommended)
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        100% sharp lines &amp; text even at 300% zoom. No pixelation or destructive KB downscaling.
+                      </p>
                     </button>
-                  )}
+
+                    <button
+                      type="button"
+                      onClick={() => setIsHighClarity(false)}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        !isHighClarity
+                          ? 'border-emerald-600 bg-emerald-50/90 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-200 ring-2 ring-emerald-500/20 shadow-xs'
+                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-emerald-700 dark:text-emerald-300">
+                        <FileArchive className="w-3.5 h-3.5" />
+                        Strict IndiaSpare ({targetMinKb}–{targetMaxKb} KB)
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        Packages file size into 59–69 KB with crisp anti-pixelation floor for portal uploads.
+                      </p>
+                    </button>
+                  </div>
                 </div>
+
+                <div className="col-span-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={preserveAspectRatio}
+                      onChange={(e) => setPreserveAspectRatio(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold text-xs">
+                      Preserve Diagram Aspect Ratio (Centers on clean white canvas without stretching or squishing)
+                    </span>
+                  </label>
+                </div>
+
+                {!isHighClarity && (
+                  <>
+                    <div>
+                      <label className="block text-slate-500 font-semibold mb-1">Min Target Size (KB)</label>
+                      <input
+                        type="number"
+                        value={targetMinKb}
+                        min={10}
+                        max={500}
+                        onChange={(e) => setTargetMinKb(Number(e.target.value))}
+                        className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-500 font-semibold mb-1">Max Target Size (KB)</label>
+                      <input
+                        type="number"
+                        value={targetMaxKb}
+                        min={10}
+                        max={500}
+                        onChange={(e) => setTargetMaxKb(Number(e.target.value))}
+                        className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono font-bold"
+                      />
+                    </div>
+                    <div className="col-span-2 p-2.5 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/60 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center justify-between">
+                      <span>Target Range Preset: <strong>{targetMinKb}–{targetMaxKb} KB</strong></span>
+                      {(targetMinKb !== 59 || targetMaxKb !== 69) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTargetMinKb(59);
+                            setTargetMaxKb(69);
+                          }}
+                          className="text-[10px] font-bold underline hover:text-emerald-900 dark:hover:text-emerald-100 ml-2 cursor-pointer"
+                        >
+                          Reset to 59–69 KB
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
 
                 <div className="col-span-2 pt-1">
                   <label className="flex items-center gap-2 cursor-pointer">
@@ -1205,14 +1275,25 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                   {visibleThumbnails.map((img) => (
                     <div
                       key={img.id}
-                      className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 overflow-hidden shadow-sm hover:border-zinc-400 dark:hover:border-zinc-700 transition-all group"
+                      onClick={() => {
+                        setPreviewDiagram(img);
+                        setModalZoom(1);
+                      }}
+                      className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 overflow-hidden shadow-sm hover:border-indigo-400 dark:hover:border-indigo-600 transition-all group cursor-pointer"
                     >
                       <div className="aspect-[10/12] bg-zinc-50 dark:bg-zinc-900/60 relative flex items-center justify-center overflow-hidden">
                         <img
                           src={img.thumbnail_url}
                           alt={img.filename}
                           className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform"
+                          style={{ imageRendering: 'auto' }}
                         />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <span className="px-3 py-1.5 rounded-lg bg-white/95 text-zinc-900 font-bold text-xs flex items-center gap-1.5 shadow-lg">
+                            <ZoomIn className="w-3.5 h-3.5 text-indigo-600" />
+                            Inspect HD
+                          </span>
+                        </div>
                         <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-xs text-[10px] font-mono text-zinc-300 font-medium">
                           {img.width}x{img.height}
                         </span>
@@ -1299,6 +1380,108 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
               />
             </div>
           )}
+        </div>
+      )}
+
+      {/* High-Resolution Diagram Zoom & Inspection Modal */}
+      {previewDiagram && (
+        <div
+          onClick={() => setPreviewDiagram(null)}
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-5xl max-h-[92vh] bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl flex flex-col border border-zinc-200 dark:border-zinc-800"
+          >
+            <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-bold text-zinc-900 dark:text-white font-mono flex items-center gap-2">
+                  {previewDiagram.filename}
+                  {previewDiagram.fig_no && (
+                    <span className="px-2 py-0.5 rounded text-[10px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-sans font-semibold">
+                      FIG. {previewDiagram.fig_no}
+                    </span>
+                  )}
+                </h4>
+                <p className="text-xs text-zinc-500 mt-0.5 font-mono">
+                  Page {previewDiagram.page} • {previewDiagram.width} × {previewDiagram.height} px • {formatBytes(previewDiagram.size_bytes)}
+                  {previewDiagram.fig_name ? ` • ${previewDiagram.fig_name}` : ''}
+                </p>
+              </div>
+
+              {/* Zoom & Action Controls */}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-lg p-0.5 border border-zinc-200 dark:border-zinc-700">
+                  <button
+                    onClick={() => setModalZoom((z) => Math.max(0.5, Number((z - 0.25).toFixed(2))))}
+                    className="p-1.5 text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 rounded transition-colors"
+                    title="Zoom Out"
+                  >
+                    <ZoomOut className="w-4 h-4" />
+                  </button>
+                  <span className="px-2 text-xs font-mono font-bold text-zinc-700 dark:text-zinc-200 min-w-[50px] text-center">
+                    {Math.round(modalZoom * 100)}%
+                  </span>
+                  <button
+                    onClick={() => setModalZoom((z) => Math.min(4, Number((z + 0.25).toFixed(2))))}
+                    className="p-1.5 text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 rounded transition-colors"
+                    title="Zoom In"
+                  >
+                    <ZoomIn className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setModalZoom(1)}
+                    className="px-2 py-1 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 rounded ml-1"
+                    title="Reset Zoom to 100%"
+                  >
+                    100%
+                  </button>
+                  <button
+                    onClick={() => setModalZoom(2)}
+                    className="px-2 py-1 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-700 rounded"
+                    title="Zoom to 200%"
+                  >
+                    200%
+                  </button>
+                </div>
+
+                <a
+                  href={previewDiagram.full_image_url || previewDiagram.thumbnail_url}
+                  download={`${previewDiagram.filename}.jpeg`}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition-colors shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download
+                </a>
+
+                <button
+                  onClick={() => setPreviewDiagram(null)}
+                  className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-white rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Image Preview Viewport */}
+            <div className="p-4 flex-1 bg-zinc-950 overflow-auto max-h-[75vh] flex items-center justify-center">
+              <div
+                style={{
+                  transform: `scale(${modalZoom})`,
+                  transformOrigin: 'center center',
+                  transition: 'transform 0.15s ease-out',
+                }}
+                className="max-w-full max-h-full flex items-center justify-center"
+              >
+                <img
+                  src={previewDiagram.full_image_url || previewDiagram.thumbnail_url}
+                  alt={previewDiagram.filename}
+                  className="max-w-full max-h-[68vh] object-contain rounded shadow-2xl"
+                  style={{ imageRendering: 'auto' }}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
