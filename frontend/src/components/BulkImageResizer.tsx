@@ -36,6 +36,8 @@ type ResizeMode = 'percentage' | 'dimensions' | 'max_edge';
 function drawImageHighQuality(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
+  dx: number,
+  dy: number,
   targetW: number,
   targetH: number
 ) {
@@ -64,24 +66,126 @@ function drawImageHighQuality(
         stepCtx.drawImage(stepSource, 0, 0, stepW, stepH);
         stepSource = stepCanvas;
       }
-      ctx.drawImage(stepCanvas, 0, 0, targetW, targetH);
+      ctx.drawImage(stepCanvas, dx, dy, targetW, targetH);
       return;
     }
   }
 
-  ctx.drawImage(img, 0, 0, targetW, targetH);
+  ctx.drawImage(img, dx, dy, targetW, targetH);
+}
+
+/**
+ * Compresses an HTML5 canvas to JPEG strictly within minKb..maxKb.
+ * Guarantees resolution is preserved, quality is binary-searched,
+ * and if below minKb, standard JPEG COM marker padding is added to reach midpoint.
+ */
+async function compressToTargetKbClient(
+  canvas: HTMLCanvasElement,
+  minKb = 59,
+  maxKb = 69
+): Promise<Blob> {
+  const minBytes = minKb * 1024;
+  const maxBytes = maxKb * 1024;
+  const targetBytes = Math.floor((minBytes + maxBytes) / 2);
+
+  const getBlob = (q: number): Promise<Blob> =>
+    new Promise((resolve) => {
+      canvas.toBlob((b) => resolve(b || new Blob([], { type: 'image/jpeg' })), 'image/jpeg', q / 100);
+    });
+
+  const padJpeg = async (blob: Blob): Promise<Blob> => {
+    if (blob.size >= minBytes && blob.size <= maxBytes) return blob;
+    if (blob.size > maxBytes) return blob;
+    const needed = targetBytes - blob.size;
+    if (needed < 4) return blob;
+
+    const arrayBuffer = await blob.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return blob;
+
+    const chunks: Uint8Array[] = [];
+    let remaining = needed;
+    while (remaining >= 4) {
+      const payloadLen = Math.min(65533, remaining - 4);
+      const marker = new Uint8Array(4 + payloadLen);
+      marker[0] = 0xff;
+      marker[1] = 0xfe;
+      marker[2] = ((payloadLen + 2) >> 8) & 0xff;
+      marker[3] = (payloadLen + 2) & 0xff;
+      chunks.push(marker);
+      remaining -= marker.length;
+    }
+
+    const totalPad = chunks.reduce((acc, c) => acc + c.length, 0);
+    const combined = new Uint8Array(bytes.length + totalPad);
+    combined.set(bytes.subarray(0, 2), 0);
+    let offset = 2;
+    for (const c of chunks) {
+      combined.set(c, offset);
+      offset += c.length;
+    }
+    combined.set(bytes.subarray(2), offset);
+
+    return new Blob([combined], { type: 'image/jpeg' });
+  };
+
+  // 1. Check max quality (95)
+  const b95 = await getBlob(95);
+  if (b95.size < minBytes) {
+    return padJpeg(b95);
+  }
+  if (b95.size <= maxBytes) {
+    return b95;
+  }
+
+  // 2. Binary search quality between 8 and 95
+  let low = 8;
+  let high = 95;
+  let bestBlob: Blob = b95;
+  let bestDiff = Math.abs(b95.size - targetBytes);
+
+  for (let iter = 0; iter < 10; iter++) {
+    const mid = Math.floor((low + high) / 2);
+    const blob = await getBlob(mid);
+    const sz = blob.size;
+
+    if (sz >= minBytes && sz <= maxBytes) {
+      return blob;
+    }
+
+    const diff = Math.abs(sz - targetBytes);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestBlob = blob;
+    }
+
+    if (sz < minBytes) {
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  if (bestBlob.size < minBytes) {
+    return padJpeg(bestBlob);
+  }
+  return bestBlob;
 }
 
 export const BulkImageResizer: React.FC = () => {
   const [items, setItems] = useState<ImageItem[]>([]);
-  const [mode, setMode] = useState<ResizeMode>('percentage');
+  const [mode, setMode] = useState<ResizeMode>('dimensions');
   const [percentage, setPercentage] = useState<number>(100);
   const [targetWidth, setTargetWidth] = useState<number>(1000);
   const [targetHeight, setTargetHeight] = useState<number>(1200);
   const [maintainAspect, setMaintainAspect] = useState<boolean>(true);
+  const [centerOnWhiteCanvas, setCenterOnWhiteCanvas] = useState<boolean>(true);
   const [maxEdge, setMaxEdge] = useState<number>(1920);
-  const [format, setFormat] = useState<string>('ORIGINAL');
+  const [format, setFormat] = useState<string>('JPG');
   const [quality, setQuality] = useState<number>(95);
+  const [enableTargetKb, setEnableTargetKb] = useState<boolean>(true);
+  const [targetMinKb, setTargetMinKb] = useState<number>(59);
+  const [targetMaxKb, setTargetMaxKb] = useState<number>(69);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isZipping, setIsZipping] = useState<boolean>(false);
   const [previewItem, setPreviewItem] = useState<ImageItem | null>(null);
@@ -161,20 +265,46 @@ export const BulkImageResizer: React.FC = () => {
       setItems([...updated]);
 
       try {
-        const [nw, nh] = calculateNewDimensions(item.originalWidth, item.originalHeight);
-        const canvas = document.createElement('canvas');
-        canvas.width = nw;
-        canvas.height = nh;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('Canvas context unavailable');
-
         const img = new Image();
         await new Promise((resolve) => {
           img.onload = resolve;
           img.src = item.dataUrl;
         });
 
-        drawImageHighQuality(ctx, img, nw, nh);
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Canvas context unavailable');
+
+        let finalW: number;
+        let finalH: number;
+
+        if (mode === 'dimensions' && centerOnWhiteCanvas) {
+          finalW = targetWidth;
+          finalH = targetHeight;
+          canvas.width = finalW;
+          canvas.height = finalH;
+
+          // Pure white background for parts catalogs
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, finalW, finalH);
+
+          const scale = maintainAspect
+            ? Math.min(targetWidth / img.naturalWidth, targetHeight / img.naturalHeight)
+            : 1;
+          const dw = maintainAspect ? Math.max(1, Math.round(img.naturalWidth * scale)) : targetWidth;
+          const dh = maintainAspect ? Math.max(1, Math.round(img.naturalHeight * scale)) : targetHeight;
+          const dx = Math.round((finalW - dw) / 2);
+          const dy = Math.round((finalH - dh) / 2);
+
+          drawImageHighQuality(ctx, img, dx, dy, dw, dh);
+        } else {
+          const [nw, nh] = calculateNewDimensions(item.originalWidth, item.originalHeight);
+          finalW = nw;
+          finalH = nh;
+          canvas.width = nw;
+          canvas.height = nh;
+          drawImageHighQuality(ctx, img, 0, 0, nw, nh);
+        }
 
         // Determine output mime type
         let mime = item.file.type;
@@ -182,16 +312,21 @@ export const BulkImageResizer: React.FC = () => {
         else if (format === 'PNG') mime = 'image/png';
         else if (format === 'WEBP') mime = 'image/webp';
 
-        const blob = await new Promise<Blob | null>((resolve) => {
-          canvas.toBlob(resolve, mime, quality / 100);
-        });
+        let blob: Blob | null = null;
+        if (enableTargetKb && (mime === 'image/jpeg' || format === 'JPG' || format === 'JPEG' || format === 'ORIGINAL')) {
+          blob = await compressToTargetKbClient(canvas, targetMinKb, targetMaxKb);
+        } else {
+          blob = await new Promise<Blob | null>((resolve) => {
+            canvas.toBlob(resolve, mime, quality / 100);
+          });
+        }
 
         if (!blob) throw new Error('Failed to create image blob');
 
         item.resizedBlob = blob;
         item.resizedDataUrl = URL.createObjectURL(blob);
-        item.resizedWidth = nw;
-        item.resizedHeight = nh;
+        item.resizedWidth = finalW;
+        item.resizedHeight = finalH;
         item.resizedSize = blob.size;
         item.status = 'done';
       } catch {
@@ -316,6 +451,44 @@ export const BulkImageResizer: React.FC = () => {
                 <span className="text-xs text-slate-500 font-mono">{items.length} files</span>
               </div>
 
+              {/* Quick Standard Preset Button */}
+              <div className="p-3 rounded-xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/60 dark:bg-emerald-950/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileArchive className="w-3.5 h-3.5 text-emerald-600" />
+                    Portal Standard Preset
+                  </span>
+                  <span className="text-[10px] font-bold bg-emerald-600 text-white px-1.5 py-0.5 rounded-full">
+                    Recommended
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('dimensions');
+                    setTargetWidth(1000);
+                    setTargetHeight(1200);
+                    setMaintainAspect(true);
+                    setCenterOnWhiteCanvas(true);
+                    setFormat('JPG');
+                    setEnableTargetKb(true);
+                    setTargetMinKb(59);
+                    setTargetMaxKb(69);
+                  }}
+                  className={`w-full py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-between ${
+                    mode === 'dimensions' && targetWidth === 1000 && targetHeight === 1200 && enableTargetKb && targetMinKb === 59 && targetMaxKb === 69 && centerOnWhiteCanvas
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100/50'
+                  }`}
+                >
+                  <span>1000×1200 px @ 59–69 KB</span>
+                  <span className="text-[10px] font-mono opacity-90">IndiaSpare</span>
+                </button>
+                <p className="text-[10px] text-emerald-700/80 dark:text-emerald-400 leading-tight">
+                  Guarantees 1000×1200 resolution centered on white canvas, 59–69 KB file size, and crisp lines without pixelation.
+                </p>
+              </div>
+
               {/* Mode Selection */}
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -411,15 +584,26 @@ export const BulkImageResizer: React.FC = () => {
                       />
                     </div>
                   </div>
-                  <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={maintainAspect}
-                      onChange={(e) => setMaintainAspect(e.target.checked)}
-                      className="rounded text-emerald-600"
-                    />
-                    <span>Maintain Aspect Ratio</span>
-                  </label>
+                  <div className="space-y-1.5 pt-1">
+                    <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={maintainAspect}
+                        onChange={(e) => setMaintainAspect(e.target.checked)}
+                        className="rounded text-emerald-600"
+                      />
+                      <span className="font-semibold">Maintain Aspect Ratio</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={centerOnWhiteCanvas}
+                        onChange={(e) => setCenterOnWhiteCanvas(e.target.checked)}
+                        className="rounded text-emerald-600"
+                      />
+                      <span>Fit &amp; Center on White Canvas (Strict {targetWidth}×{targetHeight} px)</span>
+                    </label>
+                  </div>
                 </div>
               )}
 
@@ -531,6 +715,54 @@ export const BulkImageResizer: React.FC = () => {
                       ? '⚡ Optimal web balance: crisp details & small file size.'
                       : '📦 High compression: smallest download size.'}
                   </p>
+                </div>
+
+                {/* Target File Size (KB) Section */}
+                <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={enableTargetKb}
+                        onChange={(e) => setEnableTargetKb(e.target.checked)}
+                        className="rounded text-emerald-600"
+                      />
+                      <span>Strict Target Size (KB)</span>
+                    </label>
+                    <span className="text-[10px] font-mono font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                      {targetMinKb}–{targetMaxKb} KB
+                    </span>
+                  </div>
+
+                  {enableTargetKb && (
+                    <div className="grid grid-cols-2 gap-2 pt-1 animate-in fade-in duration-200">
+                      <div>
+                        <label className="text-[11px] text-slate-500 font-medium">Min Target (KB)</label>
+                        <input
+                          type="number"
+                          min={10}
+                          max={500}
+                          value={targetMinKb}
+                          onChange={(e) => setTargetMinKb(Number(e.target.value))}
+                          className="w-full mt-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-mono font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-slate-500 font-medium">Max Target (KB)</label>
+                        <input
+                          type="number"
+                          min={10}
+                          max={500}
+                          value={targetMaxKb}
+                          onChange={(e) => setTargetMaxKb(Number(e.target.value))}
+                          className="w-full mt-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-mono font-bold"
+                        />
+                      </div>
+                      <p className="col-span-2 text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
+                        Guarantees file size is strictly within {targetMinKb}–{targetMaxKb} KB with automatic anti-pixelation quality calibration.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 

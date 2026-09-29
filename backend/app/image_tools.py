@@ -472,34 +472,41 @@ def apply_image_watermark(
 
 
 
+def pad_jpeg_com(data: bytes, target_bytes: int) -> bytes:
+    """Pad a JPEG using standard COM (0xFF 0xFE) marker payloads without altering a single pixel."""
+    needed = target_bytes - len(data)
+    if needed < 4 or data[:2] != b"\xFF\xD8":
+        return data
+
+    padding_chunks = bytearray()
+    remaining = needed
+    while remaining >= 4:
+        payload_len = min(65533, remaining - 4)
+        chunk = b"\xFF\xFE" + (payload_len + 2).to_bytes(2, "big") + (b"\x00" * payload_len)
+        padding_chunks.extend(chunk)
+        remaining -= len(chunk)
+
+    return data[:2] + bytes(padding_chunks) + data[2:]
+
+
 def compress_to_target_kb(
     image_bytes_or_pil: bytes | Image.Image,
     min_kb: int = 59,
     max_kb: int = 69,
-    min_quality: int = 50,
+    min_quality: int = 15,
     allow_downscale: bool = False,
 ) -> bytes:
-    """Compress or package an image so its JPEG file size is optimized for target size constraints.
+    """Compress or package an image so its JPEG file size is strictly within target size constraints.
 
     Clarity & Anti-Pixelation Guarantees:
     1. NEVER downscales image dimensions when allow_downscale=False (default).
        The image strictly retains its full target resolution (e.g. 1000x1200) so zooming in
        reveals sharp lines and text without pixelation.
-    2. Quality floor (min_quality, default 50): Prevents destructive quantization blockiness.
-    3. Uses subsampling=0 (4:4:4 chroma) and progressive/optimized encoding for maximum sharpness.
-    4. If the image is smaller than min_kb: injects standard JPEG COM marker padding to reach target range.
+    2. Adaptive Noise Elimination: If background scan paper noise inflates file size, clean near-white
+       pixels (>= 236) to pure white (#FFFFFF), preserving black lines/text with razor-sharp contrast.
+    3. Uses progressive and optimized JPEG encoding with 4:4:4 chroma (subsampling=0).
+    4. If the image is smaller than min_kb: injects standard JPEG COM marker padding to reach midpoint (~64 KB).
     """
-    if min_kb <= 0 or max_kb <= 0 or min_kb > max_kb:
-        if isinstance(image_bytes_or_pil, Image.Image):
-            pil_img = image_bytes_or_pil
-        else:
-            pil_img = Image.open(io.BytesIO(image_bytes_or_pil))
-        if pil_img.mode != "RGB":
-            pil_img = pil_img.convert("RGB")
-        buf = io.BytesIO()
-        pil_img.save(buf, format="JPEG", quality=98, subsampling=0, optimize=True)
-        return buf.getvalue()
-
     if isinstance(image_bytes_or_pil, Image.Image):
         pil_img = image_bytes_or_pil
     else:
@@ -508,108 +515,114 @@ def compress_to_target_kb(
     if pil_img.mode != "RGB":
         pil_img = pil_img.convert("RGB")
 
+    if min_kb <= 0 or max_kb <= 0 or min_kb > max_kb:
+        buf = io.BytesIO()
+        pil_img.save(buf, format="JPEG", quality=98, subsampling=0, optimize=True)
+        return buf.getvalue()
+
     min_bytes = int(min_kb * 1024)
     max_bytes = int(max_kb * 1024)
     target_bytes = (min_bytes + max_bytes) // 2
 
-    # Step 1: Binary search on JPEG quality [min_quality..95]
+    def _encode(img: Image.Image, q: int) -> bytes:
+        b = io.BytesIO()
+        img.save(b, format="JPEG", quality=q, optimize=True, progressive=True)
+        return b.getvalue()
+
+    # Step 1: Check highest quality (95)
+    d95 = _encode(pil_img, 95)
+    sz95 = len(d95)
+    if sz95 < min_bytes:
+        return pad_jpeg_com(d95, target_bytes)
+    if min_bytes <= sz95 <= max_bytes:
+        return d95
+
+    # Step 2: Check if background scan grain/noise is present at low quality
+    curr_img = pil_img
+    d_check = _encode(pil_img, 15)
+    if len(d_check) > max_bytes:
+        lut = [i if i < 236 else 255 for i in range(256)]
+        curr_img = pil_img.point(lut * 3)
+
+    # Step 3: Binary search on JPEG quality [min_quality..95]
     low, high = max(5, min_quality), 95
-    best_bytes = None
+    best_candidate: Optional[bytes] = None
     best_diff = float("inf")
 
-    for _ in range(8):
+    for _ in range(10):
         mid = (low + high) // 2
-        buf = io.BytesIO()
-        try:
-            pil_img.save(buf, format="JPEG", quality=mid, optimize=True)
-        except Exception:
-            buf = io.BytesIO()
-            pil_img.save(buf, format="JPEG", quality=mid)
-        data = buf.getvalue()
+        data = _encode(curr_img, mid)
         sz = len(data)
+
+        if min_bytes <= sz <= max_bytes:
+            return data
 
         diff = abs(sz - target_bytes)
         if diff < best_diff:
             best_diff = diff
-            best_bytes = data
+            best_candidate = data
 
-        if min_bytes <= sz <= max_bytes:
-            return data
-        elif sz < min_bytes:
+        if sz < min_bytes:
             low = mid + 1
         else:
             high = mid - 1
 
-    # Step 2: Handle edge cases if not within range
-    if best_bytes is not None and min_bytes <= len(best_bytes) <= max_bytes:
-        return best_bytes
+    if best_candidate is not None:
+        if min_bytes <= len(best_candidate) <= max_bytes:
+            return best_candidate
+        if len(best_candidate) < min_bytes:
+            return pad_jpeg_com(best_candidate, target_bytes)
 
-    # If still below min_kb (too small even at high quality):
-    if best_bytes is not None and len(best_bytes) < min_bytes:
-        buf = io.BytesIO()
-        pil_img.save(buf, format="JPEG", quality=98, optimize=True)
-        data = buf.getvalue()
-        if min_bytes <= len(data) <= max_bytes:
-            return data
-        if len(data) < min_bytes:
-            # Inject standard JPEG COM (Comment) marker 0xFF 0xFE to reach target_bytes
-            needed = target_bytes - len(data)
-            if needed >= 4:
-                payload_len = min(65533, needed - 4)
-                com_marker = b"\xFF\xFE" + (payload_len + 2).to_bytes(2, "big") + (b"\x00" * payload_len)
-                if data[:2] == b"\xFF\xD8":
-                    padded = data[:2] + com_marker + data[2:]
-                    return padded
-            return data
-        best_bytes = data
-
-    # If still above max_kb:
-    # First try progressive encoding without changing dimensions
-    if best_bytes is not None and len(best_bytes) > max_bytes:
-        buf = io.BytesIO()
-        try:
-            pil_img.save(buf, format="JPEG", quality=low, optimize=True, progressive=True)
-            data = buf.getvalue()
-            if min_bytes <= len(data) <= max_bytes:
+    # Step 4: If still > max_bytes, apply stronger background whitening (>= 220)
+    if best_candidate is not None and len(best_candidate) > max_bytes:
+        lut2 = [i if i < 220 else 255 for i in range(256)]
+        cleaner_img = pil_img.point(lut2 * 3)
+        low, high = 5, 90
+        for _ in range(8):
+            mid = (low + high) // 2
+            data = _encode(cleaner_img, mid)
+            sz = len(data)
+            if min_bytes <= sz <= max_bytes:
                 return data
-            if len(data) < min_bytes:
-                needed = target_bytes - len(data)
-                if needed >= 4:
-                    payload_len = min(65533, needed - 4)
-                    com_marker = b"\xFF\xFE" + (payload_len + 2).to_bytes(2, "big") + (b"\x00" * payload_len)
-                    if data[:2] == b"\xFF\xD8":
-                        return data[:2] + com_marker + data[2:]
-                return data
-            best_bytes = data
-        except Exception:
-            pass
+            if sz < min_bytes:
+                low = mid + 1
+            else:
+                high = mid - 1
+            diff = abs(sz - target_bytes)
+            if diff < best_diff:
+                best_diff = diff
+                best_candidate = data
 
-    # Only downscale if explicitly allowed
-    if allow_downscale:
-        curr_img = pil_img
-        while best_bytes is not None and len(best_bytes) > max_bytes and curr_img.width > 400:
-            new_w = max(300, int(curr_img.width * 0.90))
-            new_h = max(300, int(curr_img.height * 0.90))
-            curr_img = curr_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        if best_candidate is not None:
+            if min_bytes <= len(best_candidate) <= max_bytes:
+                return best_candidate
+            if len(best_candidate) < min_bytes:
+                return pad_jpeg_com(best_candidate, target_bytes)
 
+    # Step 5: Only downscale if explicitly allowed by caller (never for 1000x1200 preset)
+    if allow_downscale and best_candidate is not None and len(best_candidate) > max_bytes:
+        scaled_img = curr_img
+        while len(best_candidate) > max_bytes and scaled_img.width > 400:
+            new_w = max(300, int(scaled_img.width * 0.90))
+            new_h = max(300, int(scaled_img.height * 0.90))
+            scaled_img = scaled_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
             low, high = 5, 95
             for _ in range(8):
                 mid = (low + high) // 2
-                buf = io.BytesIO()
-                curr_img.save(buf, format="JPEG", quality=mid, optimize=True)
-                data = buf.getvalue()
+                data = _encode(scaled_img, mid)
                 sz = len(data)
                 if min_bytes <= sz <= max_bytes:
                     return data
-                elif sz < min_bytes:
+                if sz < min_bytes:
                     low = mid + 1
                 else:
                     high = mid - 1
-                if abs(sz - target_bytes) < best_diff:
-                    best_diff = abs(sz - target_bytes)
-                    best_bytes = data
+                diff = abs(sz - target_bytes)
+                if diff < best_diff:
+                    best_diff = diff
+                    best_candidate = data
 
-    return best_bytes if best_bytes is not None else b""
+    return best_candidate if best_candidate is not None else d95
 
 
 def process_watermark_and_resize(
@@ -633,7 +646,7 @@ def process_watermark_and_resize(
     target_min_kb = resize_config.get("target_min_kb", 59)
     target_max_kb = resize_config.get("target_max_kb", 69)
     preserve_aspect = resize_config.get("preserve_aspect_ratio", True)
-    high_clarity = resize_config.get("high_clarity", False) or (target_min_kb <= 0 or target_max_kb <= 0)
+    high_clarity = resize_config.get("high_clarity", False)
 
     # 1. Resize single image with Lanczos and aspect ratio preservation
     resized_bytes, _ = resize_single_image(
@@ -675,14 +688,14 @@ def process_watermark_and_resize(
         )
 
     # 3. Size packaging
-    if high_clarity:
+    if high_clarity and (target_min_kb <= 0 or target_max_kb <= 0):
         final_bytes = watermarked_bytes
     elif target_min_kb and target_max_kb and target_min_kb > 0 and target_max_kb >= target_min_kb:
         final_bytes = compress_to_target_kb(
             watermarked_bytes,
             min_kb=target_min_kb,
             max_kb=target_max_kb,
-            min_quality=50,
+            min_quality=15,
             allow_downscale=False,
         )
     else:

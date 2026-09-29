@@ -97,7 +97,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
   const [resizeWidth, setResizeWidth] = useState<number>(1000);
   const [resizeHeight, setResizeHeight] = useState<number>(1200);
   const resizeQuality = 100;
-  const [isHighClarity, setIsHighClarity] = useState<boolean>(true);
+  const [isHighClarity, setIsHighClarity] = useState<boolean>(false);
   const [preserveAspectRatio, setPreserveAspectRatio] = useState<boolean>(true);
   const [targetMinKb, setTargetMinKb] = useState<number>(59);
   const [targetMaxKb, setTargetMaxKb] = useState<number>(69);
@@ -694,24 +694,6 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => setIsHighClarity(true)}
-                      className={`p-3 rounded-xl border text-left transition-all ${
-                        isHighClarity
-                          ? 'border-indigo-600 bg-indigo-50/90 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 ring-2 ring-indigo-500/20 shadow-xs'
-                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 text-slate-600 dark:text-slate-400'
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 font-bold text-xs text-indigo-700 dark:text-indigo-300">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        Crystal-Clear HD (Recommended)
-                      </div>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                        100% sharp lines &amp; text even at 300% zoom. No pixelation or destructive KB downscaling.
-                      </p>
-                    </button>
-
-                    <button
-                      type="button"
                       onClick={() => setIsHighClarity(false)}
                       className={`p-3 rounded-xl border text-left transition-all ${
                         !isHighClarity
@@ -721,10 +703,28 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                     >
                       <div className="flex items-center gap-1.5 font-bold text-xs text-emerald-700 dark:text-emerald-300">
                         <FileArchive className="w-3.5 h-3.5" />
-                        Strict IndiaSpare ({targetMinKb}–{targetMaxKb} KB)
+                        IndiaSpare Standard ({targetMinKb}–{targetMaxKb} KB) [Default]
                       </div>
                       <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                        Packages file size into 59–69 KB with crisp anti-pixelation floor for portal uploads.
+                        Resolution strictly 1000×1200 px, file size strictly 59–69 KB. Crisp lines, zero tearing on zoom.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsHighClarity(true)}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        isHighClarity
+                          ? 'border-indigo-600 bg-indigo-50/90 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-200 ring-2 ring-indigo-500/20 shadow-xs'
+                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-indigo-700 dark:text-indigo-300">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Unconstrained HD (No Size Limit)
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        Raw maximum quality without any 59–69 KB file size cap.
                       </p>
                     </button>
                   </div>

@@ -203,3 +203,52 @@ def test_compress_to_target_kb():
     assert 59.0 <= noisy_kb <= 69.0, f"Noisy image size {noisy_kb:.2f} KB not in 59-69 KB"
 
 
+def test_process_watermark_and_resize_strict_1000x1200_59_to_69_kb():
+    """Verify that process_watermark_and_resize outputs strict 1000x1200 dimensions and 59-69 KB size."""
+    from PIL import ImageDraw
+    from app.image_tools import process_watermark_and_resize
+
+    # Create a realistic parts diagram (lines, rectangles, text)
+    img = Image.new("RGB", (800, 600), (255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    for i in range(40):
+        draw.rectangle([i * 18, i * 14, i * 18 + 100, i * 14 + 70], outline=(10, 20, 50), width=2)
+        draw.text((i * 18 + 5, i * 14 + 5), f"PART-{i+1:04d}", fill=(0, 0, 0))
+
+    raw_buf = io.BytesIO()
+    img.save(raw_buf, format="JPEG", quality=90)
+    raw_bytes = raw_buf.getvalue()
+
+    wm_config = {
+        "wm_type": "text",
+        "text": "IndiaSpare",
+        "opacity": 0.10,
+        "angle": -30.0,
+        "padding": 115,
+        "size_pct": 25,
+        "color": "#1E3A8A",
+        "is_tiled": True,
+    }
+    resize_config = {
+        "width": 1000,
+        "height": 1200,
+        "quality": 100,
+        "target_min_kb": 59,
+        "target_max_kb": 69,
+        "preserve_aspect_ratio": True,
+        "high_clarity": False,
+    }
+
+    out_bytes, ext = process_watermark_and_resize(raw_bytes, wm_config, resize_config)
+    assert ext == "jpeg"
+
+    # 1. Output resolution MUST strictly be 1000x1200 px
+    out_img = Image.open(io.BytesIO(out_bytes))
+    assert out_img.size == (1000, 1200), f"Expected resolution (1000, 1200), got {out_img.size}"
+
+    # 2. File size MUST strictly be between 59.0 KB and 69.0 KB
+    file_size_kb = len(out_bytes) / 1024.0
+    assert 59.0 <= file_size_kb <= 69.0, f"Expected size 59-69 KB, got {file_size_kb:.2f} KB"
+
+
+
