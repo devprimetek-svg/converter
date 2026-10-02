@@ -41,9 +41,9 @@ class PipelineJob:
     def __init__(self, job_id: str, filename: str):
         self.job_id = job_id
         self.filename = filename
-        self.status = "queued"  # queued | processing | completed | error
+        self.status = "queued"  # queued | processing | awaiting_model_name | awaiting_image_selection | completed | error
         self.step_index = 0
-        self.total_steps = 5
+        self.total_steps = 6
         self.step_name = "Initializing pipeline..."
         self.progress_pct = 0
         self.details = "Preparing document..."
@@ -64,6 +64,9 @@ class PipelineJob:
         self.processed_thumbnails: list[dict[str, Any]] = []
         self.raw_processed_images: list[tuple[str, bytes]] = []
         self.processed_images_dict: dict[str, bytes] = {}
+        self.extracted_images_to_select: list[dict[str, Any]] = []
+        self.selected_image_ids: Optional[list[str]] = None
+        self.image_proceed_event = threading.Event()
 
         # Multi-model separated data
         self.model_data: dict[str, dict[str, Any]] = {}
@@ -120,9 +123,16 @@ class PipelineJob:
                 ] if len(self.model_columns) >= 1 else [],
                 "edited_model_names": self.edited_model_names,
             }
-            if self.status in ("completed", "awaiting_model_name") or self.step_index >= 1:
+            if self.status in ("completed", "awaiting_model_name", "awaiting_image_selection") or self.step_index >= 1:
                 payload["rows"] = self.rows
                 payload["figures"] = self.figures
+            if self.extracted_images_to_select:
+                payload["extracted_images_to_select"] = self.extracted_images_to_select
+                payload["selected_image_ids"] = (
+                    self.selected_image_ids
+                    if self.selected_image_ids is not None
+                    else [img["id"] for img in self.extracted_images_to_select]
+                )
             return payload
 
 
@@ -302,7 +312,7 @@ def run_pipeline_worker(
             job.excel_filename = excel_filename
             job.step_index = 3
             job.step_name = "Extracting Parts Images (Deduplicated)..."
-            job.progress_pct = 55
+            job.progress_pct = 50
             job.details = "Extracting unique illustrations mapped to parts figures..."
 
         # Step 3: Extract PDF images strictly for parts figures with deduplication
@@ -317,19 +327,98 @@ def run_pipeline_worker(
         if not raw_images and not page_figure_map:
             raw_images = extract_images_from_pdf(pdf_bytes, parts_only=False, model_code=pipeline_model_code)
 
+        # Prepare image selection list with applicable models and metadata
+        extracted_select_items = []
+        for idx, img_info in enumerate(raw_images):
+            img_id = img_info.get("id") or f"ext_img_{idx + 1}"
+            img_info["id"] = img_id
+            is_bike = bool(img_info.get("is_bike_image", False))
+
+            img_fig_no = str(img_info.get("fig_no", "")).strip()
+            img_fig_name = str(img_info.get("fig_name", "")).strip().upper()
+            applicable_models = []
+            if is_bike:
+                applicable_models = model_codes if has_multiple_models else [pipeline_model_code]
+            elif has_multiple_models:
+                for m in model_codes:
+                    m_rows = model_excel_data[m]["rows"]
+                    m_fig_nos = {str(r.get("fig_no", "")).strip() for r in m_rows if r.get("fig_no")}
+                    m_fig_names = {str(r.get("fig_name", "")).strip().upper() for r in m_rows if r.get("fig_name")}
+                    if not m_fig_nos and not m_fig_names:
+                        applicable_models.append(m)
+                    elif img_fig_no in m_fig_nos or img_fig_name in m_fig_names:
+                        applicable_models.append(m)
+            else:
+                applicable_models = [pipeline_model_code]
+
+            extracted_select_items.append({
+                "id": img_id,
+                "filename": img_info.get("filename", f"IMAGE_{idx + 1}"),
+                "fig_no": img_info.get("fig_no", ""),
+                "fig_name": img_info.get("fig_name", ""),
+                "page": img_info.get("page", 1),
+                "width": img_info.get("width", 0),
+                "height": img_info.get("height", 0),
+                "thumbnail_url": img_info.get("thumbnail_url", ""),
+                "size_bytes": img_info.get("size_bytes", 0),
+                "models": applicable_models,
+                "is_bike_image": is_bike,
+                "color_name": img_info.get("color_name", ""),
+                "color_code": img_info.get("color_code", ""),
+            })
+
+        # Pause pipeline for user selection if images were extracted
+        if raw_images:
+            with job.lock:
+                job.total_images_found = len(raw_images)
+                job.extracted_images_to_select = extracted_select_items
+                if job.selected_image_ids is None:
+                    job.selected_image_ids = [item["id"] for item in extracted_select_items]
+                job.status = "awaiting_image_selection"
+                job.step_index = 4
+                job.step_name = "Select Images to Include"
+                job.progress_pct = 60
+                job.details = f"Extracted {len(raw_images)} images. Select/unselect diagrams to include in the final bundle."
+
+            logger.info(f"Pipeline job {job.job_id} waiting for image selection confirmation...")
+            if not auto_proceed and not job.image_proceed_event.is_set():
+                proceeded = job.image_proceed_event.wait(timeout=3600)
+            else:
+                proceeded = True
+
+            if not proceeded or job.status == "error":
+                logger.warning(f"Pipeline job {job.job_id} timed out or cancelled waiting for image selection.")
+                with job.lock:
+                    if job.status != "error":
+                        job.status = "error"
+                        job.error = "Pipeline timed out waiting for image selection."
+                return
+
+        # Determine which images were selected by user
         with job.lock:
-            job.total_images_found = len(raw_images)
-            job.step_index = 4
+            job.status = "processing"
+            job.step_index = 5
             job.step_name = "Applying Watermark & Resizing..."
             job.progress_pct = 65
-            job.details = f"Processing {len(raw_images)} parts diagrams with presets..."
 
-        # Step 4 & 5: Watermark & Resize each image
+            if job.selected_image_ids is not None:
+                selected_set = set(job.selected_image_ids)
+                images_to_process = [
+                    img for img in raw_images
+                    if img.get("id") in selected_set or img.get("filename") in selected_set
+                ]
+            else:
+                images_to_process = raw_images
+
+            job.total_images_found = len(images_to_process)
+            job.details = f"Processing {len(images_to_process)} selected images with presets..."
+
+        # Step 5: Watermark & Resize each selected image
         processed_items: list[tuple[str, bytes, dict[str, Any]]] = []
         thumbnails: list[dict[str, Any]] = []
 
-        total_imgs = max(1, len(raw_images))
-        for idx, img_info in enumerate(raw_images):
+        total_imgs = max(1, len(images_to_process))
+        for idx, img_info in enumerate(images_to_process):
             try:
                 raw_bytes = img_info["raw_bytes"]
                 is_bike = bool(img_info.get("is_bike_image", False))
@@ -397,11 +486,11 @@ def run_pipeline_worker(
             with job.lock:
                 job.images_processed_count = idx + 1
                 job.progress_pct = 65 + int(((idx + 1) / total_imgs) * 25)
-                job.details = f"Processed {idx + 1} of {len(raw_images)} images..."
+                job.details = f"Processed {idx + 1} of {len(images_to_process)} images..."
 
         # Step 6: Create Master ZIP Archive
         with job.lock:
-            job.step_index = 5
+            job.step_index = 6
             job.step_name = "Packaging Master ZIP Bundle..."
             job.progress_pct = 95
             job.details = "Compiling Excel workbooks and processed images..."
@@ -594,7 +683,7 @@ def run_pipeline_worker(
             job.bundle_size_bytes = len(zip_bytes)
             job.raw_processed_images = [(f, b) for f, b, _ in processed_items]
             job.processed_thumbnails = thumbnails
-            job.step_index = 5
+            job.step_index = 6
             job.step_name = "Complete!"
             job.progress_pct = 100
             job.status = "completed"

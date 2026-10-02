@@ -168,6 +168,7 @@ def test_pipeline_api_flow():
     start_time = time.time()
     status_data = None
     proceed_called = False
+    image_proceed_called = False
     while time.time() - start_time < 20:
         st_res = client.get(f"/api/pipeline/status/{job_id}")
         assert st_res.status_code == 200
@@ -180,6 +181,16 @@ def test_pipeline_api_flow():
             )
             assert proc_res.status_code == 200
             proceed_called = True
+        elif status_data["status"] == "awaiting_image_selection" and not image_proceed_called:
+            assert "extracted_images_to_select" in status_data
+            all_ids = [img["id"] for img in status_data["extracted_images_to_select"]]
+            assert len(all_ids) > 0
+            img_res = client.post(
+                f"/api/pipeline/proceed-images/{job_id}",
+                json={"selected_image_ids": all_ids},
+            )
+            assert img_res.status_code == 200
+            image_proceed_called = True
         elif status_data["status"] in ("completed", "error"):
             break
         time.sleep(0.2)
@@ -495,5 +506,68 @@ def test_pipeline_multi_model_separate_folders():
     excel_bgp1 = client.get(f"/api/pipeline/download-excel/{job.job_id}?model=BGP1")
     assert excel_bgp1.status_code == 200
     assert "BGP1_Parts.xlsx" in excel_bgp1.headers.get("content-disposition", "")
+
+
+def test_pipeline_image_selection_and_unselection_filters_zip():
+    """Verify that during awaiting_image_selection, user can unselect images,
+    and only selected images are watermarked, resized, and packaged into Master ZIP."""
+    pdf_bytes = _create_synthetic_pdf_with_image().getvalue()
+    files = {"file": ("Yamaha_Test_Selection.pdf", pdf_bytes, "application/pdf")}
+    data = {
+        "watermark_text": "SAMPLE",
+        "resize_width": "1000",
+        "resize_height": "1200",
+    }
+
+    res = client.post("/api/pipeline/start", files=files, data=data)
+    assert res.status_code == 200
+    job_id = res.json()["job_id"]
+
+    # Poll status until awaiting_image_selection
+    start_time = time.time()
+    status_data = None
+    proceed_called = False
+    image_selected_called = False
+
+    while time.time() - start_time < 20:
+        st_res = client.get(f"/api/pipeline/status/{job_id}")
+        assert st_res.status_code == 200
+        status_data = st_res.json()
+        if status_data["status"] == "awaiting_model_name" and not proceed_called:
+            proc_res = client.post(
+                f"/api/pipeline/proceed/{job_id}",
+                json={"global_model_name": "R15 V4"},
+            )
+            assert proc_res.status_code == 200
+            proceed_called = True
+        elif status_data["status"] == "awaiting_image_selection" and not image_selected_called:
+            assert "extracted_images_to_select" in status_data
+            images = status_data["extracted_images_to_select"]
+            assert len(images) >= 1
+            # Select the images explicitly
+            selected_ids = [images[0]["id"]]
+            img_res = client.post(
+                f"/api/pipeline/proceed-images/{job_id}",
+                json={"selected_image_ids": selected_ids},
+            )
+            assert img_res.status_code == 200
+            assert img_res.json()["selected_count"] == 1
+            image_selected_called = True
+        elif status_data["status"] in ("completed", "error"):
+            break
+        time.sleep(0.2)
+
+    assert status_data is not None
+    assert status_data["status"] == "completed"
+    assert len(status_data["processed_thumbnails"]) == 1
+
+    # Check Master ZIP contains exactly 1 processed image in root images/ folder
+    dl_res = client.get(f"/api/pipeline/download/{job_id}")
+    assert dl_res.status_code == 200
+    zf = zipfile.ZipFile(io.BytesIO(dl_res.content))
+    root_imgs = [f for f in zf.namelist() if f.startswith("images/")]
+    assert len(root_imgs) == 1
+    assert "YAM_BGP1_CYLINDER HEAD.jpeg" in root_imgs[0]
+
 
 

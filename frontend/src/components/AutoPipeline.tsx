@@ -23,6 +23,8 @@ import {
   X,
   Send,
   Barcode,
+  CheckSquare,
+  Square,
 } from 'lucide-react';
 import type { PartRow } from '../types';
 import { PartsTable } from './PartsTable';
@@ -34,7 +36,7 @@ import { WarehouseBarcodeStudioModal } from './WarehouseBarcodeStudioModal';
 interface PipelineStatus {
   job_id: string;
   filename: string;
-  status: 'queued' | 'processing' | 'awaiting_model_name' | 'completed' | 'error';
+  status: 'queued' | 'processing' | 'awaiting_model_name' | 'awaiting_image_selection' | 'completed' | 'error';
   step_index: number;
   total_steps: number;
   step_name: string;
@@ -67,6 +69,22 @@ interface PipelineStatus {
     color_name?: string;
     color_code?: string;
   }>;
+  extracted_images_to_select?: Array<{
+    id: string;
+    filename: string;
+    page: number;
+    width: number;
+    height: number;
+    thumbnail_url: string;
+    size_bytes: number;
+    fig_no?: string;
+    fig_name?: string;
+    models?: string[];
+    is_bike_image?: boolean;
+    color_name?: string;
+    color_code?: string;
+  }>;
+  selected_image_ids?: string[];
   rows_sample?: PartRow[];
   rows?: PartRow[];
   figures?: Array<{ fig_no: string; fig_name: string; first_page?: number }>;
@@ -128,6 +146,24 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeResultTab, setActiveResultTab] = useState<'images' | 'parts'>('images');
   const [selectedModelFilter, setSelectedModelFilter] = useState<string>('ALL');
+
+  // Image Selection States (Pause pipeline to select/unselect extracted images)
+  const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set());
+  const [isProceedingImages, setIsProceedingImages] = useState<boolean>(false);
+  const [imageSelectionCategoryFilter, setImageSelectionCategoryFilter] = useState<'ALL' | 'BIKES' | 'PARTS'>('ALL');
+  const [imageSelectionModelFilter, setImageSelectionModelFilter] = useState<string>('ALL');
+
+  // Automatically select all extracted images when awaiting_image_selection arrives
+  useEffect(() => {
+    if (status?.status === 'awaiting_image_selection' && status.extracted_images_to_select) {
+      setSelectedImageIds((prev) => {
+        if (prev.size === 0) {
+          return new Set(status.extracted_images_to_select!.map((img) => img.id));
+        }
+        return prev;
+      });
+    }
+  }, [status?.status, status?.extracted_images_to_select]);
 
   // Model Name Editing States (Parity with PDF-to-Excel extractor module)
   const [defaultModelName, setDefaultModelName] = useState<string>('');
@@ -279,6 +315,65 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
     }
   };
 
+  const toggleImageSelection = (id: string) => {
+    setSelectedImageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllImages = () => {
+    if (status?.extracted_images_to_select) {
+      setSelectedImageIds(new Set(status.extracted_images_to_select.map((img) => img.id)));
+    }
+  };
+
+  const handleDeselectAllImages = () => {
+    setSelectedImageIds(new Set());
+  };
+
+  const handleProceedImages = async () => {
+    if (!status?.job_id) return;
+    setIsProceedingImages(true);
+    setErrorMessage(null);
+    try {
+      const res = await fetch(`/api/pipeline/proceed-images/${status.job_id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selected_image_ids: Array.from(selectedImageIds),
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to proceed with selected images.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to proceed with selected images.');
+    } finally {
+      setIsProceedingImages(false);
+    }
+  };
+
+  const filteredImagesToSelect = useMemo(() => {
+    let list = status?.extracted_images_to_select || [];
+    if (imageSelectionCategoryFilter === 'BIKES') {
+      list = list.filter((img) => img.is_bike_image);
+    } else if (imageSelectionCategoryFilter === 'PARTS') {
+      list = list.filter((img) => !img.is_bike_image);
+    }
+    if (imageSelectionModelFilter !== 'ALL') {
+      list = list.filter((img) => !img.models || img.models.includes(imageSelectionModelFilter));
+    }
+    return list;
+  }, [status?.extracted_images_to_select, imageSelectionCategoryFilter, imageSelectionModelFilter]);
+
   const visibleThumbnails = useMemo(() => {
     if (!status?.processed_thumbnails) return [];
     if (selectedModelFilter === 'ALL') return status.processed_thumbnails;
@@ -402,7 +497,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
             });
           }
 
-          if (data.status === 'awaiting_model_name') {
+          if (data.status === 'awaiting_model_name' || data.status === 'awaiting_image_selection') {
             setIsProcessing(false);
           } else if (data.status === 'completed') {
             setIsProcessing(false);
@@ -456,7 +551,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
           });
         }
 
-        if (data.status === 'awaiting_model_name') {
+        if (data.status === 'awaiting_model_name' || data.status === 'awaiting_image_selection') {
           setIsProcessing(false);
         } else if (data.status === 'completed') {
           setIsProcessing(false);
@@ -513,6 +608,10 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
     setEditedModelNames({});
     setGlobalModelInput('');
     setIsProceeding(false);
+    setSelectedImageIds(new Set());
+    setIsProceedingImages(false);
+    setImageSelectionCategoryFilter('ALL');
+    setImageSelectionModelFilter('ALL');
   };
 
   const formatBytes = (bytes: number): string => {
@@ -974,13 +1073,14 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
           </p>
 
           {/* Step Badges */}
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 pt-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-2">
             {[
               { idx: 1, label: 'Parts Extraction', icon: FileSpreadsheet },
               { idx: 2, label: 'Edit Model Name', icon: Pencil },
               { idx: 3, label: 'Excel Generation', icon: FileSpreadsheet },
-              { idx: 4, label: 'Preset Watermark', icon: Droplet },
-              { idx: 5, label: 'Resize & Master ZIP', icon: FileArchive },
+              { idx: 4, label: 'Select Images', icon: ImageIcon },
+              { idx: 5, label: 'Preset Watermark', icon: Droplet },
+              { idx: 6, label: 'Resize & Master ZIP', icon: FileArchive },
             ].map((s) => {
               const Icon = s.icon;
               const isPast = status.step_index > s.idx;
@@ -988,7 +1088,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
               return (
                 <div
                   key={s.idx}
-                  className={`p-3 rounded-xl border flex items-center gap-2.5 text-xs font-medium transition-all ${
+                  className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-medium transition-all ${
                     isPast
                       ? 'bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white'
                       : isCurrent
@@ -1020,7 +1120,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
               <div className="space-y-1">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
                   <Pencil className="w-3.5 h-3.5" />
-                  Step 2 of 5: Edit Model
+                  Step 2 of 6: Edit Model
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">
                   Review & Enter Model
@@ -1049,26 +1149,30 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
             </div>
 
             {/* Step Badges */}
-            <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-              <div className="p-3 rounded-xl border bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs font-medium flex items-center gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+              <div className="p-2.5 rounded-xl border bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs font-medium flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-zinc-900 dark:text-white shrink-0" />
-                <span className="truncate">1. Parts Extraction</span>
+                <span className="truncate">1. Extraction</span>
               </div>
-              <div className="p-3 rounded-xl border bg-blue-50 dark:bg-blue-950/50 border-blue-400 dark:border-blue-700 text-blue-900 dark:text-blue-200 text-xs font-bold flex items-center gap-2.5 shadow-xs">
+              <div className="p-2.5 rounded-xl border bg-blue-50 dark:bg-blue-950/50 border-blue-400 dark:border-blue-700 text-blue-900 dark:text-blue-200 text-xs font-bold flex items-center gap-2 shadow-xs">
                 <Pencil className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 animate-bounce" />
                 <span className="truncate">2. Edit Model</span>
               </div>
-              <div className="p-3 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2.5">
+              <div className="p-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2">
                 <FileSpreadsheet className="w-4 h-4 text-zinc-400 shrink-0" />
-                <span className="truncate">3. Excel Generation</span>
+                <span className="truncate">3. Excel</span>
               </div>
-              <div className="p-3 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2.5">
+              <div className="p-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-zinc-400 shrink-0" />
+                <span className="truncate">4. Select Images</span>
+              </div>
+              <div className="p-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2">
                 <Droplet className="w-4 h-4 text-zinc-400 shrink-0" />
-                <span className="truncate">4. Preset Watermark</span>
+                <span className="truncate">5. Watermark</span>
               </div>
-              <div className="p-3 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2.5">
+              <div className="p-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2">
                 <FileArchive className="w-4 h-4 text-zinc-400 shrink-0" />
-                <span className="truncate">5. Master ZIP</span>
+                <span className="truncate">6. Master ZIP</span>
               </div>
             </div>
 
@@ -1151,6 +1255,292 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
               enableErpSync={enableErpSync}
               enableBarcodeLabels={enableBarcodeLabels}
             />
+          </div>
+        </div>
+      )}
+
+      {/* State 2.75: Awaiting Image Selection (User can select/unselect extracted images before watermark & zip) */}
+      {status && status.status === 'awaiting_image_selection' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Stepper & Action Card */}
+          <div className="p-6 sm:p-8 rounded-3xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  Step 4 of 6: Image Selection
+                </div>
+                <h3 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">
+                  Select / Unselect Diagrams &amp; Images
+                </h3>
+                <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">
+                  Extracted <strong>{status.extracted_images_to_select?.length || 0}</strong> images from PDF. Uncheck any diagrams or photos you want to exclude from watermarking and the Master ZIP archive.
+                </p>
+              </div>
+
+              {/* Status Badge */}
+              <div className="shrink-0">
+                <span className="inline-flex items-center gap-1.5 font-semibold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-3.5 py-1.5 rounded-full border border-indigo-200 dark:border-indigo-800 text-xs font-mono">
+                  <CheckCircle2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  {selectedImageIds.size} of {status.extracted_images_to_select?.length || 0} Selected
+                </span>
+              </div>
+            </div>
+
+            {/* Step Badges */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+              <div className="p-2.5 rounded-xl border bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-zinc-900 dark:text-white shrink-0" />
+                <span className="truncate">1. Extraction</span>
+              </div>
+              <div className="p-2.5 rounded-xl border bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-zinc-900 dark:text-white shrink-0" />
+                <span className="truncate">2. Edit Model</span>
+              </div>
+              <div className="p-2.5 rounded-xl border bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-zinc-900 dark:text-white shrink-0" />
+                <span className="truncate">3. Excel</span>
+              </div>
+              <div className="p-2.5 rounded-xl border bg-indigo-50 dark:bg-indigo-950/50 border-indigo-400 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 text-xs font-bold flex items-center gap-2 shadow-xs">
+                <ImageIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 animate-bounce" />
+                <span className="truncate">4. Select Images</span>
+              </div>
+              <div className="p-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2">
+                <Droplet className="w-4 h-4 text-zinc-400 shrink-0" />
+                <span className="truncate">5. Watermark</span>
+              </div>
+              <div className="p-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2">
+                <FileArchive className="w-4 h-4 text-zinc-400 shrink-0" />
+                <span className="truncate">6. Master ZIP</span>
+              </div>
+            </div>
+
+            {/* Quick Actions & Filters Bar */}
+            <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+              {/* Left filter buttons */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSelectAllImages}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:text-black dark:hover:text-white text-xs font-semibold shadow-2xs hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all cursor-pointer"
+                >
+                  <CheckSquare className="w-3.5 h-3.5 text-indigo-600" />
+                  Select All ({status.extracted_images_to_select?.length || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeselectAllImages}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-200 hover:text-black dark:hover:text-white text-xs font-semibold shadow-2xs hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all cursor-pointer"
+                >
+                  <Square className="w-3.5 h-3.5 text-zinc-400" />
+                  Deselect All
+                </button>
+
+                <div className="h-4 w-px bg-zinc-200 dark:bg-zinc-700 mx-1 hidden sm:block" />
+
+                {/* Category filters */}
+                <div className="inline-flex p-0.5 rounded-xl bg-zinc-200/70 dark:bg-zinc-800 text-xs font-medium">
+                  <button
+                    type="button"
+                    onClick={() => setImageSelectionCategoryFilter('ALL')}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                      imageSelectionCategoryFilter === 'ALL'
+                        ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white font-bold shadow-2xs'
+                        : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white'
+                    }`}
+                  >
+                    All ({status.extracted_images_to_select?.length || 0})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageSelectionCategoryFilter('PARTS')}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                      imageSelectionCategoryFilter === 'PARTS'
+                        ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white font-bold shadow-2xs'
+                        : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white'
+                    }`}
+                  >
+                    Diagrams ({status.extracted_images_to_select?.filter((i) => !i.is_bike_image).length || 0})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setImageSelectionCategoryFilter('BIKES')}
+                    className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                      imageSelectionCategoryFilter === 'BIKES'
+                        ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white font-bold shadow-2xs'
+                        : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white'
+                    }`}
+                  >
+                    🏍️ Bikes ({status.extracted_images_to_select?.filter((i) => i.is_bike_image).length || 0})
+                  </button>
+                </div>
+
+                {/* Model filters if multi-model */}
+                {status.model_columns && status.model_columns.length > 1 && (
+                  <div className="inline-flex p-0.5 rounded-xl bg-zinc-200/70 dark:bg-zinc-800 text-xs font-medium">
+                    <button
+                      type="button"
+                      onClick={() => setImageSelectionModelFilter('ALL')}
+                      className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                        imageSelectionModelFilter === 'ALL'
+                          ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white font-bold shadow-2xs'
+                          : 'text-zinc-600 dark:text-zinc-400'
+                      }`}
+                    >
+                      All Models
+                    </button>
+                    {status.model_columns.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setImageSelectionModelFilter(m)}
+                        className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                          imageSelectionModelFilter === m
+                            ? 'bg-blue-600 text-white font-bold shadow-2xs'
+                            : 'text-zinc-600 dark:text-zinc-400'
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Right CTA Button */}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  disabled={isProceedingImages}
+                  onClick={handleProceedImages}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-black hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-zinc-200 dark:text-black text-xs sm:text-sm font-bold uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:opacity-50"
+                >
+                  {isProceedingImages ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Continuing Pipeline...
+                    </>
+                  ) : (
+                    <>
+                      <span>Continue Pipeline ({selectedImageIds.size} Selected)</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Grid of Images to Select/Unselect */}
+            {filteredImagesToSelect && filteredImagesToSelect.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {filteredImagesToSelect.map((img) => {
+                  const isSelected = selectedImageIds.has(img.id);
+                  return (
+                    <div
+                      key={img.id}
+                      onClick={() => toggleImageSelection(img.id)}
+                      className={`rounded-2xl border transition-all duration-200 overflow-hidden shadow-xs cursor-pointer group relative flex flex-col justify-between ${
+                        isSelected
+                          ? 'border-indigo-500 dark:border-indigo-500 bg-white dark:bg-zinc-950 ring-2 ring-indigo-500/25'
+                          : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/40 opacity-55 hover:opacity-85'
+                      }`}
+                    >
+                      {/* Thumbnail container */}
+                      <div className="aspect-[10/12] bg-zinc-50 dark:bg-zinc-900/60 relative flex items-center justify-center overflow-hidden">
+                        <img
+                          src={img.thumbnail_url}
+                          alt={img.filename}
+                          className={`w-full h-full object-contain p-2 transition-transform duration-200 group-hover:scale-105 ${
+                            !isSelected ? 'grayscale-[50%]' : ''
+                          }`}
+                        />
+
+                        {/* Top-left checkbox */}
+                        <div className="absolute top-2 left-2 z-10">
+                          <div
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all shadow-sm ${
+                              isSelected
+                                ? 'bg-indigo-600 text-white shadow-indigo-600/30'
+                                : 'bg-white/95 dark:bg-zinc-900/95 border border-zinc-300 dark:border-zinc-700 text-transparent'
+                            }`}
+                          >
+                            <Check className="w-3.5 h-3.5 text-white stroke-[3]" />
+                          </div>
+                        </div>
+
+                        {/* Top-right inspect HD trigger */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewDiagram(img);
+                            setModalZoom(1);
+                          }}
+                          className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 hover:bg-black/85 text-white opacity-0 group-hover:opacity-100 transition-opacity z-10 cursor-pointer"
+                          title="Inspect Full Size"
+                        >
+                          <ZoomIn className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Page number */}
+                        <span className="absolute bottom-2 right-2 px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-xs text-[10px] font-mono text-zinc-300 font-medium">
+                          p.{img.page}
+                        </span>
+
+                        {/* Dimensions */}
+                        <span className="absolute top-10 left-2 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-xs text-[9px] font-mono text-zinc-300">
+                          {img.width}x{img.height}
+                        </span>
+
+                        {/* Bike badge */}
+                        {img.is_bike_image && (
+                          <span
+                            className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-amber-600/95 text-white text-[9px] font-bold tracking-wider shadow-xs flex items-center gap-1 max-w-[150px] truncate"
+                            title={img.color_name || img.color_code || 'Bike photo'}
+                          >
+                            🏍️ Bike{img.color_code ? ` • ${img.color_code}` : ''}
+                          </span>
+                        )}
+
+                        {/* Figure badge if parts */}
+                        {!img.is_bike_image && img.fig_no && (
+                          <span className="absolute bottom-2 left-2 right-12 px-1.5 py-0.5 rounded-md bg-black/85 backdrop-blur-xs text-[9px] font-medium text-zinc-300 truncate">
+                            FIG. {img.fig_no}{img.fig_name ? ` - ${img.fig_name}` : ''}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Card meta */}
+                      <div className="p-3 border-t border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between text-xs">
+                        <div className="truncate pr-2">
+                          <p className="font-semibold text-zinc-800 dark:text-zinc-200 truncate font-mono text-[11px]" title={img.filename}>
+                            {img.filename}
+                          </p>
+                          <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
+                            {formatBytes(img.size_bytes)}
+                          </p>
+                        </div>
+                        <div className="shrink-0">
+                          {isSelected ? (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                              Included
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-zinc-100 dark:bg-zinc-900 text-zinc-400 border border-zinc-200 dark:border-zinc-800">
+                              Excluded
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-12 text-center border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-2xl">
+                <p className="text-sm text-zinc-500">No images matching the selected category filter.</p>
+              </div>
+            )}
           </div>
         </div>
       )}

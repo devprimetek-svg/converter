@@ -692,20 +692,65 @@ async def start_pipeline_endpoint(
     return {"job_id": job.job_id, "filename": file.filename}
 
 
+class PipelineImageProceedRequest(BaseModel):
+    selected_image_ids: Optional[list[str]] = None
+
+
 class PipelineProceedRequest(BaseModel):
     edited_model_names: Optional[dict[str, str]] = None
     global_model_name: Optional[str] = None
     rows: Optional[list[dict[str, Any]]] = None
+    selected_image_ids: Optional[list[str]] = None
 
 
-@app.post("/api/pipeline/proceed/{job_id}")
-def proceed_pipeline_endpoint(job_id: str, payload: Optional[PipelineProceedRequest] = None):
-    """Submit edited model names and resume the automated pipeline to Excel and Master ZIP."""
+@app.post("/api/pipeline/proceed-images/{job_id}")
+def proceed_pipeline_images_endpoint(job_id: str, payload: Optional[PipelineImageProceedRequest] = None):
+    """Submit selected image IDs and resume the automated pipeline to Watermark, Resize, and Master ZIP."""
     job = pipeline_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found or expired.")
 
     with job.lock:
+        if payload and payload.selected_image_ids is not None:
+            job.selected_image_ids = payload.selected_image_ids
+        elif job.selected_image_ids is None:
+            job.selected_image_ids = [item["id"] for item in job.extracted_images_to_select]
+
+        job.status = "processing"
+        job.step_index = 5
+        job.step_name = "Applying Watermark & Resizing..."
+        job.progress_pct = 65
+        job.details = f"Processing {len(job.selected_image_ids)} selected images..."
+        job.image_proceed_event.set()
+
+    return {
+        "status": "resumed",
+        "job_id": job.job_id,
+        "selected_count": len(job.selected_image_ids),
+    }
+
+
+@app.post("/api/pipeline/proceed/{job_id}")
+def proceed_pipeline_endpoint(job_id: str, payload: Optional[PipelineProceedRequest] = None):
+    """Submit edited model names or selected images and resume the automated pipeline."""
+    job = pipeline_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found or expired.")
+
+    with job.lock:
+        if job.status == "awaiting_image_selection":
+            if payload and payload.selected_image_ids is not None:
+                job.selected_image_ids = payload.selected_image_ids
+            elif job.selected_image_ids is None:
+                job.selected_image_ids = [item["id"] for item in job.extracted_images_to_select]
+            job.status = "processing"
+            job.step_index = 5
+            job.step_name = "Applying Watermark & Resizing..."
+            job.progress_pct = 65
+            job.details = f"Processing {len(job.selected_image_ids)} selected images..."
+            job.image_proceed_event.set()
+            return {"status": "resumed", "job_id": job.job_id, "selected_count": len(job.selected_image_ids)}
+
         if payload:
             if payload.rows and len(payload.rows) > 0:
                 job.rows = payload.rows
@@ -736,7 +781,7 @@ def proceed_pipeline_endpoint(job_id: str, payload: Optional[PipelineProceedRequ
                     r["model_name"] = ""
 
         job.status = "processing"
-        job.step_index = 2
+        job.step_index = 3
         job.step_name = "Generating Excel Workbook..."
         job.progress_pct = 45
         job.details = "Model names applied. Generating Excel workbook..."
