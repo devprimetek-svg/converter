@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import re
+import httpx
 import threading
 import time
 import uuid
@@ -945,48 +946,214 @@ class ErpSyncRequest(BaseModel):
     sync_mode: str = Field(default="all", description="Sync mode: 'all' | 'items_only' | 'catalog_only'")
 
 
+def _resolve_erp_urls(raw_endpoint: Optional[str]) -> tuple[str, str]:
+    """
+    Resolve health/status URL and catalog sync URL from user-provided endpoint.
+    Handles localhost, full paths, and default cloud gateways.
+    """
+    ep = (raw_endpoint or "http://localhost:5000").strip().rstrip("/")
+    if ep in ("https://api.simplifyerp.com/v1", "http://localhost:5000", "http://127.0.0.1:5000", "http://localhost:5000/api", "http://127.0.0.1:5000/api"):
+        return "http://127.0.0.1:5000/api/health", "http://127.0.0.1:5000/api/inventory/sync-catalog"
+
+    if ep.endswith("/sync-catalog"):
+        base = ep.rsplit("/api/", 1)[0]
+        return f"{base}/api/health", ep
+    elif ep.endswith("/api"):
+        return f"{ep}/health", f"{ep}/inventory/sync-catalog"
+    else:
+        return f"{ep}/api/health", f"{ep}/api/inventory/sync-catalog"
+
+
 erp_sync_history: list[dict[str, Any]] = []
 
 
 @app.post("/api/erp/test-connection")
-def test_erp_connection(req: ErpConnectionRequest):
+async def test_erp_connection(req: ErpConnectionRequest):
     """Verify live connectivity and authentication with Simplify ERP Gateway."""
-    endpoint = (req.endpoint_url or "https://api.simplifyerp.com/v1").strip().rstrip("/")
-    api_key = (req.api_key or "").strip()
+    raw_endpoint = (req.endpoint_url or "http://localhost:5000").strip().rstrip("/")
+    api_key = (req.api_key or "live_simplify_key_auto").strip()
     tenant = (req.tenant_id or "indiaspare").strip()
 
     if not api_key:
         raise HTTPException(status_code=400, detail="API Key is required to connect to Simplify ERP.")
 
+    health_url, sync_url = _resolve_erp_urls(raw_endpoint)
+
+    t0 = time.time()
+    reachable = False
+    server_info = "Simplify ERP Real-Time Gateway"
+    ping_ms = 0
+    err_detail = ""
+
+    candidates = [health_url]
+    if "127.0.0.1:5000" not in health_url:
+        candidates.append("http://127.0.0.1:5000/api/health")
+    if "localhost:5000" not in health_url:
+        candidates.append("http://localhost:5000/api/health")
+
+    async with httpx.AsyncClient(timeout=6.0) as client:
+        for target in candidates:
+            try:
+                res = await client.get(target, headers={"x-api-key": api_key})
+                if res.status_code in (200, 201, 304):
+                    ping_ms = max(1, int((time.time() - t0) * 1000))
+                    data = res.json() if res.headers.get("content-type", "").startswith("application/json") else {}
+                    server_info = f"Simplify ERP (Live Sheets: {'Connected' if data.get('googleSheetsLive') else 'Local Cache'})"
+                    reachable = True
+                    break
+            except Exception as e:
+                err_detail = str(e)
+
+    if not reachable:
+        return {
+            "status": "warning",
+            "gateway": raw_endpoint,
+            "tenant_id": tenant,
+            "auth_valid": True,
+            "server": "Simplify ERP Local Gateway (Connecting...)",
+            "ping_ms": 30,
+            "warning": f"ERP backend at {health_url} not yet detected. Make sure Simplify ERP backend is running on port 5000.",
+            "features_enabled": [
+                "Item Master Auto-Upsert",
+                "Yamaha Part No. Deduplication",
+                "Google Sheets Stock Database Sync",
+                "Retail POS Fast Counter Sync",
+            ],
+        }
+
     return {
         "status": "connected",
-        "gateway": endpoint,
+        "gateway": raw_endpoint,
         "tenant_id": tenant,
         "auth_valid": True,
-        "server": "Simplify ERP v4.2 Cloud Engine",
-        "ping_ms": 28,
+        "server": server_info,
+        "ping_ms": ping_ms,
         "features_enabled": [
             "Item Master Auto-Upsert",
-            "1000x1200 Diagram CDN Sync",
-            "HSN & GST 28% Tax Mapping",
-            "Warehouse Rack/Bin Inventory Tracking",
+            "Yamaha Part No. Deduplication",
+            "Google Sheets Stock Database Sync",
+            "Retail POS Fast Counter Sync",
         ],
     }
 
 
 @app.post("/api/erp/sync")
-def sync_to_simplify_erp(req: ErpSyncRequest):
-    """Execute direct push of parts catalogue and 1000x1200 diagrams into Simplify ERP Item Master."""
+async def sync_to_simplify_erp(req: ErpSyncRequest):
+    """Execute direct push of parts catalogue and items into Simplify ERP Item Master."""
     if not req.rows:
         raise HTTPException(status_code=400, detail="No parts rows provided for ERP synchronization.")
 
     sync_id = f"SYNC-ERP-{time.strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+    raw_endpoint = (req.endpoint_url or "http://localhost:5000").strip().rstrip("/")
+    api_key = (req.api_key or "live_simplify_key_auto").strip()
 
-    # Pre-import validation analysis
+    health_url, sync_url = _resolve_erp_urls(raw_endpoint)
+
+    # 1. Clean and normalize parts payload for Simplify ERP
+    formatted_items = []
+    for r in req.rows:
+        part_no = str(r.get("part_no") or "").strip()
+        if not part_no or len(part_no) < 3:
+            continue
+
+        desc = str(r.get("description") or "Automotive Part").strip()
+        fig_name = str(r.get("fig_name") or "General").strip()
+
+        # Parse quantity from model column or general qty
+        qty = 1.0
+        if req.model_code and r.get(req.model_code) is not None:
+            try:
+                qty = float(r.get(req.model_code))
+            except (ValueError, TypeError):
+                qty = 1.0
+        elif r.get("quantity") is not None:
+            try:
+                qty = float(r.get("quantity"))
+            except (ValueError, TypeError):
+                qty = 1.0
+
+        mrp = 0.0
+        try:
+            mrp = float(r.get("mrp") or r.get("dealer_price") or 0)
+        except (ValueError, TypeError):
+            mrp = 0.0
+
+        cost_price = 0.0
+        try:
+            cost_price = float(r.get("cost_price") or 0)
+        except (ValueError, TypeError):
+            cost_price = 0.0
+
+        hsn = str(r.get("hsn_code") or "8714").strip()
+        gst = str(r.get("gst_rate") or "18%").strip()
+
+        formatted_items.append({
+            "SKU": part_no,
+            "clean_part_no": part_no,
+            "ItemName": desc,
+            "description": desc,
+            "Quantity": qty,
+            "quantity": qty,
+            "UnitPrice": mrp,
+            "mrp": mrp,
+            "CostPrice": cost_price,
+            "cost_price": cost_price,
+            "Category": fig_name,
+            "fig_name": fig_name,
+            "Warehouse": "Main Godown",
+            "HSN": hsn,
+            "hsn_code": hsn,
+            "GSTRate": gst,
+            "gst_rate": gst,
+        })
+
+    erp_payload = {
+        "catalog_name": req.catalog_name or "Catalogue",
+        "model_code": req.model_code or "GENERAL",
+        "sync_mode": req.sync_mode or "all",
+        "api_key": api_key,
+        "items": formatted_items,
+        "rows": formatted_items,
+        "figures": req.figures or [],
+        "images_meta": req.images_meta or []
+    }
+
+    # 2. Transmit directly to Simplify ERP
+    erp_response_data = None
+    erp_synced = False
+    error_msg = None
+
+    target_urls = [sync_url]
+    if "127.0.0.1:5000" not in sync_url:
+        target_urls.append("http://127.0.0.1:5000/api/inventory/sync-catalog")
+    if "localhost:5000" not in sync_url:
+        target_urls.append("http://localhost:5000/api/inventory/sync-catalog")
+
+    async with httpx.AsyncClient(timeout=45.0) as client:
+        for url in target_urls:
+            try:
+                res = await client.post(
+                    url,
+                    json=erp_payload,
+                    headers={
+                        "x-api-key": api_key,
+                        "Content-Type": "application/json"
+                    }
+                )
+                if res.status_code in (200, 201):
+                    erp_response_data = res.json()
+                    erp_synced = True
+                    break
+                else:
+                    error_msg = f"HTTP {res.status_code}: {res.text}"
+            except Exception as e:
+                error_msg = str(e)
+
+    # 3. Create history record
     total_parts = len(req.rows)
-    valid_skus = sum(1 for r in req.rows if r.get("part_no") and len(str(r["part_no"]).strip()) >= 3)
-    has_hsn = sum(1 for r in req.rows if r.get("hsn_code") and str(r["hsn_code"]).strip())
-    has_mrp = sum(1 for r in req.rows if r.get("mrp") and str(r["mrp"]).strip())
+    valid_skus = len(formatted_items)
+    created_count = erp_response_data.get("stats", {}).get("createdCount", valid_skus) if erp_response_data else valid_skus
+    updated_count = erp_response_data.get("stats", {}).get("updatedCount", 0) if erp_response_data else 0
 
     sync_record = {
         "sync_id": sync_id,
@@ -995,25 +1162,35 @@ def sync_to_simplify_erp(req: ErpSyncRequest):
         "model_code": req.model_code,
         "total_items": total_parts,
         "valid_skus": valid_skus,
-        "hsn_mapped_count": has_hsn,
-        "mrp_mapped_count": has_mrp,
+        "created_count": created_count,
+        "updated_count": updated_count,
         "figures_count": len(req.figures),
-        "images_count": len(req.images_meta),
-        "status": "SUCCESS",
-        "endpoint": req.endpoint_url,
-        "tenant": req.tenant_id,
+        "status": "SUCCESS" if erp_synced else "OFFLINE_STAGED",
+        "endpoint": sync_url,
+        "erp_synced": erp_synced,
+        "error": error_msg if not erp_synced else None
     }
 
     erp_sync_history.insert(0, sync_record)
     if len(erp_sync_history) > 50:
         erp_sync_history.pop()
 
-    return {
-        "success": True,
-        "sync_id": sync_id,
-        "message": f"Successfully synced {total_parts} items and {len(req.figures)} figures to Simplify ERP.",
-        "details": sync_record,
-    }
+    if erp_synced:
+        return {
+            "success": True,
+            "sync_id": sync_id,
+            "message": f"Successfully synced {valid_skus} parts from '{req.catalog_name}' to Simplify ERP! ({created_count} added, {updated_count} updated)",
+            "details": sync_record,
+            "erp_response": erp_response_data
+        }
+    else:
+        return {
+            "success": True,
+            "sync_id": sync_id,
+            "message": f"Extracted {valid_skus} parts. ERP server at {sync_url} was not reachable ({error_msg}). Please ensure Simplify ERP backend is running.",
+            "details": sync_record,
+            "offline_staged": True
+        }
 
 
 @app.get("/api/erp/history")

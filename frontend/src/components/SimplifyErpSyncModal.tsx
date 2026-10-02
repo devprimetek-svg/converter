@@ -40,7 +40,7 @@ export const SimplifyErpSyncModal: React.FC<SimplifyErpSyncModalProps> = ({
 
   // ERP Connection Settings (persisted in localStorage)
   const [endpointUrl, setEndpointUrl] = useState<string>(() => {
-    return localStorage.getItem('simplify_erp_endpoint') || 'https://api.simplifyerp.com/v1';
+    return localStorage.getItem('simplify_erp_endpoint') || 'http://localhost:5000/api';
   });
   const [apiKey, setApiKey] = useState<string>(() => {
     return localStorage.getItem('simplify_erp_api_key') || 'live_simplify_key_auto';
@@ -453,11 +453,27 @@ export const SimplifyErpSyncModal: React.FC<SimplifyErpSyncModalProps> = ({
                     type="text"
                     value={endpointUrl}
                     onChange={(e) => setEndpointUrl(e.target.value)}
-                    placeholder="https://api.simplifyerp.com/v1"
+                    placeholder="http://localhost:5000/api"
                     className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-xs font-mono font-medium focus:ring-2 focus:ring-blue-500"
                   />
+                  <div className="flex gap-2 mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEndpointUrl('http://localhost:5000/api')}
+                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-zinc-200 dark:bg-zinc-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-zinc-700 dark:text-zinc-300 transition-colors"
+                    >
+                      Localhost:5000 (Default)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEndpointUrl('http://127.0.0.1:5000/api')}
+                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-zinc-200 dark:bg-zinc-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-zinc-700 dark:text-zinc-300 transition-colors"
+                    >
+                      127.0.0.1:5000
+                    </button>
+                  </div>
                   <p className="text-[11px] text-zinc-500 mt-1">
-                    Standard REST API endpoint for automotive item master ingestion.
+                    Standard REST API endpoint for automotive item master ingestion in Simplify ERP.
                   </p>
                 </div>
 
