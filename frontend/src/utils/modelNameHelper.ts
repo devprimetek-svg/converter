@@ -81,7 +81,7 @@ export function buildComposedModelName(
   const b = detectBrand(userModelOrFull, brand || 'YAMAHA').trim().toUpperCase();
   const mc = (modelCode || 'MODEL').trim().toUpperCase();
   const rawModel = extractRawModelName(userModelOrFull, modelCode);
-  const fn = (figName || 'PARTS').replace(/[^A-Za-z0-9]+/g, ' ').trim().toUpperCase() || 'PARTS';
+  const fn = (figName || 'PARTS').replace(/[^A-Za-z0-9&]+/g, ' ').trim().toUpperCase() || 'PARTS';
 
   if (rawModel) {
     return `${b} ${mc} ${rawModel} Series ${fn}`;

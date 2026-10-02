@@ -14,7 +14,7 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from app.parts_extractor import clean_part_number, disambiguate_repeated_ref_numbers
+from app.parts_extractor import clean_description, clean_part_number, disambiguate_repeated_ref_numbers
 
 
 def build_catalogue_code(model_code: str, fig_name: str, fig_no: str = "") -> str:
@@ -25,8 +25,8 @@ def build_catalogue_code(model_code: str, fig_name: str, fig_no: str = "") -> st
     mc = re.sub(r'[^A-Za-z0-9]+', '_', (model_code or "").strip()).strip('_').upper()
     if not mc:
         mc = "MODEL"
-    # User rule: between words of parts name inside catalogue code, use space instead of underscore
-    fn = re.sub(r'[^A-Za-z0-9]+', ' ', (fig_name or "").strip()).strip().upper()
+    # User rule: between words of parts name inside catalogue code, use space instead of underscore, preserve '&'
+    fn = re.sub(r'[^A-Za-z0-9&]+', ' ', (fig_name or "").strip()).strip().upper()
     if not fn:
         if fig_no:
             padded = str(fig_no).zfill(2) if str(fig_no).isdigit() else str(fig_no)
@@ -316,6 +316,8 @@ def generate_excel_workbook(
                 val = row_data.get("part_no", "")
                 if clean_parts:
                     val = clean_part_number(str(val))
+            elif field_key == "description":
+                val = clean_description(str(row_data.get("description", "")))
             elif field_key in ("mrp", "cost_price", "dealer_price"):
                 val = row_data.get(field_key)
                 if val is not None and str(val).strip() != "":

@@ -54,8 +54,8 @@ def build_catalogue_code(model_code: str, fig_name: str, fig_no: str = "") -> st
     mc = re.sub(r'[^A-Za-z0-9]+', '_', (model_code or "").strip()).strip('_').upper()
     if not mc:
         mc = "MODEL"
-    # User rule: between words of parts name inside catalogue code, use space instead of underscore
-    fn = re.sub(r'[^A-Za-z0-9]+', ' ', (fig_name or "").strip()).strip().upper()
+    # User rule: between words of parts name inside catalogue code, use space instead of underscore, preserve '&'
+    fn = re.sub(r'[^A-Za-z0-9&]+', ' ', (fig_name or "").strip()).strip().upper()
     if not fn:
         if fig_no:
             padded = str(fig_no).zfill(2) if str(fig_no).isdigit() else str(fig_no)
@@ -142,6 +142,20 @@ def build_model_name_record(model_code: str, model_name: str, fig_name: str) -> 
         clean_mn = mn.strip('"\'').strip()
         return f"YAMAHA {mc} {clean_mn} Series {fn}"
     return f"YAMAHA {mc} Series {fn}"
+
+
+def clean_description(desc: str) -> str:
+    """Clean the description text extracted from catalog tables.
+    Rule: Do not extract (.) (-) (_) (,) characters.
+    Also strips unicode hyphens/dashes and normalizes multiple spaces.
+    """
+    if not desc:
+        return ""
+    # Strip dots (.), hyphens/dashes (- and unicode dashes), underscores (_), and commas (,)
+    cleaned = re.sub(r"[.\-_,\u2010\u2011\u2012\u2013\u2014\u2015]", " ", str(desc))
+    # Normalize multiple whitespace into single space
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
 
 
 def clean_part_number(part_no: str) -> str:
@@ -692,8 +706,9 @@ def extract_parts_from_pdf(
                 raw_part_no = remaining_words[0]["text"].strip()
                 part_no = normalize_part_number(raw_part_no)
 
-                # All following left-side words joined with spaces are DESCRIPTION
-                description = " ".join(w["text"] for w in remaining_words[1:]).strip()
+                # All following left-side words joined with spaces are DESCRIPTION (dots, dashes, underscores, commas stripped)
+                raw_description = " ".join(w["text"] for w in remaining_words[1:]).strip()
+                description = clean_description(raw_description)
 
                 remarks_str = clean_remarks(" ".join(remarks_words))
 

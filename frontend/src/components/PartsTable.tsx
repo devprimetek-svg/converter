@@ -22,6 +22,7 @@ import {
 import type { PartRow } from '../types';
 import { cleanPartNumber } from '../utils/cleanPartNo';
 import { cleanRemarks } from '../utils/cleanRemarks';
+import { cleanDescription } from '../utils/cleanDescription';
 import { extractRawModelName, buildComposedModelName, detectBrand } from '../utils/modelNameHelper';
 
 export interface PartsTableProps {
@@ -648,7 +649,7 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                 const primaryModel = modelColumns && modelColumns.length > 0 ? modelColumns[0] : 'MODEL';
                 const figModelCode = (row as any).model_code || primaryModel || 'MODEL';
                 const figNameStr = (row as any).parent_fig_name || row.fig_name || 'PARTS';
-                const cleanFig = figNameStr.replace(/[^A-Za-z0-9]+/g, ' ').trim().toUpperCase() || 'PARTS';
+                const cleanFig = figNameStr.replace(/[^A-Za-z0-9&]+/g, ' ').trim().toUpperCase() || 'PARTS';
                 const catCode = (row as any).catalogue_code || `YAM_${figModelCode}_${cleanFig}`;
                 const picVal = (row as any).pic || (row as any).image || (catCode ? `${catCode}.jpeg` : '');
 
@@ -847,7 +848,7 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                       {displayPartNo}
                     </td>
 
-                    <td className="px-4 py-2 font-sans text-slate-900 dark:text-slate-100">{row.description}</td>
+                    <td className="px-4 py-2 font-sans text-slate-900 dark:text-slate-100">{cleanDescription(row.description)}</td>
 
                     {/* Model quantities */}
                     {modelColumns.map((model) => {

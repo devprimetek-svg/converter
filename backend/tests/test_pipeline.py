@@ -319,10 +319,10 @@ def test_parts_only_deduplication_and_figure_naming():
     filenames = zf.namelist()
     image_files = sorted([f for f in filenames if f.startswith("images/") and f.endswith(".jpeg")])
 
-    # Exactly 2 images extracted: FIG 1 and FIG 2.
-    # Cover image was skipped (non-parts page).
+    # 3 images extracted: Cover bike photo + FIG 1 + FIG 2 diagrams.
     # Page 3 continuation image was deduplicated (identical hash to Page 2).
-    assert len(image_files) == 2, f"Expected exactly 2 images, got {len(image_files)}: {image_files}"
+    assert len(image_files) == 3, f"Expected 3 images (1 bike + 2 diagrams), got {len(image_files)}: {image_files}"
+    assert "images/YAM_BGPK_BIKE.jpeg" in image_files
     assert "images/YAM_BGPK_CYLINDER HEAD.jpeg" in image_files
     assert "images/YAM_BGPK_CRANKSHAFT.jpeg" in image_files
 
@@ -456,7 +456,7 @@ def test_pipeline_multi_model_separate_folders():
     ws_bgp1 = wb_bgp1.active
     bgp1_cells = [str(c.value) for row in ws_bgp1.iter_rows() for c in row if c.value is not None]
     assert any("CYLINDER HEAD ASSY" in c for c in bgp1_cells)
-    assert any("BOLT, FLANGE" in c for c in bgp1_cells)
+    assert any("BOLT FLANGE" in c for c in bgp1_cells)
     # GASKET had quantity only for BGP2, so must be excluded from BGP1 sheet!
     assert not any("GASKET" in c for c in bgp1_cells)
 

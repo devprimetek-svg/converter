@@ -332,10 +332,12 @@ def run_pipeline_worker(
         for idx, img_info in enumerate(raw_images):
             try:
                 raw_bytes = img_info["raw_bytes"]
+                is_bike = bool(img_info.get("is_bike_image", False))
                 processed_bytes, ext = process_watermark_and_resize(
                     image_bytes=raw_bytes,
                     watermark_config=watermark_config,
                     resize_config=resize_config,
+                    skip_watermark=is_bike,
                 )
                 fname = img_info.get("filename") or f"YAM_{pipeline_model_code}_PART_{idx + 1:03d}"
                 processed_items.append((fname, processed_bytes, img_info))
@@ -359,7 +361,9 @@ def run_pipeline_worker(
                 img_fig_no = str(img_info.get("fig_no", "")).strip()
                 img_fig_name = str(img_info.get("fig_name", "")).strip().upper()
                 applicable_models = []
-                if has_multiple_models:
+                if is_bike:
+                    applicable_models = model_codes if has_multiple_models else [pipeline_model_code]
+                elif has_multiple_models:
                     for m in model_codes:
                         m_rows = model_excel_data[m]["rows"]
                         m_fig_nos = {str(r.get("fig_no", "")).strip() for r in m_rows if r.get("fig_no")}
@@ -383,6 +387,7 @@ def run_pipeline_worker(
                     "full_image_url": f"/api/pipeline/images/{job.job_id}/{img_id}",
                     "size_bytes": len(processed_bytes),
                     "models": applicable_models,
+                    "is_bike_image": is_bike,
                 })
             except Exception as e:
                 logger.warning("Pipeline image processing failed for image %d: %s", idx, e)
@@ -418,6 +423,20 @@ def run_pipeline_worker(
                     for _, proc_bytes, img_info in processed_items:
                         img_fig_no = str(img_info.get("fig_no", "")).strip()
                         img_fig_name = str(img_info.get("fig_name", "")).strip()
+                        is_bike_img = bool(img_info.get("is_bike_image", False))
+
+                        # Bike photo: include in each model images directory
+                        if is_bike_img:
+                            bike_filename = img_info.get("filename", "")
+                            if bike_filename.startswith("YAM_"):
+                                m_img_name = re.sub(r"^YAM_[A-Za-z0-9]+_", f"YAM_{m}_", bike_filename)
+                            else:
+                                m_img_name = f"YAM_{m}_BIKE"
+                            if not m_img_name.lower().endswith(".jpeg"):
+                                m_img_name = f"{m_img_name}.jpeg"
+                            zf.writestr(f"{m}/images/{m_img_name}", proc_bytes)
+                            m_image_items.append((m_img_name, proc_bytes))
+                            continue
 
                         # Check applicability
                         if m_fig_nos or m_fig_names:
@@ -470,6 +489,11 @@ def run_pipeline_worker(
                 # Write Master All-Models combined Excel to root
                 master_excel_filename = f"{base_name}_All_Models_Parts.xlsx"
                 zf.writestr(master_excel_filename, excel_bytes)
+
+                # Also include all processed images into root images/ folder
+                for fname, proc_bytes, _ in processed_items:
+                    clean_name = fname if fname.lower().endswith(".jpeg") else f"{fname}.jpeg"
+                    zf.writestr(f"images/{clean_name}", proc_bytes)
 
                 # Write Summary text
                 summary_txt = (

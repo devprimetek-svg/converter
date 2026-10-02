@@ -251,4 +251,45 @@ def test_process_watermark_and_resize_strict_1000x1200_59_to_69_kb():
     assert 59.0 <= file_size_kb <= 69.0, f"Expected size 59-69 KB, got {file_size_kb:.2f} KB"
 
 
+def test_process_watermark_and_resize_skip_watermark_for_bike():
+    """Verify that bike images bypass watermark application while still being resized cleanly."""
+    from PIL import ImageDraw
+    from app.image_tools import process_watermark_and_resize
+
+    # Create a pure green image representing a bike photo
+    img = Image.new("RGB", (800, 600), (0, 200, 0))
+    raw_buf = io.BytesIO()
+    img.save(raw_buf, format="JPEG", quality=95)
+    raw_bytes = raw_buf.getvalue()
+
+    wm_config = {
+        "wm_type": "text",
+        "text": "IndiaSpare",
+        "opacity": 0.50,
+        "angle": -30.0,
+        "padding": 115,
+        "size_pct": 25,
+        "color": "#FF0000",
+        "is_tiled": True,
+    }
+    resize_config = {
+        "width": 1000,
+        "height": 1200,
+        "quality": 100,
+        "preserve_aspect_ratio": True,
+        "high_clarity": True,
+    }
+
+    # With skip_watermark=True (Bike image)
+    bike_bytes, ext = process_watermark_and_resize(raw_bytes, wm_config, resize_config, skip_watermark=True)
+    assert ext == "jpeg"
+    bike_img = Image.open(io.BytesIO(bike_bytes))
+    assert bike_img.size == (1000, 1200)
+
+    # With skip_watermark=False (Diagram)
+    wm_bytes, _ = process_watermark_and_resize(raw_bytes, wm_config, resize_config, skip_watermark=False)
+    # The bike bytes must differ from watermarked bytes
+    assert bike_bytes != wm_bytes
+
+
 

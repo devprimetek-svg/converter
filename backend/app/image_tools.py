@@ -35,19 +35,21 @@ def extract_images_from_pdf(
     parts_only: bool = False,
     min_dimension: int = 150,
     model_code: Optional[str] = None,
+    include_bike_images: bool = True,
 ) -> list[dict[str, Any]]:
     """Extract embedded raster images from a PDF document in-memory.
 
-    If parts_only is True or figure_pages is provided:
-    - Filters out non-figure pages (Cover, Foreword, Index, etc.)
-    - Excludes small icons, banners, and noise (< min_dimension px)
-    - Strictly deduplicates repeated/identical image streams across pages
-    - Names files according to: YAM_{MODEL_CODE}_{PART_NAME}.jpg (e.g. YAM_BGPK_CYLINDER HEAD.jpg)
+    - Parts diagrams are mapped from figure pages.
+    - If include_bike_images is True, substantial images on non-figure pages (Cover,
+      Overview, Color chart pages) are extracted as clean bike images without watermark.
+    - Strictly deduplicates repeated/identical image streams across pages.
+    - Names files according to standard: YAM_{MODEL_CODE}_{PART_NAME}.jpeg or YAM_{MODEL_CODE}_BIKE.jpeg
     """
     reader = PdfReader(io.BytesIO(pdf_bytes))
     extracted: list[dict[str, Any]] = []
     seen_hashes: set[str] = set()
     fig_counter: dict[str, int] = {}
+    bike_counter = 0
 
     clean_model_code = ""
     if model_code:
@@ -61,10 +63,15 @@ def extract_images_from_pdf(
     for page_idx, page in enumerate(reader.pages):
         page_num = page_idx + 1
 
-        # If parts_only mode and figure_pages mapping is provided, only inspect figure pages
+        # Check if this page is registered as a parts figure page
         fig_info = figure_pages.get(page_num) if figure_pages else None
-        if effective_parts_only and figure_pages is not None and not fig_info:
-            continue
+        is_figure_page = bool(fig_info)
+
+        # If effective_parts_only mode:
+        # Non-figure pages are skipped UNLESS include_bike_images is True (to capture cover bike photos)
+        if effective_parts_only and figure_pages is not None and not is_figure_page:
+            if not include_bike_images:
+                continue
 
         page_images = getattr(page, "images", [])
 
@@ -82,13 +89,10 @@ def extract_images_from_pdf(
                 # Strict SHA-256 deduplication to eliminate repeated images
                 img_hash = hashlib.sha256(img_data).hexdigest()
                 if img_hash in seen_hashes:
-                    # Do not extract duplicate/repeated images
                     continue
                 seen_hashes.add(img_hash)
 
-                # Preserve 100% exact original quality from PDF:
-                # If image is already in standard JPEG format without alpha/transparency,
-                # use exact raw bytes directly from the PDF stream to guarantee zero recompression loss.
+                # Preserve 100% exact original quality from PDF
                 if pil_img.format == "JPEG" and pil_img.mode == "RGB":
                     jpg_bytes = img_data
                     pil_rgb = pil_img
@@ -106,12 +110,23 @@ def extract_images_from_pdf(
                     pil_rgb.save(jpg_buf, format="JPEG", quality=100, subsampling=0)
                     jpg_bytes = jpg_buf.getvalue()
 
-                # Generate descriptive filename without .jpg extension:
-                # e.g. YAM_D001_CYLINDER or YAM_BGPK_CYLINDER HEAD
-                if fig_info:
+                # Determine if this image is a bike photo vs parts diagram
+                is_bike = False
+                if not is_figure_page and (figure_pages is not None or page_num <= 3):
+                    is_bike = True
+                    bike_counter += 1
+                    fig_no = "BIKE"
+                    fig_name = "BIKE PHOTO"
+                    filename = (
+                        f"YAM_{clean_model_code}_BIKE"
+                        if bike_counter == 1
+                        else f"YAM_{clean_model_code}_BIKE_{bike_counter}"
+                    )
+                elif fig_info:
+                    is_bike = False
                     fig_no = str(fig_info.get("fig_no", "")).strip()
                     fig_name = str(fig_info.get("fig_name", "")).strip()
-                    # Clean filename invalid characters but preserve spaces (e.g. CYLINDER HEAD)
+                    # Clean filename invalid characters but preserve spaces and '&'
                     clean_part_name = re.sub(r'[\/:*?"<>|\r\n\t]', " ", fig_name)
                     clean_part_name = re.sub(r"\s+", " ", clean_part_name).strip()
                     if not clean_part_name:
@@ -127,6 +142,7 @@ def extract_images_from_pdf(
                     else:
                         filename = f"YAM_{clean_model_code}_{clean_part_name}_{count}"
                 else:
+                    is_bike = False
                     clean_part_name = f"PAGE_{page_num}_IMG_{img_idx + 1}"
                     counter_key = clean_part_name
                     count = fig_counter.get(counter_key, 0) + 1
@@ -135,6 +151,8 @@ def extract_images_from_pdf(
                         filename = f"YAM_{clean_model_code}_{clean_part_name}"
                     else:
                         filename = f"YAM_{clean_model_code}_{clean_part_name}_{count}"
+                    fig_no = ""
+                    fig_name = ""
 
                 # Generate compact base64 thumbnail for fast frontend display
                 thumb = pil_rgb.copy()
@@ -149,8 +167,8 @@ def extract_images_from_pdf(
                 extracted.append({
                     "id": image_id,
                     "filename": filename,
-                    "fig_no": fig_info.get("fig_no", "") if fig_info else "",
-                    "fig_name": fig_info.get("fig_name", "") if fig_info else "",
+                    "fig_no": fig_no if (fig_info or is_bike) else "",
+                    "fig_name": fig_name if (fig_info or is_bike) else "",
                     "page": page_num,
                     "width": width,
                     "height": height,
@@ -159,6 +177,7 @@ def extract_images_from_pdf(
                     "thumbnail_url": data_url,
                     "raw_bytes": jpg_bytes,
                     "is_duplicate": False,
+                    "is_bike_image": is_bike,
                 })
             except Exception:
                 continue
@@ -629,12 +648,14 @@ def process_watermark_and_resize(
     image_bytes: bytes,
     watermark_config: dict[str, Any],
     resize_config: dict[str, Any],
+    skip_watermark: bool = False,
 ) -> tuple[bytes, str]:
     """Execute resize to target preset followed by watermarking in-memory.
 
     Clarity & Sharpness Guarantees:
     - Maintains exact aspect ratio with centered placement on clean canvas (zero distortion).
     - Watermark logos and text rendered with high-res alpha composite.
+    - If skip_watermark is True (e.g. for bike overview photographs), watermark application is completely bypassed.
     - If high_clarity mode is active (or target_min_kb == 0), preserves 100% crisp resolution.
     - If target_min_kb/max_kb requested, packages cleanly without downscaling resolution.
 
@@ -658,34 +679,37 @@ def process_watermark_and_resize(
         preserve_aspect_ratio=preserve_aspect,
     )
 
-    # 2. Apply watermark with presets directly onto resized image
-    logo_bytes = watermark_config.get("logo_bytes")
-    if not logo_bytes and watermark_config.get("wm_type") != "text":
-        logo_bytes = get_default_logo_bytes()
-
-    if logo_bytes:
-        watermarked_bytes = apply_image_watermark(
-            image_bytes=resized_bytes,
-            logo_bytes=logo_bytes,
-            scale_pct=watermark_config.get("scale_pct", watermark_config.get("size_pct", 25)),
-            opacity=watermark_config.get("opacity", 0.10),
-            angle=watermark_config.get("angle", -30.0),
-            padding=watermark_config.get("padding", 115),
-            position=watermark_config.get("position", "center"),
-            is_tiled=watermark_config.get("is_tiled", True),
-        )
+    # 2. Apply watermark with presets directly onto resized image (or skip for bike photos)
+    if skip_watermark:
+        watermarked_bytes = resized_bytes
     else:
-        watermarked_bytes = apply_text_watermark(
-            image_bytes=resized_bytes,
-            text=watermark_config.get("text", "IndiaSpare"),
-            opacity=watermark_config.get("opacity", 0.10),
-            angle=watermark_config.get("angle", -30.0),
-            padding=watermark_config.get("padding", 115),
-            size_pct=watermark_config.get("size_pct", 25),
-            position=watermark_config.get("position", "center"),
-            color_hex=watermark_config.get("color", "#1E3A8A"),
-            is_tiled=watermark_config.get("is_tiled", True),
-        )
+        logo_bytes = watermark_config.get("logo_bytes")
+        if not logo_bytes and watermark_config.get("wm_type") != "text":
+            logo_bytes = get_default_logo_bytes()
+
+        if logo_bytes:
+            watermarked_bytes = apply_image_watermark(
+                image_bytes=resized_bytes,
+                logo_bytes=logo_bytes,
+                scale_pct=watermark_config.get("scale_pct", watermark_config.get("size_pct", 25)),
+                opacity=watermark_config.get("opacity", 0.10),
+                angle=watermark_config.get("angle", -30.0),
+                padding=watermark_config.get("padding", 115),
+                position=watermark_config.get("position", "center"),
+                is_tiled=watermark_config.get("is_tiled", True),
+            )
+        else:
+            watermarked_bytes = apply_text_watermark(
+                image_bytes=resized_bytes,
+                text=watermark_config.get("text", "IndiaSpare"),
+                opacity=watermark_config.get("opacity", 0.10),
+                angle=watermark_config.get("angle", -30.0),
+                padding=watermark_config.get("padding", 115),
+                size_pct=watermark_config.get("size_pct", 25),
+                position=watermark_config.get("position", "center"),
+                color_hex=watermark_config.get("color", "#1E3A8A"),
+                is_tiled=watermark_config.get("is_tiled", True),
+            )
 
     # 3. Size packaging
     if high_clarity and (target_min_kb <= 0 or target_max_kb <= 0):

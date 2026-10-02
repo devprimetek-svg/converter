@@ -407,6 +407,7 @@ async def extract_pdf_images_endpoint(file: UploadFile = File(...)):
             "size_bytes": img["size_bytes"],
             "thumbnail_url": img["thumbnail_url"],
             "is_duplicate": img.get("is_duplicate", False),
+            "is_bike_image": img.get("is_bike_image", False),
         }
         for img in images
     ]
@@ -546,6 +547,7 @@ async def bulk_watermark_endpoint(
     position: str = Form("center"),
     color: str = Form("#FFFFFF"),
     is_tiled: bool = Form(False),
+    skip_bike_images: bool = Form(True),
 ):
     """Bulk apply text watermark to uploaded images and return as an in-memory ZIP archive."""
     if not files:
@@ -560,6 +562,13 @@ async def bulk_watermark_endpoint(
                 continue
             base_fname = f.filename or f"image_{uuid.uuid4().hex[:6]}"
             stem = base_fname.rsplit(".", 1)[0] if "." in base_fname else base_fname
+
+            # If this is a bike image (filename indicates bike), preserve clean without watermark
+            is_bike = bool(re.search(r"\bbike\b", base_fname, re.IGNORECASE) or "_bike" in base_fname.lower())
+            if skip_bike_images and is_bike:
+                out_filename = f"{stem}.jpg" if not stem.lower().endswith(".jpg") else stem
+                watermarked_items.append((out_filename, content))
+                continue
 
             wm_bytes = apply_text_watermark(
                 image_bytes=content,

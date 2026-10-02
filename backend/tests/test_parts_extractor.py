@@ -274,13 +274,13 @@ def test_end_to_end_extraction():
     # Row 2 (First occurrence of repeated ref_no 2 -> 2A)
     assert rows[1]["ref_no"] == "2A"
     assert rows[1]["part_no"] == "95022-06010"
-    assert rows[1]["description"] == "BOLT, FLANGE"
+    assert rows[1]["description"] == "BOLT FLANGE"
     assert rows[1]["BGPK"] == "1"
 
     # Row 3 (Second occurrence of repeated ref_no 2 -> 2B)
     assert rows[2]["ref_no"] == "2B"
     assert rows[2]["part_no"] == "95022-06020"
-    assert rows[2]["description"] == "BOLT, FLANGE ALT"
+    assert rows[2]["description"] == "BOLT FLANGE ALT"
     assert rows[2]["BGPK"] == "2"
     assert rows[2]["remarks"] == "OPTIONAL"
 
@@ -650,6 +650,59 @@ def test_extraction_omits_ur_ab_yb_remarks():
 
     # Row 3 remarks had 'AB' -> now empty string
     assert rows[2]["remarks"] == ""
+
+
+def test_clean_description_removes_punctuation_dots_hyphens_underscores_commas():
+    """Verify that clean_description strips '.', '-', '_', and ',' and collapses multiple spaces."""
+    from app.parts_extractor import clean_description
+
+    assert clean_description("BOLT, FLANGE") == "BOLT FLANGE"
+    assert clean_description("CYLINDER HEAD COMP.") == "CYLINDER HEAD COMP"
+    assert clean_description(".DAMPER 1") == "DAMPER 1"
+    assert clean_description("O-RING (1.5X9.5)") == "O RING (1 5X9 5)"
+    assert clean_description("COVER_SIDE_LEFT") == "COVER SIDE LEFT"
+    assert clean_description("GASKET, HEAD-COVER_1.0") == "GASKET HEAD COVER 1 0"
+
+
+def test_ampersand_preserved_in_catalogue_code_and_parts_name():
+    """Verify that '&' in Parts Name is preserved in catalogue_code, fig_name, and model_name."""
+    from app.parts_extractor import build_catalogue_code
+    from app.excel_export import generate_excel_workbook
+
+    # build_catalogue_code
+    cat_code = build_catalogue_code("BGPK", "CRANKSHAFT & PISTON")
+    assert cat_code == "YAM_BGPK_CRANKSHAFT & PISTON"
+
+    cat_code_intake = build_catalogue_code("BGPK", "INTAKE & EXHAUST")
+    assert cat_code_intake == "YAM_BGPK_INTAKE & EXHAUST"
+
+    # Excel export preservation
+    rows = [
+        {
+            "page": 1,
+            "fig_no": "2",
+            "fig_name": "CRANKSHAFT & PISTON",
+            "catalogue_code": "YAM_BGPK_CRANKSHAFT & PISTON",
+            "model_name": "YAMAHA BGPK FASCINO 125 Series CRANKSHAFT & PISTON",
+            "pic": "YAM_BGPK_CRANKSHAFT & PISTON.jpeg",
+            "ref_no": "1",
+            "part_no": "B7J-E1400-00",
+            "description": "CRANKSHAFT COMP.",
+            "BGPK": "1",
+        }
+    ]
+    buf = generate_excel_workbook(rows=rows, model_columns=["BGPK"], model_code="BGPK")
+    wb = openpyxl.load_workbook(buf)
+    ws = wb.active
+
+    # Check Catalogue Code (Col 4)
+    assert ws.cell(row=2, column=4).value == "YAM_BGPK_CRANKSHAFT & PISTON"
+    # Check Model Name (Col 5)
+    assert ws.cell(row=2, column=5).value == "YAMAHA BGPK FASCINO 125 Series CRANKSHAFT & PISTON"
+    # Check Description (Col 9) - '.' must be stripped
+    assert ws.cell(row=2, column=9).value == "CRANKSHAFT COMP"
+    # Check Pic (Col 6)
+    assert ws.cell(row=2, column=6).value == "YAM_BGPK_CRANKSHAFT & PISTON.jpeg"
 
 
 
