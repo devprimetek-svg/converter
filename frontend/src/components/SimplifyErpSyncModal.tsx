@@ -40,10 +40,18 @@ export const SimplifyErpSyncModal: React.FC<SimplifyErpSyncModalProps> = ({
 
   // ERP Connection Settings (persisted in localStorage)
   const [endpointUrl, setEndpointUrl] = useState<string>(() => {
-    return localStorage.getItem('simplify_erp_endpoint') || 'http://localhost:5000/api';
+    const saved = localStorage.getItem('simplify_erp_endpoint');
+    if (!saved || saved.includes('api.simplifyerp.com') || saved.includes('localhost') || saved.includes('127.0.0.1')) {
+      return 'https://simplify-erp.onrender.com/api';
+    }
+    return saved;
   });
   const [apiKey, setApiKey] = useState<string>(() => {
-    return localStorage.getItem('simplify_erp_api_key') || 'live_simplify_key_auto';
+    const saved = localStorage.getItem('simplify_erp_api_key');
+    if (!saved || saved.includes('live_simplify_key_...')) {
+      return 'live_simplify_key_auto';
+    }
+    return saved;
   });
   const [tenantId, setTenantId] = useState<string>(() => {
     return localStorage.getItem('simplify_erp_tenant_id') || 'indiaspare_parts';
@@ -62,6 +70,21 @@ export const SimplifyErpSyncModal: React.FC<SimplifyErpSyncModalProps> = ({
   const totalParts = rows.length;
   const validSkus = rows.filter((r) => r.part_no && String(r.part_no).trim().length >= 3).length;
   const missingHsn = rows.filter((r) => !r.hsn_code || !String(r.hsn_code).trim()).length;
+
+  useEffect(() => {
+    if (isOpen) {
+      const savedEp = localStorage.getItem('simplify_erp_endpoint');
+      if (!savedEp || savedEp.includes('api.simplifyerp.com') || savedEp.includes('localhost') || savedEp.includes('127.0.0.1')) {
+        setEndpointUrl('https://simplify-erp.onrender.com/api');
+        localStorage.setItem('simplify_erp_endpoint', 'https://simplify-erp.onrender.com/api');
+      }
+      const savedKey = localStorage.getItem('simplify_erp_api_key');
+      if (!savedKey || savedKey.includes('live_simplify_key_...')) {
+        setApiKey('live_simplify_key_auto');
+        localStorage.setItem('simplify_erp_api_key', 'live_simplify_key_auto');
+      }
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     localStorage.setItem('simplify_erp_endpoint', endpointUrl);
@@ -446,34 +469,47 @@ export const SimplifyErpSyncModal: React.FC<SimplifyErpSyncModalProps> = ({
             <div className="space-y-4">
               <div className="space-y-3">
                 <div>
-                  <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-1">
-                    Simplify ERP Gateway Base URL
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                      Simplify ERP Gateway Base URL
+                    </label>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                      Live Cloud Ready
+                    </span>
+                  </div>
                   <input
                     type="text"
                     value={endpointUrl}
                     onChange={(e) => setEndpointUrl(e.target.value)}
-                    placeholder="http://localhost:5000/api"
+                    placeholder="https://simplify-erp.onrender.com/api"
                     className="w-full px-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-xs font-mono font-medium focus:ring-2 focus:ring-blue-500"
                   />
-                  <div className="flex gap-2 mt-1.5">
+                  <div className="flex flex-wrap gap-2 mt-2">
                     <button
                       type="button"
-                      onClick={() => setEndpointUrl('http://localhost:5000/api')}
-                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-zinc-200 dark:bg-zinc-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-zinc-700 dark:text-zinc-300 transition-colors"
+                      onClick={() => setEndpointUrl('https://simplify-erp.onrender.com/api')}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-colors ${
+                        endpointUrl === 'https://simplify-erp.onrender.com/api'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-200'
+                      }`}
                     >
-                      Localhost:5000 (Default)
+                      ★ Render Live Cloud (Default)
                     </button>
                     <button
                       type="button"
                       onClick={() => setEndpointUrl('http://127.0.0.1:5000/api')}
-                      className="px-2 py-0.5 rounded text-[10px] font-semibold bg-zinc-200 dark:bg-zinc-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-zinc-700 dark:text-zinc-300 transition-colors"
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-colors ${
+                        endpointUrl === 'http://127.0.0.1:5000/api'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-300 dark:border-zinc-700 hover:bg-zinc-200'
+                      }`}
                     >
-                      127.0.0.1:5000
+                      Local PC (127.0.0.1:5000)
                     </button>
                   </div>
-                  <p className="text-[11px] text-zinc-500 mt-1">
-                    Standard REST API endpoint for automotive item master ingestion in Simplify ERP.
+                  <p className="text-[11px] text-zinc-500 mt-1.5">
+                    Live production endpoint connecting directly to Simplify ERP on Render &amp; Google Sheets.
                   </p>
                 </div>
 
@@ -484,10 +520,10 @@ export const SimplifyErpSyncModal: React.FC<SimplifyErpSyncModalProps> = ({
                     </label>
                     <div className="relative">
                       <input
-                        type="password"
+                        type="text"
                         value={apiKey}
                         onChange={(e) => setApiKey(e.target.value)}
-                        placeholder="live_simplify_key_..."
+                        placeholder="live_simplify_key_auto"
                         className="w-full pl-8 pr-3 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-xs font-mono font-medium focus:ring-2 focus:ring-blue-500"
                       />
                       <Key className="w-3.5 h-3.5 absolute left-2.5 top-3 text-zinc-400" />
