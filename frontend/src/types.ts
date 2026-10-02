@@ -12,6 +12,14 @@ export interface PartRow {
   part_no: string;
   description: string;
   remarks: string;
+  // Phase 2: Simplify ERP Master Fields
+  hsn_code?: string;
+  gst_rate?: number;
+  mrp?: number;
+  cost_price?: number;
+  dealer_price?: number;
+  margin_pct?: number;
+  rack_bin?: string;
   [key: string]: string | number | boolean | undefined;
 }
 

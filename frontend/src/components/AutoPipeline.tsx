@@ -21,10 +21,16 @@ import {
   ZoomIn,
   ZoomOut,
   X,
+  Send,
+  Barcode,
+  Crosshair,
 } from 'lucide-react';
 import type { PartRow } from '../types';
 import { PartsTable } from './PartsTable';
 import { extractRawModelName, buildComposedModelName, detectBrand } from '../utils/modelNameHelper';
+import { SimplifyErpSyncModal } from './SimplifyErpSyncModal';
+import { InteractiveHotspotDiagramModal } from './InteractiveHotspotDiagramModal';
+import { WarehouseBarcodeStudioModal } from './WarehouseBarcodeStudioModal';
 
 interface PipelineStatus {
   job_id: string;
@@ -121,10 +127,22 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
   const [globalModelInput, setGlobalModelInput] = useState<string>('');
   const [isProceeding, setIsProceeding] = useState<boolean>(false);
 
+  // Phase 1, 3, 4 Modal States
+  const [isErpSyncOpen, setIsErpSyncOpen] = useState<boolean>(false);
+  const [isWarehouseStudioOpen, setIsWarehouseStudioOpen] = useState<boolean>(false);
+  const [hotspotDiagramFigure, setHotspotDiagramFigure] = useState<{
+    fig_no: string;
+    fig_name: string;
+    imageUrl?: string;
+  } | null>(null);
+
+  // Phase 2 ERP Row Updates
+  const [erpRows, setErpRows] = useState<PartRow[] | null>(null);
+
   const hasEdits = Object.keys(editedModelNames).length > 0 || globalModelInput.trim().length > 0;
 
   const rowsWithEdits: PartRow[] = useMemo(() => {
-    const baseRows: PartRow[] = status?.rows || status?.rows_sample || [];
+    const baseRows: PartRow[] = erpRows || status?.rows || status?.rows_sample || [];
     if (Object.keys(editedModelNames).length === 0 && !globalModelInput.trim()) return baseRows;
     const rawGlobal = extractRawModelName(globalModelInput);
     const globalBrand = detectBrand(globalModelInput);
@@ -147,7 +165,36 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
       }
       return row;
     });
-  }, [status?.rows, status?.rows_sample, status?.model_columns, editedModelNames, globalModelInput]);
+  }, [erpRows, status?.rows, status?.rows_sample, status?.model_columns, editedModelNames, globalModelInput]);
+
+  const effectiveRows: PartRow[] = rowsWithEdits;
+
+  const handleRowsUpdate = useCallback((newRows: PartRow[]) => {
+    setErpRows(newRows);
+  }, []);
+
+  const openHotspotForFigNo = useCallback(
+    (figNo?: string) => {
+      const targetThumbnail = status?.processed_thumbnails?.find(
+        (t) => String(t.fig_no).trim().toLowerCase() === String(figNo || '').trim().toLowerCase()
+      );
+      const targetFigure = status?.figures?.find(
+        (f) => String(f.fig_no).trim().toLowerCase() === String(figNo || '').trim().toLowerCase()
+      );
+      const fallbackThumb = status?.processed_thumbnails?.[0];
+
+      setHotspotDiagramFigure({
+        fig_no: figNo || targetThumbnail?.fig_no || targetFigure?.fig_no || '1',
+        fig_name: targetThumbnail?.fig_name || targetFigure?.fig_name || fallbackThumb?.fig_name || 'PARTS',
+        imageUrl:
+          targetThumbnail?.full_image_url ||
+          targetThumbnail?.thumbnail_url ||
+          fallbackThumb?.full_image_url ||
+          fallbackThumb?.thumbnail_url,
+      });
+    },
+    [status]
+  );
 
   const handleModelNameEdit = useCallback((figKey: string, newValue: string) => {
     setEditedModelNames((prev) => ({ ...prev, [figKey]: newValue }));
@@ -197,7 +244,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
         body: JSON.stringify({
           edited_model_names: effectiveEdits,
           global_model_name: rawGlobal || undefined,
-          rows: rowsWithEdits,
+          rows: effectiveRows,
         }),
       });
 
@@ -1072,11 +1119,15 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
             </div>
 
             <PartsTable
-              rows={rowsWithEdits}
+              rows={effectiveRows}
               modelColumns={status.model_columns || []}
               cleanParts={cleanParts}
               editedModelNames={editedModelNames}
               onModelNameEdit={handleModelNameEdit}
+              onRowsUpdate={handleRowsUpdate}
+              onOpenErpSync={() => setIsErpSyncOpen(true)}
+              onOpenWarehouseStudio={() => setIsWarehouseStudioOpen(true)}
+              onOpenHotspotDiagram={(figNo) => openHotspotForFigNo(figNo)}
             />
           </div>
         </div>
@@ -1103,6 +1154,22 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
 
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => setIsErpSyncOpen(true)}
+                  className="inline-flex items-center gap-2 px-5 py-3.5 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-sm uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                  title="Push catalogue data &amp; images directly into Simplify ERP"
+                >
+                  <Send className="w-4 h-4 text-white" />
+                  Sync to ERP
+                </button>
+                <button
+                  onClick={() => setIsWarehouseStudioOpen(true)}
+                  className="inline-flex items-center gap-2 px-5 py-3.5 rounded-full bg-slate-900 hover:bg-black dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-slate-900 font-bold text-sm uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer"
+                  title="Generate printable Code128 / QR warehouse labels &amp; picklist"
+                >
+                  <Barcode className="w-4 h-4" />
+                  Barcodes &amp; Labels
+                </button>
                 <button
                   onClick={downloadMasterZip}
                   title={
@@ -1288,11 +1355,26 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                           className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform"
                           style={{ imageRendering: 'auto' }}
                         />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <span className="px-3 py-1.5 rounded-lg bg-white/95 text-zinc-900 font-bold text-xs flex items-center gap-1.5 shadow-lg">
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-3">
+                          <span className="px-3 py-1.5 rounded-lg bg-white/95 text-zinc-900 font-bold text-xs flex items-center gap-1.5 shadow-lg w-full justify-center">
                             <ZoomIn className="w-3.5 h-3.5 text-indigo-600" />
                             Inspect HD
                           </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setHotspotDiagramFigure({
+                                fig_no: img.fig_no || '1',
+                                fig_name: img.fig_name || 'PARTS',
+                                imageUrl: img.full_image_url || img.thumbnail_url,
+                              });
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg w-full justify-center cursor-pointer"
+                          >
+                            <Crosshair className="w-3.5 h-3.5 text-white" />
+                            Hotspot Studio
+                          </button>
                         </div>
                         <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-xs text-[10px] font-mono text-zinc-300 font-medium">
                           {img.width}x{img.height}
@@ -1328,6 +1410,21 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                             ))}
                           </div>
                         )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setHotspotDiagramFigure({
+                              fig_no: img.fig_no || '1',
+                              fig_name: img.fig_name || 'PARTS',
+                              imageUrl: img.full_image_url || img.thumbnail_url,
+                            });
+                          }}
+                          className="w-full mt-2 py-1 px-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-bold text-[11px] flex items-center justify-center gap-1.5 border border-indigo-200 dark:border-indigo-800 transition-colors"
+                        >
+                          <Crosshair className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                          Interactive Hotspots
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -1372,11 +1469,15 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
               </div>
 
               <PartsTable
-                rows={rowsWithEdits.length > 0 ? rowsWithEdits : (status.rows || [])}
+                rows={effectiveRows.length > 0 ? effectiveRows : (status.rows || [])}
                 modelColumns={status.model_columns || []}
                 cleanParts={cleanParts}
                 editedModelNames={editedModelNames}
                 onModelNameEdit={handleModelNameEdit}
+                onRowsUpdate={handleRowsUpdate}
+                onOpenErpSync={() => setIsErpSyncOpen(true)}
+                onOpenWarehouseStudio={() => setIsWarehouseStudioOpen(true)}
+                onOpenHotspotDiagram={(figNo) => openHotspotForFigNo(figNo)}
               />
             </div>
           )}
@@ -1483,6 +1584,39 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Phase 1: Simplify ERP Direct Sync & Validator Modal */}
+      {status && (
+        <SimplifyErpSyncModal
+          isOpen={isErpSyncOpen}
+          onClose={() => setIsErpSyncOpen(false)}
+          rows={effectiveRows}
+          figures={status.figures || []}
+          modelCode={status.model_columns?.[0] || 'MODEL'}
+          filename={status.filename || 'catalogue'}
+        />
+      )}
+
+      {/* Phase 4: Warehouse Barcode & Picklist Studio Modal */}
+      {status && (
+        <WarehouseBarcodeStudioModal
+          isOpen={isWarehouseStudioOpen}
+          onClose={() => setIsWarehouseStudioOpen(false)}
+          rows={effectiveRows}
+          modelCode={status.model_columns?.[0] || 'MODEL'}
+        />
+      )}
+
+      {/* Phase 3: Interactive Visual Diagram & Hotspot Mapper Modal */}
+      {hotspotDiagramFigure && (
+        <InteractiveHotspotDiagramModal
+          isOpen={Boolean(hotspotDiagramFigure)}
+          onClose={() => setHotspotDiagramFigure(null)}
+          figure={hotspotDiagramFigure}
+          rows={effectiveRows}
+          modelCode={status?.model_columns?.[0] || 'MODEL'}
+        />
       )}
     </div>
   );

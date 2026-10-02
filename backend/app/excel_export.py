@@ -240,6 +240,21 @@ def generate_excel_workbook(
     # Remarks column
     headers.append(("Remarks", "remarks", left_align))
 
+    # Optional ERP Master & Warehouse columns (Phase 2 & Phase 4)
+    has_erp_fields = any(
+        any(r.get(k) is not None and str(r.get(k)).strip() != "" for k in ("hsn_code", "gst_rate", "mrp", "cost_price", "dealer_price", "rack_bin"))
+        for r in rows
+    )
+    if has_erp_fields:
+        headers.extend([
+            ("HSN Code", "hsn_code", center_align),
+            ("GST Rate (%)", "gst_rate", right_align),
+            ("MRP (INR)", "mrp", right_align),
+            ("Purchase Price (INR)", "cost_price", right_align),
+            ("Dealer Price (INR)", "dealer_price", right_align),
+            ("Rack / Bin", "rack_bin", center_align),
+        ])
+
     # Write header row (Row 1)
     ws.row_dimensions[1].height = 28.0
     for col_idx, (header_label, _, _) in enumerate(headers, start=1):
@@ -301,6 +316,32 @@ def generate_excel_workbook(
                 val = row_data.get("part_no", "")
                 if clean_parts:
                     val = clean_part_number(str(val))
+            elif field_key in ("mrp", "cost_price", "dealer_price"):
+                val = row_data.get(field_key)
+                if val is not None and str(val).strip() != "":
+                    try:
+                        num_val = float(str(val).replace(",", "").replace("₹", "").strip())
+                        cell = ws.cell(row=row_idx, column=col_idx, value=num_val)
+                        cell.font = data_font
+                        cell.alignment = cell_align
+                        cell.border = thin_border
+                        cell.number_format = "#,##0.00"
+                        continue
+                    except ValueError:
+                        pass
+            elif field_key == "gst_rate":
+                val = row_data.get(field_key)
+                if val is not None and str(val).strip() != "":
+                    try:
+                        num_val = float(str(val).replace("%", "").strip())
+                        cell = ws.cell(row=row_idx, column=col_idx, value=num_val)
+                        cell.font = data_font
+                        cell.alignment = cell_align
+                        cell.border = thin_border
+                        cell.number_format = "0.00"
+                        continue
+                    except ValueError:
+                        pass
             else:
                 val = row_data.get(field_key, "")
 
