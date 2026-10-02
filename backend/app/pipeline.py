@@ -324,101 +324,21 @@ def run_pipeline_worker(
         )
 
         # Fallback if no images found with figure filter but images exist in PDF
-        if not raw_images and not page_figure_map:
+        if not raw_images:
             raw_images = extract_images_from_pdf(pdf_bytes, parts_only=False, model_code=pipeline_model_code)
 
-        # Prepare image selection list with applicable models and metadata
-        extracted_select_items = []
-        for idx, img_info in enumerate(raw_images):
-            img_id = img_info.get("id") or f"ext_img_{idx + 1}"
-            img_info["id"] = img_id
-            is_bike = bool(img_info.get("is_bike_image", False))
-
-            img_fig_no = str(img_info.get("fig_no", "")).strip()
-            img_fig_name = str(img_info.get("fig_name", "")).strip().upper()
-            applicable_models = []
-            if is_bike:
-                applicable_models = model_codes if has_multiple_models else [pipeline_model_code]
-            elif has_multiple_models:
-                for m in model_codes:
-                    m_rows = model_excel_data[m]["rows"]
-                    m_fig_nos = {str(r.get("fig_no", "")).strip() for r in m_rows if r.get("fig_no")}
-                    m_fig_names = {str(r.get("fig_name", "")).strip().upper() for r in m_rows if r.get("fig_name")}
-                    if not m_fig_nos and not m_fig_names:
-                        applicable_models.append(m)
-                    elif img_fig_no in m_fig_nos or img_fig_name in m_fig_names:
-                        applicable_models.append(m)
-            else:
-                applicable_models = [pipeline_model_code]
-
-            extracted_select_items.append({
-                "id": img_id,
-                "filename": img_info.get("filename", f"IMAGE_{idx + 1}"),
-                "fig_no": img_info.get("fig_no", ""),
-                "fig_name": img_info.get("fig_name", ""),
-                "page": img_info.get("page", 1),
-                "width": img_info.get("width", 0),
-                "height": img_info.get("height", 0),
-                "thumbnail_url": img_info.get("thumbnail_url", ""),
-                "size_bytes": img_info.get("size_bytes", 0),
-                "models": applicable_models,
-                "is_bike_image": is_bike,
-                "color_name": img_info.get("color_name", ""),
-                "color_code": img_info.get("color_code", ""),
-            })
-
-        # Pause pipeline for user selection if images were extracted
-        if raw_images:
-            with job.lock:
-                job.total_images_found = len(raw_images)
-                job.extracted_images_to_select = extracted_select_items
-                if job.selected_image_ids is None:
-                    job.selected_image_ids = [item["id"] for item in extracted_select_items]
-                job.status = "awaiting_image_selection"
-                job.step_index = 4
-                job.step_name = "Select Images to Include"
-                job.progress_pct = 60
-                job.details = f"Extracted {len(raw_images)} images. Select/unselect diagrams to include in the final bundle."
-
-            logger.info(f"Pipeline job {job.job_id} waiting for image selection confirmation...")
-            if not auto_proceed and not job.image_proceed_event.is_set():
-                proceeded = job.image_proceed_event.wait(timeout=3600)
-            else:
-                proceeded = True
-
-            if not proceeded or job.status == "error":
-                logger.warning(f"Pipeline job {job.job_id} timed out or cancelled waiting for image selection.")
-                with job.lock:
-                    if job.status != "error":
-                        job.status = "error"
-                        job.error = "Pipeline timed out waiting for image selection."
-                return
-
-        # Determine which images were selected by user
+        # Step 4: Watermark & Resize every extracted image immediately with strict presets
         with job.lock:
-            job.status = "processing"
-            job.step_index = 5
-            job.step_name = "Applying Watermark & Resizing..."
-            job.progress_pct = 65
+            job.step_index = 4
+            job.step_name = "Applying Watermark & Resizing Diagrams..."
+            job.progress_pct = 55
+            job.details = f"Processing {len(raw_images)} diagrams with presets (1000x1200, 59–69 KB, IndiaSpare watermark)..."
 
-            if job.selected_image_ids is not None:
-                selected_set = set(job.selected_image_ids)
-                images_to_process = [
-                    img for img in raw_images
-                    if img.get("id") in selected_set or img.get("filename") in selected_set
-                ]
-            else:
-                images_to_process = raw_images
+        all_processed_items: list[tuple[str, bytes, dict[str, Any]]] = []
+        all_thumbnails: list[dict[str, Any]] = []
 
-            job.total_images_found = len(images_to_process)
-            job.details = f"Processing {len(images_to_process)} selected images with presets..."
-
-        # Step 5: Watermark & Resize each selected image
-        processed_items: list[tuple[str, bytes, dict[str, Any]]] = []
-        thumbnails: list[dict[str, Any]] = []
-
-        total_imgs = max(1, len(images_to_process))
-        for idx, img_info in enumerate(images_to_process):
+        total_imgs = max(1, len(raw_images))
+        for idx, img_info in enumerate(raw_images):
             try:
                 raw_bytes = img_info["raw_bytes"]
                 is_bike = bool(img_info.get("is_bike_image", False))
@@ -429,7 +349,7 @@ def run_pipeline_worker(
                     skip_watermark=is_bike,
                 )
                 fname = img_info.get("filename") or f"YAM_{pipeline_model_code}_PART_{idx + 1:03d}"
-                processed_items.append((fname, processed_bytes, img_info))
+                all_processed_items.append((fname, processed_bytes, img_info))
 
                 proc_pil = Image.open(io.BytesIO(processed_bytes))
                 act_w, act_h = proc_pil.size
@@ -441,7 +361,9 @@ def run_pipeline_worker(
                 thumb.save(thumb_buf, format="JPEG", quality=92, optimize=True)
                 thumb_b64 = base64.b64encode(thumb_buf.getvalue()).decode("utf-8")
 
-                img_id = f"proc_{idx + 1}"
+                img_id = img_info.get("id") or f"proc_{idx + 1}"
+                img_info["id"] = img_id
+
                 with job.lock:
                     job.processed_images_dict[img_id] = processed_bytes
                     job.processed_images_dict[fname] = processed_bytes
@@ -464,7 +386,7 @@ def run_pipeline_worker(
                 else:
                     applicable_models = [pipeline_model_code]
 
-                thumbnails.append({
+                all_thumbnails.append({
                     "id": img_id,
                     "filename": fname,
                     "fig_no": img_info.get("fig_no", ""),
@@ -479,14 +401,71 @@ def run_pipeline_worker(
                     "is_bike_image": is_bike,
                     "color_name": img_info.get("color_name", ""),
                     "color_code": img_info.get("color_code", ""),
+                    "watermark_applied": not is_bike,
                 })
             except Exception as e:
                 logger.warning("Pipeline image processing failed for image %d: %s", idx, e)
 
             with job.lock:
                 job.images_processed_count = idx + 1
-                job.progress_pct = 65 + int(((idx + 1) / total_imgs) * 25)
-                job.details = f"Processed {idx + 1} of {len(images_to_process)} images..."
+                job.progress_pct = 55 + int(((idx + 1) / total_imgs) * 20)
+                job.details = f"Processed {idx + 1} of {len(raw_images)} images with presets..."
+
+        # Step 5: Review & Select Images (Pause pipeline for user selection if diagrams exist and auto_proceed is False)
+        if all_processed_items:
+            with job.lock:
+                job.total_images_found = len(all_thumbnails)
+                job.extracted_images_to_select = all_thumbnails
+                job.processed_thumbnails = all_thumbnails
+                job.raw_processed_images = [(f, b) for f, b, _ in all_processed_items]
+                if job.selected_image_ids is None:
+                    job.selected_image_ids = [item["id"] for item in all_thumbnails]
+                job.status = "awaiting_image_selection"
+                job.step_index = 5
+                job.step_name = "Select Images to Include"
+                job.progress_pct = 75
+                job.details = f"Processed {len(all_thumbnails)} images (1000x1200, 59–69 KB, watermarked). Select/unselect diagrams to include in final bundle."
+
+            logger.info(f"Pipeline job {job.job_id} waiting for image selection confirmation...")
+            if not auto_proceed and not job.image_proceed_event.is_set():
+                proceeded = job.image_proceed_event.wait(timeout=3600)
+            else:
+                proceeded = True
+
+            if not proceeded or job.status == "error":
+                logger.warning(f"Pipeline job {job.job_id} timed out or cancelled waiting for image selection.")
+                with job.lock:
+                    if job.status != "error":
+                        job.status = "error"
+                        job.error = "Pipeline timed out waiting for image selection."
+                return
+
+        # Determine which images were selected by user
+        with job.lock:
+            job.status = "processing"
+            job.step_index = 6
+            job.step_name = "Packaging Master ZIP Bundle..."
+            job.progress_pct = 85
+
+            if job.selected_image_ids:
+                selected_set = set(job.selected_image_ids)
+                processed_items = [
+                    item for item in all_processed_items
+                    if item[2].get("id") in selected_set or item[0] in selected_set
+                ]
+                if not processed_items and all_processed_items:
+                    processed_items = all_processed_items
+            else:
+                processed_items = all_processed_items
+
+            selected_filenames = {item[0] for item in processed_items}
+            selected_thumbnails = [t for t in all_thumbnails if t["filename"] in selected_filenames]
+            thumbnails = selected_thumbnails or all_thumbnails
+            job.processed_thumbnails = thumbnails
+            job.raw_processed_images = [(f, b) for f, b, _ in processed_items]
+            job.total_images_found = len(processed_items)
+            job.images_processed_count = len(processed_items)
+            job.details = f"Compiling Master ZIP with {len(processed_items)} diagrams..."
 
         # Step 6: Create Master ZIP Archive
         with job.lock:

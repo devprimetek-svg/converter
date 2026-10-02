@@ -544,6 +544,10 @@ def test_pipeline_image_selection_and_unselection_filters_zip():
             assert "extracted_images_to_select" in status_data
             images = status_data["extracted_images_to_select"]
             assert len(images) >= 1
+            # Verify presets are already applied in review step
+            assert images[0]["width"] == 1000
+            assert images[0]["height"] == 1200
+            assert images[0]["watermark_applied"] is True
             # Select the images explicitly
             selected_ids = [images[0]["id"]]
             img_res = client.post(
@@ -568,6 +572,47 @@ def test_pipeline_image_selection_and_unselection_filters_zip():
     root_imgs = [f for f in zf.namelist() if f.startswith("images/")]
     assert len(root_imgs) == 1
     assert "YAM_BGP1_CYLINDER HEAD.jpeg" in root_imgs[0]
+
+    # Verify image inside Master ZIP strictly conforms to 1000x1200 and 59-69 KB presets
+    img_data = zf.read(root_imgs[0])
+    assert len(img_data) / 1024.0 >= 59.0
+    assert len(img_data) / 1024.0 <= 69.0
+    pil_im = Image.open(io.BytesIO(img_data))
+    assert pil_im.size == (1000, 1200)
+
+
+def test_pipeline_fast_auto_proceed_runs_end_to_end():
+    """Verify that auto_proceed=True skips pauses and executes end-to-end to Master ZIP with presets."""
+    pdf_bytes = _create_synthetic_pdf_with_image().getvalue()
+    files = {"file": ("Yamaha_Auto_Test.pdf", pdf_bytes, "application/pdf")}
+    data = {
+        "watermark_text": "AUTOPROCEED",
+        "resize_width": "1000",
+        "resize_height": "1200",
+        "auto_proceed": "true",
+    }
+
+    res = client.post("/api/pipeline/start", files=files, data=data)
+    assert res.status_code == 200
+    job_id = res.json()["job_id"]
+
+    start_time = time.time()
+    status_data = None
+    while time.time() - start_time < 20:
+        st_res = client.get(f"/api/pipeline/status/{job_id}")
+        assert st_res.status_code == 200
+        status_data = st_res.json()
+        if status_data["status"] in ("completed", "error"):
+            break
+        time.sleep(0.2)
+
+    assert status_data is not None
+    assert status_data["status"] == "completed"
+    assert status_data["zip_ready"] is True
+    assert len(status_data["processed_thumbnails"]) >= 1
+    thumb = status_data["processed_thumbnails"][0]
+    assert thumb["width"] == 1000
+    assert thumb["height"] == 1200
 
 
 

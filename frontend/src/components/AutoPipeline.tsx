@@ -152,18 +152,14 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
   const [isProceedingImages, setIsProceedingImages] = useState<boolean>(false);
   const [imageSelectionCategoryFilter, setImageSelectionCategoryFilter] = useState<'ALL' | 'BIKES' | 'PARTS'>('ALL');
   const [imageSelectionModelFilter, setImageSelectionModelFilter] = useState<string>('ALL');
+  const [autoProceedToZip, setAutoProceedToZip] = useState<boolean>(false);
 
-  // Automatically select all extracted images when awaiting_image_selection arrives
+  // Automatically select all extracted images when awaiting_image_selection arrives for the current job
   useEffect(() => {
     if (status?.status === 'awaiting_image_selection' && status.extracted_images_to_select) {
-      setSelectedImageIds((prev) => {
-        if (prev.size === 0) {
-          return new Set(status.extracted_images_to_select!.map((img) => img.id));
-        }
-        return prev;
-      });
+      setSelectedImageIds(new Set(status.extracted_images_to_select.map((img) => img.id)));
     }
-  }, [status?.status, status?.extracted_images_to_select]);
+  }, [status?.status, status?.job_id]);
 
   // Model Name Editing States (Parity with PDF-to-Excel extractor module)
   const [defaultModelName, setDefaultModelName] = useState<string>('');
@@ -340,13 +336,20 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
   const handleProceedImages = async () => {
     if (!status?.job_id) return;
     setIsProceedingImages(true);
+    setIsProcessing(true);
     setErrorMessage(null);
+
+    const effectiveIds =
+      selectedImageIds.size > 0
+        ? Array.from(selectedImageIds)
+        : (status.extracted_images_to_select?.map((img) => img.id) || []);
+
     try {
       const res = await fetch(`/api/pipeline/proceed-images/${status.job_id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          selected_image_ids: Array.from(selectedImageIds),
+          selected_image_ids: effectiveIds,
         }),
       });
 
@@ -355,6 +358,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
         throw new Error(err.detail || 'Failed to proceed with selected images.');
       }
     } catch (err: any) {
+      setIsProcessing(false);
       setErrorMessage(err.message || 'Failed to proceed with selected images.');
     } finally {
       setIsProceedingImages(false);
@@ -410,6 +414,8 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
     setIsProcessing(true);
     setErrorMessage(null);
     setStatus(null);
+    setSelectedImageIds(new Set());
+    setIsProceedingImages(false);
 
     const formData = new FormData();
     formData.append('file', pdfFile);
@@ -422,6 +428,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
     formData.append('watermark_opacity', String((wmOpacity || 10) / 100));
     formData.append('watermark_color', wmColor || '#1E3A8A');
     formData.append('watermark_is_tiled', String(wmIsTiled ?? true));
+    formData.append('auto_proceed', String(autoProceedToZip));
     if (logoFile) {
       formData.append('watermark_logo', logoFile);
     }
@@ -952,7 +959,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                   </>
                 )}
 
-                <div className="col-span-2 pt-1">
+                <div className="col-span-2 pt-1 flex flex-col gap-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -961,6 +968,17 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                       className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                     />
                     <span className="text-slate-600 dark:text-slate-400 font-semibold">Clean Yamaha Part Numbers (e.g. 950220601000)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={autoProceedToZip}
+                      onChange={(e) => setAutoProceedToZip(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-slate-600 dark:text-slate-400 font-semibold">
+                      Fast Auto-Proceed (Skip manual diagram selection pause and build Master ZIP automatically)
+                    </span>
                   </label>
                 </div>
 
@@ -1078,9 +1096,9 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
               { idx: 1, label: 'Parts Extraction', icon: FileSpreadsheet },
               { idx: 2, label: 'Edit Model Name', icon: Pencil },
               { idx: 3, label: 'Excel Generation', icon: FileSpreadsheet },
-              { idx: 4, label: 'Select Images', icon: ImageIcon },
-              { idx: 5, label: 'Preset Watermark', icon: Droplet },
-              { idx: 6, label: 'Resize & Master ZIP', icon: FileArchive },
+              { idx: 4, label: 'Watermark & Resize', icon: Droplet },
+              { idx: 5, label: 'Select Images', icon: ImageIcon },
+              { idx: 6, label: 'Master ZIP', icon: FileArchive },
             ].map((s) => {
               const Icon = s.icon;
               const isPast = status.step_index > s.idx;
@@ -1268,13 +1286,13 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
               <div className="space-y-1">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
                   <ImageIcon className="w-3.5 h-3.5" />
-                  Step 4 of 6: Image Selection
+                  Step 5 of 6: Review &amp; Select Diagrams
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">
-                  Select / Unselect Diagrams &amp; Images
+                  Review &amp; Select Diagrams for Master ZIP
                 </h3>
                 <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">
-                  Extracted <strong>{status.extracted_images_to_select?.length || 0}</strong> images from PDF. Uncheck any diagrams or photos you want to exclude from watermarking and the Master ZIP archive.
+                  Extracted &amp; processed <strong>{status.extracted_images_to_select?.length || 0}</strong> diagrams with presets (1000×1200 px, 59–69 KB, IndiaSpare watermark on parts). All diagrams are ready. Uncheck any items you want to exclude from the final Master ZIP package.
                 </p>
               </div>
 
@@ -1301,13 +1319,13 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                 <CheckCircle2 className="w-4 h-4 text-zinc-900 dark:text-white shrink-0" />
                 <span className="truncate">3. Excel</span>
               </div>
+              <div className="p-2.5 rounded-xl border bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-zinc-900 dark:text-white shrink-0" />
+                <span className="truncate">4. Watermark &amp; Resize</span>
+              </div>
               <div className="p-2.5 rounded-xl border bg-indigo-50 dark:bg-indigo-950/50 border-indigo-400 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 text-xs font-bold flex items-center gap-2 shadow-xs">
                 <ImageIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 animate-bounce" />
-                <span className="truncate">4. Select Images</span>
-              </div>
-              <div className="p-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2">
-                <Droplet className="w-4 h-4 text-zinc-400 shrink-0" />
-                <span className="truncate">5. Watermark</span>
+                <span className="truncate">5. Select Images</span>
               </div>
               <div className="p-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2">
                 <FileArchive className="w-4 h-4 text-zinc-400 shrink-0" />
@@ -1492,13 +1510,20 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                           {img.width}x{img.height}
                         </span>
 
+                        {/* Preset Watermark Status for Parts */}
+                        {!img.is_bike_image && (
+                          <span className="absolute top-2 right-10 px-1.5 py-0.5 rounded-md bg-blue-900/90 text-blue-200 text-[9px] font-bold tracking-wider shadow-xs flex items-center gap-1 border border-blue-700/50">
+                            Watermarked
+                          </span>
+                        )}
+
                         {/* Bike badge */}
                         {img.is_bike_image && (
                           <span
                             className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-amber-600/95 text-white text-[9px] font-bold tracking-wider shadow-xs flex items-center gap-1 max-w-[150px] truncate"
-                            title={img.color_name || img.color_code || 'Bike photo'}
+                            title={img.color_name || img.color_code || 'Bike photo (No Watermark)'}
                           >
-                            🏍️ Bike{img.color_code ? ` • ${img.color_code}` : ''}
+                            🏍️ Bike (No Watermark){img.color_code ? ` • ${img.color_code}` : ''}
                           </span>
                         )}
 
@@ -1901,6 +1926,11 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                 </h4>
                 <p className="text-xs text-zinc-500 mt-0.5 font-mono">
                   Page {previewDiagram.page} • {previewDiagram.width} × {previewDiagram.height} px • {formatBytes(previewDiagram.size_bytes)}
+                  {previewDiagram.watermark_applied !== undefined
+                    ? previewDiagram.watermark_applied
+                      ? ' • Watermark Applied (Preset -30° / 115px / 10%)'
+                      : ' • 🏍️ Bike Photo (No Watermark)'
+                    : ''}
                   {previewDiagram.fig_name ? ` • ${previewDiagram.fig_name}` : ''}
                 </p>
               </div>

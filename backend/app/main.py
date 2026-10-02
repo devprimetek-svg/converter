@@ -618,7 +618,7 @@ async def start_pipeline_endpoint(
     watermark_angle: float = Form(-30.0),
     watermark_padding: int = Form(115),
     watermark_size_pct: int = Form(25),
-    watermark_color: str = Form("#FFFFFF"),
+    watermark_color: str = Form("#1E3A8A"),
     watermark_is_tiled: bool = Form(True),
     watermark_logo: Optional[UploadFile] = File(None),
     resize_width: int = Form(1000),
@@ -630,6 +630,7 @@ async def start_pipeline_endpoint(
     default_model_name: Optional[str] = Form(None),
     high_clarity: bool = Form(False),
     preserve_aspect_ratio: bool = Form(True),
+    auto_proceed: bool = Form(False),
 ):
     """Start the automated end-to-end studio pipeline."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
@@ -684,7 +685,7 @@ async def start_pipeline_endpoint(
 
     thread = threading.Thread(
         target=run_pipeline_worker,
-        args=(job, pdf_bytes, wm_config, resize_config, clean_part_numbers),
+        args=(job, pdf_bytes, wm_config, resize_config, clean_part_numbers, auto_proceed),
         daemon=True,
     )
     thread.start()
@@ -705,7 +706,7 @@ class PipelineProceedRequest(BaseModel):
 
 @app.post("/api/pipeline/proceed-images/{job_id}")
 def proceed_pipeline_images_endpoint(job_id: str, payload: Optional[PipelineImageProceedRequest] = None):
-    """Submit selected image IDs and resume the automated pipeline to Watermark, Resize, and Master ZIP."""
+    """Submit selected image IDs and resume the automated pipeline to Master ZIP packaging."""
     job = pipeline_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found or expired.")
@@ -717,10 +718,10 @@ def proceed_pipeline_images_endpoint(job_id: str, payload: Optional[PipelineImag
             job.selected_image_ids = [item["id"] for item in job.extracted_images_to_select]
 
         job.status = "processing"
-        job.step_index = 5
-        job.step_name = "Applying Watermark & Resizing..."
-        job.progress_pct = 65
-        job.details = f"Processing {len(job.selected_image_ids)} selected images..."
+        job.step_index = 6
+        job.step_name = "Packaging Master ZIP Bundle..."
+        job.progress_pct = 85
+        job.details = f"Packaging {len(job.selected_image_ids)} selected images into Master ZIP..."
         job.image_proceed_event.set()
 
     return {
@@ -744,10 +745,10 @@ def proceed_pipeline_endpoint(job_id: str, payload: Optional[PipelineProceedRequ
             elif job.selected_image_ids is None:
                 job.selected_image_ids = [item["id"] for item in job.extracted_images_to_select]
             job.status = "processing"
-            job.step_index = 5
-            job.step_name = "Applying Watermark & Resizing..."
-            job.progress_pct = 65
-            job.details = f"Processing {len(job.selected_image_ids)} selected images..."
+            job.step_index = 6
+            job.step_name = "Packaging Master ZIP Bundle..."
+            job.progress_pct = 85
+            job.details = f"Packaging {len(job.selected_image_ids)} selected images into Master ZIP..."
             job.image_proceed_event.set()
             return {"status": "resumed", "job_id": job.job_id, "selected_count": len(job.selected_image_ids)}
 
