@@ -21,17 +21,13 @@ import {
   ZoomIn,
   ZoomOut,
   X,
-  Send,
-  Barcode,
   CheckSquare,
   Square,
 } from 'lucide-react';
 import type { PartRow } from '../types';
 import { PartsTable } from './PartsTable';
 import { extractRawModelName, buildComposedModelName, detectBrand } from '../utils/modelNameHelper';
-import { SimplifyErpSyncModal } from './SimplifyErpSyncModal';
 import { InteractiveHotspotDiagramModal } from './InteractiveHotspotDiagramModal';
-import { WarehouseBarcodeStudioModal } from './WarehouseBarcodeStudioModal';
 
 interface PipelineStatus {
   job_id: string;
@@ -106,14 +102,10 @@ export interface AutoPipelineProps {
     modelColumns: string[];
     filename: string;
   }) => void;
-  enableErpSync?: boolean;
-  enableBarcodeLabels?: boolean;
 }
 
 export const AutoPipeline: React.FC<AutoPipelineProps> = ({
   onJobCompleted,
-  enableErpSync = false,
-  enableBarcodeLabels = false,
 }) => {
   // Preset States (Pre-filled exactly per user specifications: Company logo, -30° rotation, 115 padding, 25% scale, 10% opacity, tiled)
   const [wmType, setWmType] = useState<'logo' | 'text'>('logo');
@@ -167,34 +159,17 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
   const [globalModelInput, setGlobalModelInput] = useState<string>('');
   const [isProceeding, setIsProceeding] = useState<boolean>(false);
 
-  // Phase 1, 3, 4 Modal States
-  const [isErpSyncOpen, setIsErpSyncOpen] = useState<boolean>(false);
-  const [isWarehouseStudioOpen, setIsWarehouseStudioOpen] = useState<boolean>(false);
+  // Visual Diagram Modal State
   const [hotspotDiagramFigure, setHotspotDiagramFigure] = useState<{
     fig_no: string;
     fig_name: string;
     imageUrl?: string;
   } | null>(null);
 
-  // Listen for Navbar three dot menu quick launch events
-  useEffect(() => {
-    const handleOpenErp = () => setIsErpSyncOpen(true);
-    const handleOpenWarehouse = () => setIsWarehouseStudioOpen(true);
-    window.addEventListener('open-erp-sync', handleOpenErp);
-    window.addEventListener('open-warehouse-studio', handleOpenWarehouse);
-    return () => {
-      window.removeEventListener('open-erp-sync', handleOpenErp);
-      window.removeEventListener('open-warehouse-studio', handleOpenWarehouse);
-    };
-  }, []);
-
-  // Phase 2 ERP Row Updates
-  const [erpRows, setErpRows] = useState<PartRow[] | null>(null);
-
   const hasEdits = Object.keys(editedModelNames).length > 0 || globalModelInput.trim().length > 0;
 
   const rowsWithEdits: PartRow[] = useMemo(() => {
-    const baseRows: PartRow[] = erpRows || status?.rows || status?.rows_sample || [];
+    const baseRows: PartRow[] = status?.rows || status?.rows_sample || [];
     if (Object.keys(editedModelNames).length === 0 && !globalModelInput.trim()) return baseRows;
     const rawGlobal = extractRawModelName(globalModelInput);
     const globalBrand = detectBrand(globalModelInput);
@@ -217,13 +192,9 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
       }
       return row;
     });
-  }, [erpRows, status?.rows, status?.rows_sample, status?.model_columns, editedModelNames, globalModelInput]);
+  }, [status?.rows, status?.rows_sample, status?.model_columns, editedModelNames, globalModelInput]);
 
   const effectiveRows: PartRow[] = rowsWithEdits;
-
-  const handleRowsUpdate = useCallback((newRows: PartRow[]) => {
-    setErpRows(newRows);
-  }, []);
 
   const openHotspotForFigNo = useCallback(
     (figNo?: string) => {
@@ -1266,12 +1237,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
               cleanParts={cleanParts}
               editedModelNames={editedModelNames}
               onModelNameEdit={handleModelNameEdit}
-              onRowsUpdate={handleRowsUpdate}
-              onOpenErpSync={enableErpSync ? () => setIsErpSyncOpen(true) : undefined}
-              onOpenWarehouseStudio={enableBarcodeLabels ? () => setIsWarehouseStudioOpen(true) : undefined}
               onOpenHotspotDiagram={(figNo) => openHotspotForFigNo(figNo)}
-              enableErpSync={enableErpSync}
-              enableBarcodeLabels={enableBarcodeLabels}
             />
           </div>
         </div>
@@ -1591,26 +1557,6 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
 
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-3">
-                {enableErpSync && (
-                  <button
-                    onClick={() => setIsErpSyncOpen(true)}
-                    className="inline-flex items-center gap-2 px-5 py-3.5 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-sm uppercase tracking-wider transition-all shadow-sm cursor-pointer"
-                    title="Push catalogue data &amp; images directly into Simplify ERP"
-                  >
-                    <Send className="w-4 h-4 text-white" />
-                    Sync to ERP
-                  </button>
-                )}
-                {enableBarcodeLabels && (
-                  <button
-                    onClick={() => setIsWarehouseStudioOpen(true)}
-                    className="inline-flex items-center gap-2 px-5 py-3.5 rounded-full bg-slate-900 hover:bg-black dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-slate-900 font-bold text-sm uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer"
-                    title="Generate printable Code128 / QR warehouse labels &amp; picklist"
-                  >
-                    <Barcode className="w-4 h-4" />
-                    Barcodes &amp; Labels
-                  </button>
-                )}
                 <button
                   onClick={downloadMasterZip}
                   title={
@@ -1893,11 +1839,6 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                 cleanParts={cleanParts}
                 editedModelNames={editedModelNames}
                 onModelNameEdit={handleModelNameEdit}
-                onRowsUpdate={handleRowsUpdate}
-                onOpenErpSync={enableErpSync ? () => setIsErpSyncOpen(true) : undefined}
-                onOpenWarehouseStudio={enableBarcodeLabels ? () => setIsWarehouseStudioOpen(true) : undefined}
-                enableErpSync={enableErpSync}
-                enableBarcodeLabels={enableBarcodeLabels}
               />
             </div>
           )}
@@ -2011,27 +1952,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
         </div>
       )}
 
-      {/* Phase 1: Simplify ERP Direct Sync & Validator Modal */}
-      {status && (
-        <SimplifyErpSyncModal
-          isOpen={isErpSyncOpen}
-          onClose={() => setIsErpSyncOpen(false)}
-          rows={effectiveRows}
-          figures={status.figures || []}
-          modelCode={status.model_columns?.[0] || 'MODEL'}
-          filename={status.filename || 'catalogue'}
-        />
-      )}
 
-      {/* Phase 4: Warehouse Barcode & Picklist Studio Modal */}
-      {status && (
-        <WarehouseBarcodeStudioModal
-          isOpen={isWarehouseStudioOpen}
-          onClose={() => setIsWarehouseStudioOpen(false)}
-          rows={effectiveRows}
-          modelCode={status.model_columns?.[0] || 'MODEL'}
-        />
-      )}
 
       {/* Phase 3: Interactive Visual Diagram & Hotspot Mapper Modal */}
       {hotspotDiagramFigure && (

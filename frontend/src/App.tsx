@@ -22,31 +22,6 @@ export function App() {
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('auto-pipeline');
 
-  // Extension modules visibility in Auto Pipeline (managed via Three Dots menu in Navbar)
-  const [enableErpSync, setEnableErpSync] = useState<boolean>(() => {
-    return localStorage.getItem('enable_erp_sync') === 'true';
-  });
-
-  const [enableBarcodeLabels, setEnableBarcodeLabels] = useState<boolean>(() => {
-    return localStorage.getItem('enable_barcode_labels') === 'true';
-  });
-
-  const handleToggleErpSync = () => {
-    setEnableErpSync((prev) => {
-      const next = !prev;
-      localStorage.setItem('enable_erp_sync', String(next));
-      return next;
-    });
-  };
-
-  const handleToggleBarcodeLabels = () => {
-    setEnableBarcodeLabels((prev) => {
-      const next = !prev;
-      localStorage.setItem('enable_barcode_labels', String(next));
-      return next;
-    });
-  };
-
   // Catalogue conversion state
   const [status, setStatus] = useState<ExtractionStatus | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -284,20 +259,13 @@ export function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onReplaySplash={() => setShowSplash(true)}
-        enableErpSync={enableErpSync}
-        enableBarcodeLabels={enableBarcodeLabels}
-        onToggleErpSync={handleToggleErpSync}
-        onToggleBarcodeLabels={handleToggleBarcodeLabels}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8">
         {/* Tab 0: Automated End-to-End Pipeline */}
         {activeTab === 'auto-pipeline' && (
           <div className="animate-in fade-in duration-200">
-            <AutoPipeline
-              enableErpSync={enableErpSync}
-              enableBarcodeLabels={enableBarcodeLabels}
-            />
+            <AutoPipeline />
           </div>
         )}
 

@@ -130,7 +130,7 @@ export const InteractiveHotspotDiagramModal: React.FC<InteractiveHotspotDiagramM
     savePins(updated);
   };
 
-  // Add item to ERP Cart
+  // Add item to Cart
   const addToCart = (part: any) => {
     const partNo = String(part.part_no || '').trim();
     const refNo = String(part.ref_no || '').trim();
@@ -201,7 +201,7 @@ export const InteractiveHotspotDiagramModal: React.FC<InteractiveHotspotDiagramM
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `SimplifyERP_Order_Quotation_${modelCode}.csv`;
+    a.download = `Order_Quotation_${modelCode}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
