@@ -24,6 +24,9 @@ interface ExtractedImage {
   size_bytes: number;
   thumbnail_url: string;
   is_duplicate?: boolean;
+  is_bike_image?: boolean;
+  color_name?: string;
+  color_code?: string;
 }
 
 export const PdfImageExtractor: React.FC = () => {
@@ -405,6 +408,15 @@ export const PdfImageExtractor: React.FC = () => {
                       <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-black/60 text-[10px] font-bold text-white font-mono">
                         p.{img.page}
                       </div>
+
+                      {img.is_bike_image && (
+                        <div
+                          className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded-md bg-amber-600/95 text-white text-[9px] font-bold tracking-wider shadow-xs flex items-center gap-1 max-w-[130px] truncate"
+                          title={img.color_name || img.color_code || 'Bike photo (No Watermark)'}
+                        >
+                          🏍️ {img.color_code || img.color_name || 'Bike'}
+                        </div>
+                      )}
                     </div>
 
                     {/* Meta info */}

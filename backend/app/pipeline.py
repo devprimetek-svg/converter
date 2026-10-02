@@ -388,6 +388,8 @@ def run_pipeline_worker(
                     "size_bytes": len(processed_bytes),
                     "models": applicable_models,
                     "is_bike_image": is_bike,
+                    "color_name": img_info.get("color_name", ""),
+                    "color_code": img_info.get("color_code", ""),
                 })
             except Exception as e:
                 logger.warning("Pipeline image processing failed for image %d: %s", idx, e)

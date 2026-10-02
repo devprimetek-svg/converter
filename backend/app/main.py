@@ -408,6 +408,8 @@ async def extract_pdf_images_endpoint(file: UploadFile = File(...)):
             "thumbnail_url": img["thumbnail_url"],
             "is_duplicate": img.get("is_duplicate", False),
             "is_bike_image": img.get("is_bike_image", False),
+            "color_name": img.get("color_name", ""),
+            "color_code": img.get("color_code", ""),
         }
         for img in images
     ]

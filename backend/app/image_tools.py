@@ -13,6 +13,7 @@ import zipfile
 from typing import Any, Optional
 
 from PIL import Image, ImageDraw, ImageFont
+import pdfplumber
 from pypdf import PdfReader
 
 DEFAULT_LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "default_watermark_logo.png")
@@ -57,6 +58,146 @@ def is_colored_image(img: Image.Image, min_sat_threshold: float = 18.0, min_colo
         return False
 
 
+COLOR_KEYWORDS = {
+    # Basic colors
+    "BLACK", "BLUE", "GREY", "GRAY", "CYAN", "RED", "WHITE", "SILVER",
+    "YELLOW", "GREEN", "ORANGE", "GOLD", "BRONZE", "COPPER", "PURPLE",
+    "VIOLET", "BROWN", "TITANIUM", "GRAPHITE", "CHARCOAL", "MAROON",
+    # Modifiers & finishes
+    "MAT", "MATT", "METALLIC", "COCKTAIL", "DARK", "LIGHT", "DEEP",
+    "RACING", "PURPLISH", "VIVID", "PASTEL", "SOLID", "ICE", "FLUO",
+    "PEARL", "CHROME", "SATIN", "MIDNIGHT", "STEALTH", "MONSTER", "CANDY",
+    "GLOSS", "GLOSSY", "SHINY", "BRIGHT",
+}
+
+COMMON_PARTS_WORDS = {
+    "ASSY", "COMP", "FLANGE", "BOLT", "GASKET", "COVER", "WASHER", "NUT",
+    "SCREW", "LEVER", "CABLE", "HEAD", "ENGINE", "BODY", "FRAME", "PLATE",
+    "ROD", "SEAT", "TANK", "WHEEL", "PIPE", "HOSE", "PIN", "CLAMP", "SPRING",
+    "BEARING", "SEAL", "O-RING", "COLLAR", "PLUG", "BRACKET", "TUBE"
+}
+
+
+def parse_color_info_from_lines(lines: list[str]) -> dict[str, Any]:
+    """Parse color name and color code from lines of text found beneath an image."""
+    full_text = " ".join(lines).strip()
+    color_name = ""
+    color_code = ""
+
+    words_upper = [w.upper() for w in re.split(r'[^A-Za-z0-9]+', full_text) if w]
+    has_parts_words = any(w in COMMON_PARTS_WORDS for w in words_upper)
+    has_color_words = any(w in COLOR_KEYWORDS for w in words_upper)
+
+    m_name = re.search(r'(?:COLOU?R\s+NAME|COLOU?R)\s*[:\-]\s*([A-Za-z0-9\s&]+?)(?=\s*(?:COLOU?R\s+CODE|CODE|\(|$))', full_text, re.IGNORECASE)
+    if m_name:
+        cand = m_name.group(1).strip()
+        color_name = cand
+
+    m_code = re.search(r'(?:COLOU?R\s+CODE|CODE|COLOU?R\s+NO\.?)\s*[:\-]\s*([A-Za-z0-9/()\s]+)', full_text, re.IGNORECASE)
+    if m_code:
+        cand = m_code.group(1).strip()
+        clean = re.sub(r'[^A-Za-z0-9/]', ' ', cand).strip()
+        clean = re.sub(r'\s+', ' ', clean)
+        if clean:
+            color_code = clean
+
+    m_paren = re.search(r'\(\s*([A-Z0-9]{3,8}(?:\s*/\s*[A-Z0-9]{3,8})?)\s*\)', full_text)
+    if m_paren and not color_code:
+        color_code = m_paren.group(1).strip()
+
+    m_num = re.search(r'\b([0-9]{4})\b', full_text)
+    if m_num:
+        num = m_num.group(1).strip()
+        if not color_code:
+            color_code = num
+        elif num not in color_code:
+            color_code = f"{color_code}_{num}"
+
+    if not color_name and has_color_words:
+        for line in lines:
+            line_words = [w.upper() for w in re.split(r'[^A-Za-z0-9]+', line.strip()) if w]
+            if any(w in COLOR_KEYWORDS for w in line_words):
+                c_line = re.sub(r'^(?:COLOU?R\s+NAME|COLOU?R|CODE)\s*[:\-]\s*', '', line, flags=re.IGNORECASE)
+                c_line = re.sub(r'\([^)]*\)', '', c_line).strip()
+                c_line = re.sub(r'\b[0-9]{4}\b', '', c_line).strip()
+                c_line = re.sub(r'[:\-/,]', ' ', c_line).strip()
+                c_line = re.sub(r'\s+', ' ', c_line).strip()
+                if c_line:
+                    color_name = c_line
+                    break
+
+    if not color_code and (has_color_words or "COLOR" in full_text.upper() or "COLOUR" in full_text.upper()):
+        for line in lines:
+            candidates = re.findall(r'\b([A-Z][A-Z0-9]{2,5})\b', line)
+            for c in candidates:
+                if c.upper() not in COLOR_KEYWORDS and c.upper() not in COMMON_PARTS_WORDS and c.upper() not in {"COLOR", "COLOUR", "NAME", "CODE", "PAGE", "FIG"}:
+                    color_code = c
+                    break
+            if color_code:
+                break
+
+    color_name = re.sub(r'[\/:*?"<>|\r\n\t]', ' ', color_name).strip()
+    color_name = re.sub(r'\s+', ' ', color_name).strip().upper()
+    color_code = re.sub(r'[^A-Za-z0-9_]', '_', color_code).strip('_').upper()
+
+    is_bike_color = bool(
+        (color_name and has_color_words)
+        or (color_code and has_color_words)
+        or ("COLOR" in full_text.upper() or "COLOUR" in full_text.upper())
+    )
+    if has_parts_words and not has_color_words:
+        is_bike_color = False
+
+    return {
+        "is_bike_color": is_bike_color,
+        "color_name": color_name,
+        "color_code": color_code,
+        "full_text": full_text,
+    }
+
+
+def get_text_below_image(page: Any, img_bbox: dict[str, Any], vertical_margin: float = 110.0, horizontal_tolerance: float = 45.0) -> list[str]:
+    """Extract lines of text located directly beneath an image bounding box on a PDF page."""
+    if not page or not hasattr(page, "extract_words"):
+        return []
+    try:
+        img_x0 = float(img_bbox.get("x0", 0))
+        img_x1 = float(img_bbox.get("x1", 0))
+        img_bottom = float(img_bbox.get("bottom", 0))
+
+        words = page.extract_words()
+        below_words = []
+        for w in words:
+            w_top = float(w.get("top", 0))
+            w_x0 = float(w.get("x0", 0))
+            w_x1 = float(w.get("x1", 0))
+            if (img_bottom - 8) <= w_top <= (img_bottom + vertical_margin):
+                if (w_x1 >= img_x0 - horizontal_tolerance) and (w_x0 <= img_x1 + horizontal_tolerance):
+                    below_words.append(w)
+
+        if not below_words:
+            return []
+
+        below_words.sort(key=lambda w: (round(float(w["top"]) / 4.0), float(w["x0"])))
+        lines = []
+        curr_line: list[str] = []
+        curr_y = None
+        for w in below_words:
+            y_group = round(float(w["top"]) / 4.0)
+            if curr_y is None or y_group == curr_y:
+                curr_line.append(str(w.get("text", "")))
+                curr_y = y_group
+            else:
+                lines.append(" ".join(curr_line))
+                curr_line = [str(w.get("text", ""))]
+                curr_y = y_group
+        if curr_line:
+            lines.append(" ".join(curr_line))
+        return lines
+    except Exception:
+        return []
+
+
 def extract_images_from_pdf(
     pdf_bytes: bytes,
     figure_pages: Optional[dict[int, dict[str, str]]] = None,
@@ -68,10 +209,11 @@ def extract_images_from_pdf(
     """Extract embedded raster images from a PDF document in-memory.
 
     - Parts diagrams are mapped from figure pages.
-    - If include_bike_images is True, substantial images on non-figure pages (Cover,
-      Overview, Color chart pages) are extracted as clean bike images without watermark.
+    - If include_bike_images is True, motorcycle photographs located on non-figure pages
+      (e.g. Color Chart, Overview, Cover pages) with Color Name or Color Code written
+      beneath them are extracted cleanly without watermark, regardless of color saturation.
     - Strictly deduplicates repeated/identical image streams across pages.
-    - Names files according to standard: YAM_{MODEL_CODE}_{PART_NAME}.jpeg or YAM_{MODEL_CODE}_BIKE.jpeg
+    - Names files according to standard: YAM_{MODEL_CODE}_{PART_NAME}.jpeg or YAM_{MODEL_CODE}_BIKE_{COLOR_CODE}.jpeg
     """
     reader = PdfReader(io.BytesIO(pdf_bytes))
     extracted: list[dict[str, Any]] = []
@@ -88,78 +230,157 @@ def extract_images_from_pdf(
     effective_parts_only = parts_only or (figure_pages is not None and len(figure_pages) > 0)
     effective_min_dim = min_dimension if effective_parts_only else 10
 
-    for page_idx, page in enumerate(reader.pages):
-        page_num = page_idx + 1
+    plumber_pdf = None
+    try:
+        plumber_pdf = pdfplumber.open(io.BytesIO(pdf_bytes))
+    except Exception:
+        plumber_pdf = None
 
-        # Check if this page is registered as a parts figure page
-        fig_info = figure_pages.get(page_num) if figure_pages else None
-        is_figure_page = bool(fig_info)
+    try:
+        for page_idx, page in enumerate(reader.pages):
+            page_num = page_idx + 1
 
-        # If effective_parts_only mode:
-        # Non-figure pages are skipped UNLESS include_bike_images is True (to capture cover bike photos)
-        if effective_parts_only and figure_pages is not None and not is_figure_page:
-            if not include_bike_images:
-                continue
+            # Check if this page is registered as a parts figure page
+            fig_info = figure_pages.get(page_num) if figure_pages else None
+            is_figure_page = bool(fig_info)
 
-        page_images = getattr(page, "images", [])
+            # Plumber page and image bboxes
+            plumber_page = None
+            plumber_images = []
+            if plumber_pdf and page_idx < len(plumber_pdf.pages):
+                try:
+                    plumber_page = plumber_pdf.pages[page_idx]
+                    plumber_images = plumber_page.images or []
+                except Exception:
+                    plumber_page = None
+                    plumber_images = []
 
-        for img_idx, img_obj in enumerate(page_images):
-            try:
-                img_data = img_obj.data
+            # Check if page text indicates a Color Chart page
+            is_color_chart_page = False
+            if plumber_page:
+                try:
+                    page_text = plumber_page.extract_text() or ""
+                    is_color_chart_page = bool(
+                        re.search(r'\b(?:COLOR\s+CHART|COLOUR\s+CHART|MODEL\s+COLOR|MODEL\s+COLOUR)\b', page_text, re.IGNORECASE)
+                    )
+                except Exception:
+                    pass
 
-                # Check dimensions before processing
-                pil_img = Image.open(io.BytesIO(img_data))
-                width, height = pil_img.size
-
-                if width < effective_min_dim or height < effective_min_dim:
+            if effective_parts_only and figure_pages is not None and not is_figure_page:
+                if not include_bike_images:
                     continue
 
-                # Strict SHA-256 deduplication to eliminate repeated images
-                img_hash = hashlib.sha256(img_data).hexdigest()
-                if img_hash in seen_hashes:
-                    continue
-                seen_hashes.add(img_hash)
+            page_images = getattr(page, "images", [])
 
-                # Preserve 100% exact original quality from PDF
-                if pil_img.format == "JPEG" and pil_img.mode == "RGB":
-                    jpg_bytes = img_data
-                    pil_rgb = pil_img
-                elif pil_img.mode in ("RGBA", "LA") or (pil_img.mode == "P" and "transparency" in pil_img.info):
-                    bg = Image.new("RGB", pil_img.size, (255, 255, 255))
-                    alpha_mask = pil_img.convert("RGBA").split()[-1]
-                    bg.paste(pil_img.convert("RGB"), mask=alpha_mask)
-                    pil_rgb = bg
-                    jpg_buf = io.BytesIO()
-                    pil_rgb.save(jpg_buf, format="JPEG", quality=100, subsampling=0)
-                    jpg_bytes = jpg_buf.getvalue()
-                else:
-                    pil_rgb = pil_img.convert("RGB")
-                    jpg_buf = io.BytesIO()
-                    pil_rgb.save(jpg_buf, format="JPEG", quality=100, subsampling=0)
-                    jpg_bytes = jpg_buf.getvalue()
+            for img_idx, img_obj in enumerate(page_images):
+                try:
+                    img_data = img_obj.data
 
-                # Determine if this image is a bike photo vs parts diagram
-                is_bike = False
-                if effective_parts_only:
-                    # In parts catalogue mode: non-figure pages only extract genuine colored bike photos
-                    if not is_figure_page:
-                        if include_bike_images and is_colored_image(pil_rgb) and width >= 150 and height >= 100:
-                            is_bike = True
-                            bike_counter += 1
-                            fig_no = "BIKE"
-                            fig_name = "BIKE PHOTO"
-                            filename = (
-                                f"YAM_{clean_model_code}_BIKE"
-                                if bike_counter == 1
-                                else f"YAM_{clean_model_code}_BIKE_{bike_counter}"
-                            )
-                        else:
+                    # Check dimensions before processing
+                    pil_img = Image.open(io.BytesIO(img_data))
+                    width, height = pil_img.size
+                    if effective_parts_only and not is_figure_page:
+                        if max(width, height) < 100 or min(width, height) < 40:
                             continue
+                    else:
+                        if width < effective_min_dim or height < effective_min_dim:
+                            continue
+
+                    # Strict SHA-256 deduplication to eliminate repeated images
+                    img_hash = hashlib.sha256(img_data).hexdigest()
+                    if img_hash in seen_hashes:
+                        continue
+                    seen_hashes.add(img_hash)
+
+                    # Preserve 100% exact original quality from PDF
+                    if pil_img.format == "JPEG" and pil_img.mode == "RGB":
+                        jpg_bytes = img_data
+                        pil_rgb = pil_img
+                    elif pil_img.mode in ("RGBA", "LA") or (pil_img.mode == "P" and "transparency" in (pil_img.info or {})):
+                        bg = Image.new("RGB", pil_img.size, (255, 255, 255))
+                        alpha_mask = pil_img.convert("RGBA").split()[-1]
+                        bg.paste(pil_img.convert("RGB"), mask=alpha_mask)
+                        pil_rgb = bg
+                        jpg_buf = io.BytesIO()
+                        pil_rgb.save(jpg_buf, format="JPEG", quality=100, subsampling=0)
+                        jpg_bytes = jpg_buf.getvalue()
+                    else:
+                        pil_rgb = pil_img.convert("RGB")
+                        jpg_buf = io.BytesIO()
+                        pil_rgb.save(jpg_buf, format="JPEG", quality=100, subsampling=0)
+                        jpg_bytes = jpg_buf.getvalue()
+
+                    # Find matching plumber image bbox for text-beneath-image inspection
+                    bbox = None
+                    clean_pypdf_name = re.sub(r'\.(?:png|jpe?g|jp2|webp|bmp|tiff?)$', '', getattr(img_obj, "name", "") or "", flags=re.IGNORECASE)
+                    if plumber_images:
+                        for p_im in plumber_images:
+                            clean_p_name = re.sub(r'\.(?:png|jpe?g|jp2|webp|bmp|tiff?)$', '', p_im.get("name", "") or "", flags=re.IGNORECASE)
+                            if clean_p_name and clean_p_name == clean_pypdf_name:
+                                bbox = p_im
+                                break
+                        if not bbox:
+                            for p_im in plumber_images:
+                                srcsize = p_im.get("srcsize")
+                                if srcsize and srcsize[0] == width and srcsize[1] == height:
+                                    bbox = p_im
+                                    break
+                        if not bbox and img_idx < len(plumber_images):
+                            bbox = plumber_images[img_idx]
+
+                    lines_below = get_text_below_image(plumber_page, bbox) if (plumber_page and bbox) else []
+                    color_info = parse_color_info_from_lines(lines_below)
+
+                    # Determine if this image is a bike photo vs parts diagram
+                    is_bike = False
+                    color_name = ""
+                    color_code = ""
+
+                    if not is_figure_page:
+                        # User requirement: "PDF ME JIS JIS BIKE IMAGE KE NICHE COLOR NAME OR COLOR CODE LIKHA HUA HAI USKO EXTRACT KARNA HAI CHAHE COLOR JO BHI HO."
+                        if include_bike_images:
+                            if color_info and color_info.get("is_bike_color"):
+                                is_bike = True
+                                color_name = color_info.get("color_name", "")
+                                color_code = color_info.get("color_code", "")
+                            elif is_color_chart_page and width >= 150 and height >= 100:
+                                is_bike = True
+                            elif (figure_pages is not None or page_num <= 3) and is_colored_image(pil_rgb) and width >= 150 and height >= 100:
+                                is_bike = True
+
+                        if is_bike:
+                            bike_counter += 1
+                            clean_cname = re.sub(r'[^A-Z0-9]+', '_', color_name.upper()).strip('_')
+                            clean_ccode = re.sub(r'[^A-Z0-9]+', '_', color_code.upper()).strip('_')
+                            if clean_ccode and clean_cname:
+                                if clean_ccode in clean_cname:
+                                    filename = f"YAM_{clean_model_code}_BIKE_{clean_cname}"
+                                else:
+                                    filename = f"YAM_{clean_model_code}_BIKE_{clean_ccode}_{clean_cname}"
+                            elif clean_ccode:
+                                filename = f"YAM_{clean_model_code}_BIKE_{clean_ccode}"
+                            elif clean_cname:
+                                filename = f"YAM_{clean_model_code}_BIKE_{clean_cname}"
+                            else:
+                                filename = f"YAM_{clean_model_code}_BIKE" if bike_counter == 1 else f"YAM_{clean_model_code}_BIKE_{bike_counter}"
+
+                            fig_no = "BIKE"
+                            fig_name = f"{color_name} ({color_code})" if (color_name and color_code) else (color_name or (f"BIKE {color_code}" if color_code else "BIKE PHOTO"))
+                        else:
+                            if effective_parts_only:
+                                continue
+                            else:
+                                clean_part_name = f"PAGE_{page_num}_IMG_{img_idx + 1}"
+                                counter_key = clean_part_name
+                                count = fig_counter.get(counter_key, 0) + 1
+                                fig_counter[counter_key] = count
+                                filename = f"YAM_{clean_model_code}_{clean_part_name}" if count == 1 else f"YAM_{clean_model_code}_{clean_part_name}_{count}"
+                                fig_no = ""
+                                fig_name = ""
                     elif fig_info:
                         is_bike = False
                         fig_no = str(fig_info.get("fig_no", "")).strip()
                         fig_name = str(fig_info.get("fig_name", "")).strip()
-                        # Clean filename invalid characters but preserve spaces and '&'
                         clean_part_name = re.sub(r'[\/:*?"<>|\r\n\t]', " ", fig_name)
                         clean_part_name = re.sub(r"\s+", " ", clean_part_name).strip()
                         if not clean_part_name:
@@ -176,76 +397,42 @@ def extract_images_from_pdf(
                             filename = f"YAM_{clean_model_code}_{clean_part_name}_{count}"
                     else:
                         continue
-                else:
-                    # Standalone image extractor: extract all valid images from PDF
-                    if include_bike_images and page_num <= 3 and is_colored_image(pil_rgb) and width >= 150 and height >= 100:
-                        is_bike = True
-                        bike_counter += 1
-                        fig_no = "BIKE"
-                        fig_name = "BIKE PHOTO"
-                        filename = (
-                            f"YAM_{clean_model_code}_BIKE"
-                            if bike_counter == 1
-                            else f"YAM_{clean_model_code}_BIKE_{bike_counter}"
-                        )
-                    elif fig_info:
-                        is_bike = False
-                        fig_no = str(fig_info.get("fig_no", "")).strip()
-                        fig_name = str(fig_info.get("fig_name", "")).strip()
-                        clean_part_name = re.sub(r'[\/:*?"<>|\r\n\t]', " ", fig_name)
-                        clean_part_name = re.sub(r"\s+", " ", clean_part_name).strip()
-                        if not clean_part_name:
-                            padded_no = fig_no.zfill(2) if fig_no.isdigit() else fig_no
-                            clean_part_name = f"FIG_{padded_no}" if padded_no else f"PAGE_{page_num}"
 
-                        counter_key = f"{fig_no}_{clean_part_name}"
-                        count = fig_counter.get(counter_key, 0) + 1
-                        fig_counter[counter_key] = count
+                    # Generate compact base64 thumbnail for fast frontend display
+                    thumb = pil_rgb.copy()
+                    thumb.thumbnail((260, 260))
+                    thumb_io = io.BytesIO()
+                    thumb.save(thumb_io, format="JPEG", quality=80)
+                    thumb_base64 = base64.b64encode(thumb_io.getvalue()).decode("utf-8")
+                    data_url = f"data:image/jpeg;base64,{thumb_base64}"
 
-                        if count == 1:
-                            filename = f"YAM_{clean_model_code}_{clean_part_name}"
-                        else:
-                            filename = f"YAM_{clean_model_code}_{clean_part_name}_{count}"
-                    else:
-                        is_bike = False
-                        clean_part_name = f"PAGE_{page_num}_IMG_{img_idx + 1}"
-                        counter_key = clean_part_name
-                        count = fig_counter.get(counter_key, 0) + 1
-                        fig_counter[counter_key] = count
-                        if count == 1:
-                            filename = f"YAM_{clean_model_code}_{clean_part_name}"
-                        else:
-                            filename = f"YAM_{clean_model_code}_{clean_part_name}_{count}"
-                        fig_no = ""
-                        fig_name = ""
+                    image_id = f"img_{uuid.uuid4().hex[:8]}"
 
-                # Generate compact base64 thumbnail for fast frontend display
-                thumb = pil_rgb.copy()
-                thumb.thumbnail((260, 260))
-                thumb_io = io.BytesIO()
-                thumb.save(thumb_io, format="JPEG", quality=80)
-                thumb_base64 = base64.b64encode(thumb_io.getvalue()).decode("utf-8")
-                data_url = f"data:image/jpeg;base64,{thumb_base64}"
-
-                image_id = f"img_{uuid.uuid4().hex[:8]}"
-
-                extracted.append({
-                    "id": image_id,
-                    "filename": filename,
-                    "fig_no": fig_no if (fig_info or is_bike) else "",
-                    "fig_name": fig_name if (fig_info or is_bike) else "",
-                    "page": page_num,
-                    "width": width,
-                    "height": height,
-                    "format": "JPEG",
-                    "size_bytes": len(jpg_bytes),
-                    "thumbnail_url": data_url,
-                    "raw_bytes": jpg_bytes,
-                    "is_duplicate": False,
-                    "is_bike_image": is_bike,
-                })
+                    extracted.append({
+                        "id": image_id,
+                        "filename": filename,
+                        "fig_no": fig_no if (fig_info or is_bike) else "",
+                        "fig_name": fig_name if (fig_info or is_bike) else "",
+                        "page": page_num,
+                        "width": width,
+                        "height": height,
+                        "format": "JPEG",
+                        "size_bytes": len(jpg_bytes),
+                        "thumbnail_url": data_url,
+                        "raw_bytes": jpg_bytes,
+                        "is_duplicate": False,
+                        "is_bike_image": is_bike,
+                        "color_name": color_name,
+                        "color_code": color_code,
+                    })
+                except Exception:
+                    continue
+    finally:
+        if plumber_pdf:
+            try:
+                plumber_pdf.close()
             except Exception:
-                continue
+                pass
 
     return extracted
 

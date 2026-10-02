@@ -64,6 +64,8 @@ interface PipelineStatus {
     fig_name?: string;
     models?: string[];
     is_bike_image?: boolean;
+    color_name?: string;
+    color_code?: string;
   }>;
   rows_sample?: PartRow[];
   rows?: PartRow[];
@@ -1389,8 +1391,11 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                           {img.width}x{img.height}
                         </span>
                         {img.is_bike_image && (
-                          <span className="absolute top-8 left-2 px-2 py-0.5 rounded-md bg-amber-600/95 text-white text-[9px] font-bold tracking-wider shadow-xs flex items-center gap-1">
-                            🏍️ Bike (No Watermark)
+                          <span
+                            className="absolute top-8 left-2 px-2 py-0.5 rounded-md bg-amber-600/95 text-white text-[9px] font-bold tracking-wider shadow-xs flex items-center gap-1 max-w-[200px] truncate"
+                            title={img.color_name || img.color_code || 'Bike photo (No Watermark)'}
+                          >
+                            🏍️ Bike{img.color_code ? ` • ${img.color_code}` : ''}{img.color_name && !img.color_code ? ` • ${img.color_name}` : ''}
                           </span>
                         )}
                         <span className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-zinc-900/90 backdrop-blur-xs text-[10px] font-mono text-emerald-400 font-semibold border border-zinc-700">

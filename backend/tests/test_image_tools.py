@@ -314,5 +314,84 @@ def test_is_colored_image_distinguishes_color_from_grayscale():
     assert is_colored_image(color_img)
 
 
+def test_parse_color_info_from_lines():
+    """Verify parse_color_info_from_lines correctly parses color names and codes."""
+    from app.image_tools import parse_color_info_from_lines
+
+    # Case 1: Color Name and Code lines
+    res1 = parse_color_info_from_lines(["MAT DARK GREY METALLIC 6 (MDNM6)", "COLOR CODE: 1695"])
+    assert res1["is_bike_color"] is True
+    assert "MAT DARK GREY METALLIC 6" in res1["color_name"]
+    assert "1695" in res1["color_code"]
+
+    # Case 2: Cyan metallic with code
+    res2 = parse_color_info_from_lines(["CYAN METALLIC 6", "CYNM6 / 1735"])
+    assert res2["is_bike_color"] is True
+    assert "CYAN METALLIC 6" in res2["color_name"]
+    assert "1735" in res2["color_code"] or "CYNM6" in res2["color_code"]
+
+    # Case 3: Black Metallic X with SMX
+    res3 = parse_color_info_from_lines(["0033: BLACK METALLIC X (SMX)"])
+    assert res3["is_bike_color"] is True
+    assert "BLACK METALLIC X" in res3["color_name"]
+    assert "SMX" in res3["color_code"] or "0033" in res3["color_code"]
+
+    # Case 4: Parts diagram line - should NOT be recognized as bike color
+    res4 = parse_color_info_from_lines(["FIG. 1 CYLINDER HEAD ASSY", "90105-06027"])
+    assert res4["is_bike_color"] is False
+
+
+def test_extract_images_with_color_info_beneath_regardless_of_saturation():
+    """Verify that a bike image with color name/code beneath it is extracted
+    even if the bike is dark grey/black (low color saturation) - 'CHAHE COLOR JO BHI HO'.
+    """
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.utils import ImageReader
+
+    pdf_buf = io.BytesIO()
+    c = canvas.Canvas(pdf_buf, pagesize=(600, 800))
+    c.drawString(100, 750, "MODEL COLOR CHART")
+
+    # Dark grey motorcycle image (low saturation R=40, G=40, B=40)
+    img_grey = Image.new("RGB", (220, 140), (40, 40, 40))
+    bgrey = io.BytesIO()
+    img_grey.save(bgrey, format="JPEG")
+    bgrey.seek(0)
+    c.drawImage(ImageReader(bgrey), 50, 500, width=220, height=140)
+    c.drawString(50, 480, "MAT DARK GREY METALLIC 6 (MDNM6)")
+    c.drawString(50, 465, "COLOR CODE: 1695")
+
+    # Publisher logo at top right
+    img_logo = Image.new("RGB", (80, 80), (255, 255, 255))
+    blogo = io.BytesIO()
+    img_logo.save(blogo, format="PNG")
+    blogo.seek(0)
+    c.drawImage(ImageReader(blogo), 480, 720, width=80, height=60)
+    c.drawString(480, 710, "PUBLISHER LOGO")
+
+    c.showPage()
+    c.save()
+    pdf_buf.seek(0)
+
+    # In parts catalogue mode with figure_pages on later pages
+    figure_pages = {2: {"fig_no": "1", "fig_name": "CYLINDER HEAD"}}
+    extracted = extract_images_from_pdf(
+        pdf_bytes=pdf_buf.getvalue(),
+        figure_pages=figure_pages,
+        parts_only=True,
+        model_code="BGPK",
+    )
+
+    # The dark grey bike MUST be extracted despite low saturation!
+    assert len(extracted) == 1
+    bike = extracted[0]
+    assert bike["is_bike_image"] is True
+    assert "BIKE" in bike["filename"]
+    assert "MAT_DARK_GREY" in bike["filename"]
+    assert "1695" in bike["color_code"]
+    assert "MAT DARK GREY METALLIC 6" in bike["color_name"]
+
+
+
 
 
