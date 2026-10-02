@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import {
   UploadCloud,
   FileSpreadsheet,
@@ -87,9 +87,15 @@ export interface AutoPipelineProps {
     modelColumns: string[];
     filename: string;
   }) => void;
+  enableErpSync?: boolean;
+  enableBarcodeLabels?: boolean;
 }
 
-export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) => {
+export const AutoPipeline: React.FC<AutoPipelineProps> = ({
+  onJobCompleted,
+  enableErpSync = false,
+  enableBarcodeLabels = false,
+}) => {
   // Preset States (Pre-filled exactly per user specifications: Company logo, -30° rotation, 115 padding, 25% scale, 10% opacity, tiled)
   const [wmType, setWmType] = useState<'logo' | 'text'>('logo');
   const [wmText, setWmText] = useState<string>('IndiaSpare');
@@ -136,6 +142,18 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
     fig_name: string;
     imageUrl?: string;
   } | null>(null);
+
+  // Listen for Navbar three dot menu quick launch events
+  useEffect(() => {
+    const handleOpenErp = () => setIsErpSyncOpen(true);
+    const handleOpenWarehouse = () => setIsWarehouseStudioOpen(true);
+    window.addEventListener('open-erp-sync', handleOpenErp);
+    window.addEventListener('open-warehouse-studio', handleOpenWarehouse);
+    return () => {
+      window.removeEventListener('open-erp-sync', handleOpenErp);
+      window.removeEventListener('open-warehouse-studio', handleOpenWarehouse);
+    };
+  }, []);
 
   // Phase 2 ERP Row Updates
   const [erpRows, setErpRows] = useState<PartRow[] | null>(null);
@@ -1126,9 +1144,11 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
               editedModelNames={editedModelNames}
               onModelNameEdit={handleModelNameEdit}
               onRowsUpdate={handleRowsUpdate}
-              onOpenErpSync={() => setIsErpSyncOpen(true)}
-              onOpenWarehouseStudio={() => setIsWarehouseStudioOpen(true)}
+              onOpenErpSync={enableErpSync ? () => setIsErpSyncOpen(true) : undefined}
+              onOpenWarehouseStudio={enableBarcodeLabels ? () => setIsWarehouseStudioOpen(true) : undefined}
               onOpenHotspotDiagram={(figNo) => openHotspotForFigNo(figNo)}
+              enableErpSync={enableErpSync}
+              enableBarcodeLabels={enableBarcodeLabels}
             />
           </div>
         </div>
@@ -1155,22 +1175,26 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
 
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={() => setIsErpSyncOpen(true)}
-                  className="inline-flex items-center gap-2 px-5 py-3.5 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-sm uppercase tracking-wider transition-all shadow-sm cursor-pointer"
-                  title="Push catalogue data &amp; images directly into Simplify ERP"
-                >
-                  <Send className="w-4 h-4 text-white" />
-                  Sync to ERP
-                </button>
-                <button
-                  onClick={() => setIsWarehouseStudioOpen(true)}
-                  className="inline-flex items-center gap-2 px-5 py-3.5 rounded-full bg-slate-900 hover:bg-black dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-slate-900 font-bold text-sm uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer"
-                  title="Generate printable Code128 / QR warehouse labels &amp; picklist"
-                >
-                  <Barcode className="w-4 h-4" />
-                  Barcodes &amp; Labels
-                </button>
+                {enableErpSync && (
+                  <button
+                    onClick={() => setIsErpSyncOpen(true)}
+                    className="inline-flex items-center gap-2 px-5 py-3.5 rounded-full bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-sm uppercase tracking-wider transition-all shadow-sm cursor-pointer"
+                    title="Push catalogue data &amp; images directly into Simplify ERP"
+                  >
+                    <Send className="w-4 h-4 text-white" />
+                    Sync to ERP
+                  </button>
+                )}
+                {enableBarcodeLabels && (
+                  <button
+                    onClick={() => setIsWarehouseStudioOpen(true)}
+                    className="inline-flex items-center gap-2 px-5 py-3.5 rounded-full bg-slate-900 hover:bg-black dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-slate-900 font-bold text-sm uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer"
+                    title="Generate printable Code128 / QR warehouse labels &amp; picklist"
+                  >
+                    <Barcode className="w-4 h-4" />
+                    Barcodes &amp; Labels
+                  </button>
+                )}
                 <button
                   onClick={downloadMasterZip}
                   title={
@@ -1481,9 +1505,11 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({ onJobCompleted }) =>
                 editedModelNames={editedModelNames}
                 onModelNameEdit={handleModelNameEdit}
                 onRowsUpdate={handleRowsUpdate}
-                onOpenErpSync={() => setIsErpSyncOpen(true)}
-                onOpenWarehouseStudio={() => setIsWarehouseStudioOpen(true)}
+                onOpenErpSync={enableErpSync ? () => setIsErpSyncOpen(true) : undefined}
+                onOpenWarehouseStudio={enableBarcodeLabels ? () => setIsWarehouseStudioOpen(true) : undefined}
                 onOpenHotspotDiagram={(figNo) => openHotspotForFigNo(figNo)}
+                enableErpSync={enableErpSync}
+                enableBarcodeLabels={enableBarcodeLabels}
               />
             </div>
           )}

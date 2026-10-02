@@ -41,6 +41,8 @@ export interface PartsTableProps {
   onOpenWarehouseStudio?: () => void;
   /** Optional handler to trigger Interactive Hotspot diagram modal */
   onOpenHotspotDiagram?: (figNo?: string) => void;
+  enableErpSync?: boolean;
+  enableBarcodeLabels?: boolean;
 }
 
 type SortField =
@@ -74,10 +76,18 @@ export const PartsTable: React.FC<PartsTableProps> = ({
   onOpenErpSync,
   onOpenWarehouseStudio,
   onOpenHotspotDiagram,
+  enableErpSync = false,
+  enableBarcodeLabels = false,
 }) => {
   // View mode: 'standard' | 'erp'
   const [viewMode, setViewMode] = useState<'standard' | 'erp'>('standard');
   const [localRows, setLocalRows] = useState<PartRow[]>(rows);
+
+  useEffect(() => {
+    if (!enableErpSync && viewMode === 'erp') {
+      setViewMode('standard');
+    }
+  }, [enableErpSync, viewMode]);
 
   useEffect(() => {
     setLocalRows(rows);
@@ -272,21 +282,23 @@ export const PartsTable: React.FC<PartsTableProps> = ({
             <span>Standard View</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setViewMode('erp')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
-              viewMode === 'erp'
-                ? 'bg-emerald-600 text-white shadow-xs font-bold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Simplify ERP Master View</span>
-            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-700/80 text-emerald-100 uppercase font-mono font-bold">
-              Live
-            </span>
-          </button>
+          {enableErpSync && (
+            <button
+              type="button"
+              onClick={() => setViewMode('erp')}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-all cursor-pointer ${
+                viewMode === 'erp'
+                  ? 'bg-emerald-600 text-white shadow-xs font-bold'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>Simplify ERP Master View</span>
+              <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-700/80 text-emerald-100 uppercase font-mono font-bold">
+                Live
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Right: Quick Action Controls */}
@@ -337,7 +349,7 @@ export const PartsTable: React.FC<PartsTableProps> = ({
 
           {/* ERP Integration Buttons */}
           <div className="flex items-center gap-1.5 border-l border-slate-200 dark:border-slate-700 pl-2">
-            {onOpenErpSync && (
+            {enableErpSync && onOpenErpSync && (
               <button
                 type="button"
                 onClick={onOpenErpSync}
@@ -349,7 +361,7 @@ export const PartsTable: React.FC<PartsTableProps> = ({
               </button>
             )}
 
-            {onOpenWarehouseStudio && (
+            {enableBarcodeLabels && onOpenWarehouseStudio && (
               <button
                 type="button"
                 onClick={onOpenWarehouseStudio}
