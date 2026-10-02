@@ -1,7 +1,7 @@
 """Tests for PDF image extraction, image resizing, watermarking, and ZIP utilities."""
 
 import io
-from PIL import Image
+from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
 from fastapi.testclient import TestClient
 
@@ -390,6 +390,68 @@ def test_extract_images_with_color_info_beneath_regardless_of_saturation():
     assert "MAT_DARK_GREY" in bike["filename"]
     assert "1695" in bike["color_code"]
     assert "MAT DARK GREY METALLIC 6" in bike["color_name"]
+
+
+def test_extract_black_color_bike_from_overview_page():
+    """Verify that a pure black motorcycle on an overview/gallery page (Page 2)
+    without text directly beneath it is extracted cleanly, including color code matching
+    from document color table.
+    """
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.utils import ImageReader
+
+    # Create a realistic composite black motorcycle image (white background + black bike body)
+    bike_im = Image.new("RGB", (300, 200), (255, 255, 255))
+    draw = ImageDraw.Draw(bike_im)
+    # Draw dark motorcycle body & wheels (black/charcoal tones R=20..35, G=20..35, B=20..35)
+    draw.ellipse([40, 100, 100, 160], fill=(25, 25, 25))   # Front wheel
+    draw.ellipse([200, 100, 260, 160], fill=(25, 25, 25))  # Rear wheel
+    draw.rectangle([60, 80, 230, 130], fill=(30, 30, 30))  # Engine & frame
+    draw.polygon([(100, 60), (160, 50), (180, 80), (90, 80)], fill=(20, 20, 20)) # Fuel tank
+
+    bike_buf = io.BytesIO()
+    bike_im.save(bike_buf, format="JPEG")
+    bike_buf.seek(0)
+
+    pdf_buf = io.BytesIO()
+    c = canvas.Canvas(pdf_buf, pagesize=(600, 800))
+
+    # Page 1: Cover
+    c.drawString(100, 750, "YAMAHA PARTS CATALOGUE")
+    c.showPage()
+
+    # Page 2: Overview bike photo gallery (NO text directly below)
+    c.drawImage(ImageReader(bike_buf), 50, 400, width=250, height=160)
+    c.showPage()
+
+    # Page 3: Foreword with Applicable Colour Code
+    c.drawString(50, 750, "FOREWORD")
+    c.drawString(50, 700, "8. Applicable Colour Code")
+    c.drawString(50, 680, "MBL2 MAT BLACK 2 0582")
+    c.drawString(50, 660, "SMX BLACK METALLIC X 0903")
+    c.showPage()
+
+    c.save()
+    pdf_buf.seek(0)
+
+    figure_pages = {4: {"fig_no": "1", "fig_name": "FRAME"}}
+    extracted = extract_images_from_pdf(
+        pdf_bytes=pdf_buf.getvalue(),
+        figure_pages=figure_pages,
+        parts_only=True,
+        model_code="DG58",
+        include_bike_images=True,
+    )
+
+    assert len(extracted) == 1
+    bike = extracted[0]
+    assert bike["is_bike_image"] is True
+    assert bike["page"] == 2
+    assert "BIKE" in bike["filename"]
+    assert "MAT_BLACK" in bike["filename"] or "0582" in bike["filename"]
+    assert "BLACK" in bike["color_name"].upper()
+    assert bike["color_code"] in ("0582", "")
+
 
 
 

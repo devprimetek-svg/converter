@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import colorsys
 import hashlib
 import io
 import math
@@ -12,7 +13,7 @@ import uuid
 import zipfile
 from typing import Any, Optional
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageStat
 import pdfplumber
 from pypdf import PdfReader
 
@@ -156,7 +157,168 @@ def parse_color_info_from_lines(lines: list[str]) -> dict[str, Any]:
     }
 
 
-def get_text_below_image(page: Any, img_bbox: dict[str, Any], vertical_margin: float = 110.0, horizontal_tolerance: float = 45.0) -> list[str]:
+def is_photographic_image(img: Image.Image) -> bool:
+    """Determine whether an image is a continuous-tone photograph (e.g. motorcycle photo)
+    as opposed to a 1-bit scan, line art drawing, solid mask, or text snippet.
+    Works for both colored motorcycles and black/monochrome motorcycles.
+    """
+    try:
+        if img.mode == "1":
+            return False
+
+        w, h = img.size
+        if w < 120 or h < 80:
+            return False
+
+        aspect = w / float(h)
+        if aspect < 0.65 or aspect > 3.0:
+            return False
+
+        if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in (img.info or {})):
+            bg = Image.new("RGB", img.size, (255, 255, 255))
+            alpha = img.convert("RGBA").split()[-1]
+            bg.paste(img.convert("RGB"), mask=alpha)
+            rgb_img = bg
+        else:
+            rgb_img = img.convert("RGB")
+
+        thumb = rgb_img.copy()
+        thumb.thumbnail((120, 120))
+        tw, th = thumb.size
+        total_pixels = tw * th
+        if total_pixels == 0:
+            return False
+
+        getter = getattr(thumb, "get_flattened_data", thumb.getdata)
+        flat_data = list(getter())
+        if flat_data and isinstance(flat_data[0], int):
+            pixels = [tuple(flat_data[i:i+3]) for i in range(0, len(flat_data), 3)]
+        else:
+            pixels = flat_data
+
+        unique_colors = len(set(pixels))
+        if unique_colors < 70:
+            return False
+
+        stat = ImageStat.Stat(thumb)
+        avg_std = sum(stat.stddev) / len(stat.stddev)
+        if avg_std < 18.0:
+            return False
+
+        white_pixels = sum(1 for r, g, b in pixels if r >= 248 and g >= 248 and b >= 248)
+        white_pct = (white_pixels / total_pixels) * 100.0
+        if white_pct > 88.0:
+            return False
+
+        black_pixels = sum(1 for r, g, b in pixels if r <= 15 and g <= 15 and b <= 15)
+        black_pct = (black_pixels / total_pixels) * 100.0
+        if black_pct > 50.0 and white_pct > 25.0:
+            return False
+
+        return True
+    except Exception:
+        return False
+
+
+def is_black_vehicle_image(pil_rgb: Image.Image) -> bool:
+    """Detect if a photographic vehicle image represents a black / dark monochrome vehicle."""
+    try:
+        thumb = pil_rgb.copy()
+        thumb.thumbnail((120, 120))
+        getter = getattr(thumb, "get_flattened_data", thumb.getdata)
+        flat_data = list(getter())
+        if flat_data and isinstance(flat_data[0], int):
+            pixels = [tuple(flat_data[i:i+3]) for i in range(0, len(flat_data), 3)]
+        else:
+            pixels = flat_data
+
+        subject_pixels = [p for p in pixels if not (p[0] >= 242 and p[1] >= 242 and p[2] >= 242)]
+        if not subject_pixels:
+            return False
+
+        hsv_pixels = [colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0) for r, g, b in subject_pixels]
+        colored_pixels = [p for p in hsv_pixels if p[1] >= 0.18 and p[2] >= 0.15]
+        colored_pct = (len(colored_pixels) / len(hsv_pixels)) * 100.0
+
+        if colored_pct < 5.0:
+            dark_pixels = [p for p in hsv_pixels if p[2] <= 0.45]
+            dark_pct = (len(dark_pixels) / len(hsv_pixels)) * 100.0
+            return dark_pct >= 35.0
+        return False
+    except Exception:
+        return False
+
+
+def detect_dominant_hue_name(pil_rgb: Image.Image) -> str:
+    """Detect dominant color family (e.g. BLUE, RED, GREEN, CYAN, YELLOW, ORANGE, PURPLE)."""
+    try:
+        thumb = pil_rgb.copy()
+        thumb.thumbnail((120, 120))
+        getter = getattr(thumb, "get_flattened_data", thumb.getdata)
+        flat_data = list(getter())
+        if flat_data and isinstance(flat_data[0], int):
+            pixels = [tuple(flat_data[i:i+3]) for i in range(0, len(flat_data), 3)]
+        else:
+            pixels = flat_data
+
+        subj = [p for p in pixels if not (p[0] >= 240 and p[1] >= 240 and p[2] >= 240)]
+        if not subj:
+            return ""
+        hsv_pixels = [colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0) for r, g, b in subj]
+        colored = [p for p in hsv_pixels if p[1] >= 0.18 and p[2] >= 0.15]
+        if not colored or (len(colored) / len(hsv_pixels)) < 0.02:
+            return ""
+
+        avg_hue = sum(p[0] * 360 for p in colored) / len(colored)
+        if avg_hue < 15 or avg_hue >= 345:
+            return "RED"
+        elif 15 <= avg_hue < 45:
+            return "ORANGE"
+        elif 45 <= avg_hue < 75:
+            return "YELLOW"
+        elif 75 <= avg_hue < 165:
+            return "GREEN"
+        elif 165 <= avg_hue < 205:
+            return "CYAN"
+        elif 205 <= avg_hue < 265:
+            return "BLUE"
+        elif 265 <= avg_hue < 345:
+            return "PURPLE"
+        return ""
+    except Exception:
+        return ""
+
+
+def extract_applicable_color_codes_from_pdf(plumber_pdf: Any) -> list[dict[str, str]]:
+    """Scan foreword / color chart pages (1-6) for Applicable Colour Code table entries."""
+    color_entries: list[dict[str, str]] = []
+    if not plumber_pdf:
+        return color_entries
+
+    try:
+        for page_idx in range(min(6, len(plumber_pdf.pages))):
+            text = plumber_pdf.pages[page_idx].extract_text() or ""
+            if not re.search(r'\b(?:COLOU?R\s+CODE|APPLICABLE\s+COLOU?R)\b', text, re.IGNORECASE):
+                continue
+
+            lines = text.split("\n")
+            for line in lines:
+                m = re.search(r'\b([A-Z0-9]{2,6})\s*(?:\(\*\))?\s+([A-Za-z0-9\s]+?)\s+([0-9]{4})\b', line)
+                if m:
+                    abbrev, cname, code = m.groups()
+                    cname = cname.strip()
+                    if any(w in COLOR_KEYWORDS for w in re.split(r'[^A-Za-z0-9]+', cname.upper())):
+                        color_entries.append({
+                            "abbrev": abbrev.strip(),
+                            "color_name": cname,
+                            "color_code": code.strip(),
+                        })
+    except Exception:
+        pass
+    return color_entries
+
+
+def get_text_below_image(page: Any, img_bbox: dict[str, Any], vertical_margin: float = 140.0, horizontal_tolerance: float = 50.0) -> list[str]:
     """Extract lines of text located directly beneath an image bounding box on a PDF page."""
     if not page or not hasattr(page, "extract_words"):
         return []
@@ -236,6 +398,8 @@ def extract_images_from_pdf(
     except Exception:
         plumber_pdf = None
 
+    doc_color_entries = extract_applicable_color_codes_from_pdf(plumber_pdf)
+
     try:
         for page_idx, page in enumerate(reader.pages):
             page_num = page_idx + 1
@@ -270,10 +434,36 @@ def extract_images_from_pdf(
                 if not include_bike_images:
                     continue
 
-            page_images = getattr(page, "images", [])
+            # Soft masks (SMask) collection to prevent extracting alpha stencils
+            page_smasks: set[str] = set()
+            try:
+                xobjs = page.get("/Resources", {}).get("/XObject")
+                xobj_dict = xobjs.get_object() if hasattr(xobjs, "get_object") else (xobjs or {})
+                for k, v in xobj_dict.items():
+                    try:
+                        obj = v.get_object() if hasattr(v, "get_object") else v
+                        sm = obj.get("/SMask") if isinstance(obj, dict) else None
+                        if sm:
+                            sm_obj = sm.get_object() if hasattr(sm, "get_object") else sm
+                            sm_name = sm_obj.get("/Name") if isinstance(sm_obj, dict) else None
+                            if sm_name:
+                                page_smasks.add(str(sm_name).lstrip("/"))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            try:
+                page_images = list(getattr(page, "images", []))
+            except Exception:
+                page_images = []
 
             for img_idx, img_obj in enumerate(page_images):
                 try:
+                    clean_pypdf_name = re.sub(r'\.(?:png|jpe?g|jp2|webp|bmp|tiff?)$', '', getattr(img_obj, "name", "") or "", flags=re.IGNORECASE)
+                    if clean_pypdf_name in page_smasks:
+                        continue
+
                     img_data = img_obj.data
 
                     # Check dimensions before processing
@@ -312,7 +502,6 @@ def extract_images_from_pdf(
 
                     # Find matching plumber image bbox for text-beneath-image inspection
                     bbox = None
-                    clean_pypdf_name = re.sub(r'\.(?:png|jpe?g|jp2|webp|bmp|tiff?)$', '', getattr(img_obj, "name", "") or "", flags=re.IGNORECASE)
                     if plumber_images:
                         for p_im in plumber_images:
                             clean_p_name = re.sub(r'\.(?:png|jpe?g|jp2|webp|bmp|tiff?)$', '', p_im.get("name", "") or "", flags=re.IGNORECASE)
@@ -328,7 +517,7 @@ def extract_images_from_pdf(
                         if not bbox and img_idx < len(plumber_images):
                             bbox = plumber_images[img_idx]
 
-                    lines_below = get_text_below_image(plumber_page, bbox) if (plumber_page and bbox) else []
+                    lines_below = get_text_below_image(plumber_page, bbox, vertical_margin=150.0) if (plumber_page and bbox) else []
                     color_info = parse_color_info_from_lines(lines_below)
 
                     # Determine if this image is a bike photo vs parts diagram
@@ -337,16 +526,35 @@ def extract_images_from_pdf(
                     color_code = ""
 
                     if not is_figure_page:
-                        # User requirement: "PDF ME JIS JIS BIKE IMAGE KE NICHE COLOR NAME OR COLOR CODE LIKHA HUA HAI USKO EXTRACT KARNA HAI CHAHE COLOR JO BHI HO."
-                        if include_bike_images:
+                        is_not_binary = (pil_img.mode != "1")
+                        is_black_bike = is_black_vehicle_image(pil_rgb) if is_not_binary else False
+                        is_colored = is_colored_image(pil_rgb)
+
+                        if include_bike_images and is_not_binary:
+                            # Priority 1: Text directly below image matches bike color
                             if color_info and color_info.get("is_bike_color"):
                                 is_bike = True
                                 color_name = color_info.get("color_name", "")
                                 color_code = color_info.get("color_code", "")
-                            elif is_color_chart_page and width >= 150 and height >= 100:
-                                is_bike = True
-                            elif (figure_pages is not None or page_num <= 3) and is_colored_image(pil_rgb) and width >= 150 and height >= 100:
-                                is_bike = True
+                            # Priority 2: Overview / early gallery pages (page 1-3) or color chart page:
+                            # Both colored motorcycles and black/monochrome motorcycles are extracted cleanly!
+                            elif (page_num <= 3 or is_color_chart_page) and (width >= 120 and height >= 80):
+                                if is_colored or is_black_bike:
+                                    is_bike = True
+                                    if is_black_bike and not color_name:
+                                        matched_black = next((ce for ce in doc_color_entries if "BLACK" in ce["color_name"].upper()), None)
+                                        if matched_black:
+                                            color_name = matched_black["color_name"]
+                                            color_code = matched_black["color_code"]
+                                        else:
+                                            color_name = "MAT BLACK"
+                                    elif is_colored and not color_name:
+                                        hue_family = detect_dominant_hue_name(pil_rgb)
+                                        if hue_family and doc_color_entries:
+                                            matched_hue = next((ce for ce in doc_color_entries if hue_family in ce["color_name"].upper()), None)
+                                            if matched_hue:
+                                                color_name = matched_hue["color_name"]
+                                                color_code = matched_hue["color_code"]
 
                         if is_bike:
                             bike_counter += 1
@@ -363,6 +571,11 @@ def extract_images_from_pdf(
                                 filename = f"YAM_{clean_model_code}_BIKE_{clean_cname}"
                             else:
                                 filename = f"YAM_{clean_model_code}_BIKE" if bike_counter == 1 else f"YAM_{clean_model_code}_BIKE_{bike_counter}"
+
+                            bike_fn_count = fig_counter.get(filename, 0) + 1
+                            fig_counter[filename] = bike_fn_count
+                            if bike_fn_count > 1:
+                                filename = f"{filename}_{bike_fn_count}"
 
                             fig_no = "BIKE"
                             fig_name = f"{color_name} ({color_code})" if (color_name and color_code) else (color_name or (f"BIKE {color_code}" if color_code else "BIKE PHOTO"))
