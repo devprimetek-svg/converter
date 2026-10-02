@@ -239,6 +239,8 @@ def generate_excel_workbook(
 
     # Remarks column
     headers.append(("Remarks", "remarks", left_align))
+    # Remark Flag column (immediately right of Remarks: marks 'X' on parent row if figure has remarks)
+    headers.append(("Remark Flag", "remark_flag", center_align))
 
     # Optional ERP Master & Warehouse columns (Phase 2 & Phase 4)
     has_erp_fields = any(
@@ -267,6 +269,15 @@ def generate_excel_workbook(
     # Write data rows
     last_fig_key = None
 
+    # Pre-scan rows to detect which figure groups contain non-empty remarks on any child/parent record
+    figs_with_remarks = set()
+    for r in rows:
+        fn = str(r.get("parent_fig_no") or r.get("fig_no") or "").strip()
+        fnn = str(r.get("parent_fig_name") or r.get("fig_name") or "").strip()
+        k = (fn, fnn) if (fn or fnn) else ("page", str(r.get("page", "")))
+        if str(r.get("remarks") or "").strip():
+            figs_with_remarks.add(k)
+
     for row_idx, row_data in enumerate(rows, start=2):
         ws.row_dimensions[row_idx].height = 20.0
 
@@ -290,6 +301,7 @@ def generate_excel_workbook(
             # Model name: format parent model name standard record
             raw_mn = str(row_data.get("model_name") or "").strip()
             curr_model_name = format_parent_model_name(raw_mn, row_model_code, raw_fig_name)
+            curr_remark_flag = "X" if fig_key in figs_with_remarks else ""
         else:
             # Child cell: page, fig_no, fig_name, catalogue_code, model_name, and pic do NOT repeat — remain blank
             curr_page = ""
@@ -298,6 +310,7 @@ def generate_excel_workbook(
             curr_cat_code = ""
             curr_model_name = ""
             curr_pic = ""
+            curr_remark_flag = ""
 
         for col_idx, (_, field_key, cell_align) in enumerate(headers, start=1):
             if field_key == "page":
@@ -312,6 +325,8 @@ def generate_excel_workbook(
                 val = curr_model_name
             elif field_key in ("pic", "image"):
                 val = curr_pic
+            elif field_key == "remark_flag":
+                val = curr_remark_flag
             elif field_key == "part_no":
                 val = row_data.get("part_no", "")
                 if clean_parts:

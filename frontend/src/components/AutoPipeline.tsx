@@ -23,7 +23,6 @@ import {
   X,
   Send,
   Barcode,
-  Crosshair,
 } from 'lucide-react';
 import type { PartRow } from '../types';
 import { PartsTable } from './PartsTable';
@@ -1380,26 +1379,11 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                           className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform"
                           style={{ imageRendering: 'auto' }}
                         />
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-3">
-                          <span className="px-3 py-1.5 rounded-lg bg-white/95 text-zinc-900 font-bold text-xs flex items-center gap-1.5 shadow-lg w-full justify-center">
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-3">
+                          <span className="px-3 py-1.5 rounded-lg bg-white/95 text-zinc-900 font-bold text-xs flex items-center gap-1.5 shadow-lg justify-center">
                             <ZoomIn className="w-3.5 h-3.5 text-indigo-600" />
                             Inspect HD
                           </span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setHotspotDiagramFigure({
-                                fig_no: img.fig_no || '1',
-                                fig_name: img.fig_name || 'PARTS',
-                                imageUrl: img.full_image_url || img.thumbnail_url,
-                              });
-                            }}
-                            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg w-full justify-center cursor-pointer"
-                          >
-                            <Crosshair className="w-3.5 h-3.5 text-white" />
-                            Hotspot Studio
-                          </button>
                         </div>
                         <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-xs text-[10px] font-mono text-zinc-300 font-medium">
                           {img.width}x{img.height}
@@ -1440,21 +1424,6 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                             ))}
                           </div>
                         )}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setHotspotDiagramFigure({
-                              fig_no: img.fig_no || '1',
-                              fig_name: img.fig_name || 'PARTS',
-                              imageUrl: img.full_image_url || img.thumbnail_url,
-                            });
-                          }}
-                          className="w-full mt-2 py-1 px-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-bold text-[11px] flex items-center justify-center gap-1.5 border border-indigo-200 dark:border-indigo-800 transition-colors"
-                        >
-                          <Crosshair className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-                          Interactive Hotspots
-                        </button>
                       </div>
                     </div>
                   ))}
@@ -1507,7 +1476,6 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                 onRowsUpdate={handleRowsUpdate}
                 onOpenErpSync={enableErpSync ? () => setIsErpSyncOpen(true) : undefined}
                 onOpenWarehouseStudio={enableBarcodeLabels ? () => setIsWarehouseStudioOpen(true) : undefined}
-                onOpenHotspotDiagram={(figNo) => openHotspotForFigNo(figNo)}
                 enableErpSync={enableErpSync}
                 enableBarcodeLabels={enableBarcodeLabels}
               />

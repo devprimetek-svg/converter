@@ -791,6 +791,27 @@ def extract_parts_from_pdf(
     # Disambiguate repeated ref_no within each figure (e.g. 1A, 1B, 2A, 2B etc.)
     all_rows = disambiguate_repeated_ref_numbers(all_rows)
 
+    # Calculate remark_flag: For any figure group where any child/parent record has non-empty remarks,
+    # mark 'X' in the row where that figure starts (parent row), and leave child rows blank.
+    figs_with_remarks = set()
+    for row in all_rows:
+        fn = str(row.get("parent_fig_no") or row.get("fig_no") or "").strip()
+        fnn = str(row.get("parent_fig_name") or row.get("fig_name") or "").strip()
+        k = (fn, fnn) if (fn or fnn) else ("page", str(row.get("page", "")))
+        if str(row.get("remarks") or "").strip():
+            figs_with_remarks.add(k)
+
+    last_fig_key = None
+    for row in all_rows:
+        fn = str(row.get("parent_fig_no") or row.get("fig_no") or "").strip()
+        fnn = str(row.get("parent_fig_name") or row.get("fig_name") or "").strip()
+        k = (fn, fnn) if (fn or fnn) else ("page", str(row.get("page", "")))
+        if k != last_fig_key:
+            last_fig_key = k
+            row["remark_flag"] = "X" if k in figs_with_remarks else ""
+        else:
+            row["remark_flag"] = ""
+
     return {
         "rows": all_rows,
         "model_columns": document_model_columns,

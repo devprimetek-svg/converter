@@ -292,4 +292,27 @@ def test_process_watermark_and_resize_skip_watermark_for_bike():
     assert bike_bytes != wm_bytes
 
 
+def test_is_colored_image_distinguishes_color_from_grayscale():
+    """Verify is_colored_image accurately distinguishes colored photos from grayscale."""
+    from app.image_tools import is_colored_image
+    from PIL import ImageDraw
+
+    # Grayscale image (R == G == B)
+    gray_img = Image.new("RGB", (200, 200), (128, 128, 128))
+    assert not is_colored_image(gray_img)
+
+    # Pure black and white sketch
+    bw_img = Image.new("RGB", (200, 200), (255, 255, 255))
+    draw = ImageDraw.Draw(bw_img)
+    draw.rectangle([20, 20, 180, 180], fill=(0, 0, 0))
+    assert not is_colored_image(bw_img)
+
+    # Vibrant colored motorcycle image (e.g. blue or red)
+    color_img = Image.new("RGB", (200, 200), (255, 255, 255))
+    draw = ImageDraw.Draw(color_img)
+    draw.rectangle([20, 20, 180, 180], fill=(20, 80, 210))  # Yamaha Racing Blue
+    assert is_colored_image(color_img)
+
+
+
 

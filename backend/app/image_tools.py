@@ -29,6 +29,34 @@ def get_default_logo_bytes() -> Optional[bytes]:
     return None
 
 
+def is_colored_image(img: Image.Image, min_sat_threshold: float = 18.0, min_color_pixels_pct: float = 2.5) -> bool:
+    """Determine whether an image is a genuine colored image vs grayscale / monochrome.
+
+    Returns True only if the image contains genuine color saturation, ensuring black & white drawings,
+    monochrome logos, or grayscale diagrams are not falsely treated as colored bike photographs.
+    """
+    try:
+        thumb = img.copy()
+        thumb.thumbnail((150, 150))
+        if thumb.mode != "RGB":
+            thumb = thumb.convert("RGB")
+
+        # Convert to HSV where band 1 is Saturation (0..255)
+        hsv = thumb.convert("HSV")
+        s_channel = hsv.split()[1]
+        getter = getattr(s_channel, "get_flattened_data", s_channel.getdata)
+        s_data = list(getter())
+        if not s_data:
+            return False
+
+        # Count pixels with noticeable color saturation
+        colored_pixels = sum(1 for s in s_data if s >= min_sat_threshold)
+        colored_pct = (colored_pixels / len(s_data)) * 100.0
+        return colored_pct >= min_color_pixels_pct
+    except Exception:
+        return False
+
+
 def extract_images_from_pdf(
     pdf_bytes: bytes,
     figure_pages: Optional[dict[int, dict[str, str]]] = None,
@@ -112,47 +140,84 @@ def extract_images_from_pdf(
 
                 # Determine if this image is a bike photo vs parts diagram
                 is_bike = False
-                if not is_figure_page and (figure_pages is not None or page_num <= 3):
-                    is_bike = True
-                    bike_counter += 1
-                    fig_no = "BIKE"
-                    fig_name = "BIKE PHOTO"
-                    filename = (
-                        f"YAM_{clean_model_code}_BIKE"
-                        if bike_counter == 1
-                        else f"YAM_{clean_model_code}_BIKE_{bike_counter}"
-                    )
-                elif fig_info:
-                    is_bike = False
-                    fig_no = str(fig_info.get("fig_no", "")).strip()
-                    fig_name = str(fig_info.get("fig_name", "")).strip()
-                    # Clean filename invalid characters but preserve spaces and '&'
-                    clean_part_name = re.sub(r'[\/:*?"<>|\r\n\t]', " ", fig_name)
-                    clean_part_name = re.sub(r"\s+", " ", clean_part_name).strip()
-                    if not clean_part_name:
-                        padded_no = fig_no.zfill(2) if fig_no.isdigit() else fig_no
-                        clean_part_name = f"FIG_{padded_no}" if padded_no else f"PAGE_{page_num}"
+                if effective_parts_only:
+                    # In parts catalogue mode: non-figure pages only extract genuine colored bike photos
+                    if not is_figure_page:
+                        if include_bike_images and is_colored_image(pil_rgb) and width >= 150 and height >= 100:
+                            is_bike = True
+                            bike_counter += 1
+                            fig_no = "BIKE"
+                            fig_name = "BIKE PHOTO"
+                            filename = (
+                                f"YAM_{clean_model_code}_BIKE"
+                                if bike_counter == 1
+                                else f"YAM_{clean_model_code}_BIKE_{bike_counter}"
+                            )
+                        else:
+                            continue
+                    elif fig_info:
+                        is_bike = False
+                        fig_no = str(fig_info.get("fig_no", "")).strip()
+                        fig_name = str(fig_info.get("fig_name", "")).strip()
+                        # Clean filename invalid characters but preserve spaces and '&'
+                        clean_part_name = re.sub(r'[\/:*?"<>|\r\n\t]', " ", fig_name)
+                        clean_part_name = re.sub(r"\s+", " ", clean_part_name).strip()
+                        if not clean_part_name:
+                            padded_no = fig_no.zfill(2) if fig_no.isdigit() else fig_no
+                            clean_part_name = f"FIG_{padded_no}" if padded_no else f"PAGE_{page_num}"
 
-                    counter_key = f"{fig_no}_{clean_part_name}"
-                    count = fig_counter.get(counter_key, 0) + 1
-                    fig_counter[counter_key] = count
+                        counter_key = f"{fig_no}_{clean_part_name}"
+                        count = fig_counter.get(counter_key, 0) + 1
+                        fig_counter[counter_key] = count
 
-                    if count == 1:
-                        filename = f"YAM_{clean_model_code}_{clean_part_name}"
+                        if count == 1:
+                            filename = f"YAM_{clean_model_code}_{clean_part_name}"
+                        else:
+                            filename = f"YAM_{clean_model_code}_{clean_part_name}_{count}"
                     else:
-                        filename = f"YAM_{clean_model_code}_{clean_part_name}_{count}"
+                        continue
                 else:
-                    is_bike = False
-                    clean_part_name = f"PAGE_{page_num}_IMG_{img_idx + 1}"
-                    counter_key = clean_part_name
-                    count = fig_counter.get(counter_key, 0) + 1
-                    fig_counter[counter_key] = count
-                    if count == 1:
-                        filename = f"YAM_{clean_model_code}_{clean_part_name}"
+                    # Standalone image extractor: extract all valid images from PDF
+                    if include_bike_images and page_num <= 3 and is_colored_image(pil_rgb) and width >= 150 and height >= 100:
+                        is_bike = True
+                        bike_counter += 1
+                        fig_no = "BIKE"
+                        fig_name = "BIKE PHOTO"
+                        filename = (
+                            f"YAM_{clean_model_code}_BIKE"
+                            if bike_counter == 1
+                            else f"YAM_{clean_model_code}_BIKE_{bike_counter}"
+                        )
+                    elif fig_info:
+                        is_bike = False
+                        fig_no = str(fig_info.get("fig_no", "")).strip()
+                        fig_name = str(fig_info.get("fig_name", "")).strip()
+                        clean_part_name = re.sub(r'[\/:*?"<>|\r\n\t]', " ", fig_name)
+                        clean_part_name = re.sub(r"\s+", " ", clean_part_name).strip()
+                        if not clean_part_name:
+                            padded_no = fig_no.zfill(2) if fig_no.isdigit() else fig_no
+                            clean_part_name = f"FIG_{padded_no}" if padded_no else f"PAGE_{page_num}"
+
+                        counter_key = f"{fig_no}_{clean_part_name}"
+                        count = fig_counter.get(counter_key, 0) + 1
+                        fig_counter[counter_key] = count
+
+                        if count == 1:
+                            filename = f"YAM_{clean_model_code}_{clean_part_name}"
+                        else:
+                            filename = f"YAM_{clean_model_code}_{clean_part_name}_{count}"
                     else:
-                        filename = f"YAM_{clean_model_code}_{clean_part_name}_{count}"
-                    fig_no = ""
-                    fig_name = ""
+                        is_bike = False
+                        clean_part_name = f"PAGE_{page_num}_IMG_{img_idx + 1}"
+                        counter_key = clean_part_name
+                        count = fig_counter.get(counter_key, 0) + 1
+                        fig_counter[counter_key] = count
+                        if count == 1:
+                            filename = f"YAM_{clean_model_code}_{clean_part_name}"
+                        else:
+                            filename = f"YAM_{clean_model_code}_{clean_part_name}_{count}"
+                        fig_no = ""
+                        fig_name = ""
 
                 # Generate compact base64 thumbnail for fast frontend display
                 thumb = pil_rgb.copy()

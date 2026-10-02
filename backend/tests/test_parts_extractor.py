@@ -705,4 +705,92 @@ def test_ampersand_preserved_in_catalogue_code_and_parts_name():
     assert ws.cell(row=2, column=6).value == "YAM_BGPK_CRANKSHAFT & PISTON.jpeg"
 
 
+def test_remark_flag_column_with_x_on_parent_row():
+    """Verify that Remark Flag column is placed immediately right of Remarks,
+    and marks 'X' on parent row if figure has remarks on child/parent records,
+    while leaving child rows and figures without remarks blank.
+    """
+    import openpyxl
+    from app.excel_export import generate_excel_workbook
+
+    sample_rows = [
+        # FIG. 1 - Cylinder (has remark on child row)
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "parent_fig_no": "1",
+            "parent_fig_name": "CYLINDER",
+            "ref_no": "1",
+            "part_no": "BGP-E1102-00",
+            "description": "CYLINDER HEAD",
+            "BGP1": "1",
+            "remarks": "",
+        },
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "parent_fig_no": "1",
+            "parent_fig_name": "CYLINDER",
+            "ref_no": "2",
+            "part_no": "90105-06027",
+            "description": "BOLT FLANGE",
+            "BGP1": "4",
+            "remarks": "UR FOR SILVER",
+        },
+        # FIG. 2 - CRANKSHAFT (NO remarks on any row)
+        {
+            "page": 2,
+            "fig_no": "2",
+            "fig_name": "CRANKSHAFT",
+            "parent_fig_no": "2",
+            "parent_fig_name": "CRANKSHAFT",
+            "ref_no": "1",
+            "part_no": "BGP-E1400-00",
+            "description": "CRANKSHAFT ASSY",
+            "BGP1": "1",
+            "remarks": "",
+        },
+        {
+            "page": 2,
+            "fig_no": "2",
+            "fig_name": "CRANKSHAFT",
+            "parent_fig_no": "2",
+            "parent_fig_name": "CRANKSHAFT",
+            "ref_no": "2",
+            "part_no": "93306-305Y5",
+            "description": "BEARING",
+            "BGP1": "1",
+            "remarks": "",
+        },
+    ]
+
+    wb_buf = generate_excel_workbook(sample_rows, model_columns=["BGP1"])
+    wb = openpyxl.load_workbook(wb_buf)
+    ws = wb.active
+
+    # Find column indices for Remarks and Remark Flag
+    col_headers = [ws.cell(row=1, column=c).value for c in range(1, ws.max_column + 1)]
+    assert "Remarks" in col_headers
+    assert "Remark Flag" in col_headers
+
+    remarks_idx = col_headers.index("Remarks") + 1
+    flag_idx = col_headers.index("Remark Flag") + 1
+
+    # Remark Flag MUST be immediately to the right of Remarks
+    assert flag_idx == remarks_idx + 1
+
+    # Row 2 is Parent of Fig 1 (has remarks on row 3): Flag cell MUST be "X"
+    assert ws.cell(row=2, column=flag_idx).value == "X"
+    # Row 3 is Child of Fig 1: Flag cell MUST be blank
+    assert (ws.cell(row=3, column=flag_idx).value or "") == ""
+
+    # Row 4 is Parent of Fig 2 (NO remarks): Flag cell MUST be blank
+    assert (ws.cell(row=4, column=flag_idx).value or "") == ""
+    # Row 5 is Child of Fig 2: Flag cell MUST be blank
+    assert (ws.cell(row=5, column=flag_idx).value or "") == ""
+
+
+
 
