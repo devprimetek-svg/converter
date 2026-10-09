@@ -42,7 +42,7 @@ logger = logging.getLogger("converter")
 app = FastAPI(
     title="PDF Parts Catalogue to Excel Converter",
     description="Extract parts catalogues into Excel spreadsheets",
-    version="1.0.0",
+    version="1.0.1",
 )
 
 # Enable CORS for local development and container networking
