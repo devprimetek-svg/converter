@@ -385,18 +385,21 @@ def _create_synthetic_multi_model_pdf() -> io.BytesIO:
     c.drawString(240, 490, "CYLINDER HEAD ASSY")
     c.drawString(500, 490, "1")
     c.drawString(530, 490, "1")
+    c.drawString(600, 490, "STD")
 
     # Row 2: BGP1 only
     c.drawString(50, 470, "2")
     c.drawString(120, 470, "95022-06010")
     c.drawString(240, 470, "BOLT, FLANGE")
     c.drawString(500, 470, "1")
+    c.drawString(600, 470, "UR FOR RED")
 
     # Row 3: BGP2 only
     c.drawString(50, 450, "3")
     c.drawString(120, 450, "90430-06817")
     c.drawString(240, 450, "GASKET")
     c.drawString(530, 450, "2")
+    c.drawString(600, 450, "UR FOR BLUE")
 
     c.drawImage(ImageReader(img_buf), 620, 300, width=150, height=120)
     c.drawString(420, 30, "1")
@@ -461,30 +464,38 @@ def test_pipeline_multi_model_separate_folders():
     assert "BGP1/Synthetic_Multi_Model_BGP1_Parts.xlsx" in filenames
     assert "BGP1/images/YAM_BGP1_CYLINDER HEAD.jpeg" in filenames
 
-    # Verify BGP1 Excel content (Row 1 and Row 2 have BGP1 quantity; Row 3 has None/blank)
+    # Verify BGP1 Excel content:
+    # All catalogue rows are kept. BGP1 has recorded qty on Row 1 & Row 2.
+    # Row 3 (GASKET) is present, but its BGP1 quantity is blank and its remarks is blank.
     bgp1_excel = zf.read("BGP1/Synthetic_Multi_Model_BGP1_Parts.xlsx")
     wb_bgp1 = openpyxl.load_workbook(io.BytesIO(bgp1_excel))
     ws_bgp1 = wb_bgp1.active
     bgp1_cells = [str(c.value) for row in ws_bgp1.iter_rows() for c in row if c.value is not None]
     assert any("CYLINDER HEAD ASSY" in c for c in bgp1_cells)
     assert any("BOLT FLANGE" in c for c in bgp1_cells)
-    # GASKET had quantity only for BGP2, so must be excluded from BGP1 sheet!
-    assert not any("GASKET" in c for c in bgp1_cells)
+    assert any("GASKET" in c for c in bgp1_cells)  # Row is retained!
+    assert any("STD" in c for c in bgp1_cells)
+    assert any("FOR RED" in c for c in bgp1_cells)
+    assert not any("FOR BLUE" in c for c in bgp1_cells)  # Row 3 remarks for BGP2 is blank in BGP1 sheet!
 
     # 2. BGP2 folder checks
     assert any(f.startswith("BGP2/") for f in filenames), f"BGP2/ folder missing in {filenames}"
     assert "BGP2/Synthetic_Multi_Model_BGP2_Parts.xlsx" in filenames
     assert "BGP2/images/YAM_BGP2_CYLINDER HEAD.jpeg" in filenames
 
-    # Verify BGP2 Excel content (Row 1 and Row 3 have BGP2 quantity; Row 2 has None/blank)
+    # Verify BGP2 Excel content:
+    # All catalogue rows are kept. BGP2 has recorded qty on Row 1 & Row 3.
+    # Row 2 (BOLT FLANGE) is present, but its BGP2 quantity is blank and its remarks is blank.
     bgp2_excel = zf.read("BGP2/Synthetic_Multi_Model_BGP2_Parts.xlsx")
     wb_bgp2 = openpyxl.load_workbook(io.BytesIO(bgp2_excel))
     ws_bgp2 = wb_bgp2.active
     bgp2_cells = [str(c.value) for row in ws_bgp2.iter_rows() for c in row if c.value is not None]
     assert any("CYLINDER HEAD ASSY" in c for c in bgp2_cells)
+    assert any("BOLT FLANGE" in c for c in bgp2_cells)  # Row is retained!
     assert any("GASKET" in c for c in bgp2_cells)
-    # BOLT, FLANGE had quantity only for BGP1, so must be excluded from BGP2 sheet!
-    assert not any("BOLT, FLANGE" in c for c in bgp2_cells)
+    assert any("STD" in c for c in bgp2_cells)
+    assert not any("FOR RED" in c for c in bgp2_cells)  # Row 2 remarks for BGP1 is blank in BGP2 sheet!
+    assert any("FOR BLUE" in c for c in bgp2_cells)
 
     # 3. Root files check
     assert "Synthetic_Multi_Model_All_Models_Parts.xlsx" in filenames

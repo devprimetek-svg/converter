@@ -293,11 +293,18 @@ def export_excel(req: ExportRequest):
     base_name = re.sub(r'[\\/*?:"<>| ]', "_", base_name).strip("_")
 
     if model_target and model_target.upper() != "ALL":
-        # Strictly filter to rows having a valid, non-blank quantity for this specific model code
-        rows = [
-            r for r in rows
-            if is_valid_quantity(r.get(model_target))
-        ]
+        # Retain all catalogue rows where at least one model had valid quantity;
+        # blank quantity and blank remarks for this specific model are applied in generate_excel_workbook.
+        if len(model_columns) >= 2:
+            rows = [
+                r for r in rows
+                if any(is_valid_quantity(r.get(m)) for m in model_columns)
+            ]
+        if not any(is_valid_quantity(r.get(model_target)) for r in rows):
+            raise HTTPException(
+                status_code=400,
+                detail=f"No parts found for model code '{model_target}'.",
+            )
         model_columns = [model_target]
         download_filename = f"{base_name}_{model_target}_Parts.xlsx"
     else:

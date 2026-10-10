@@ -287,10 +287,17 @@ def run_pipeline_worker(
         model_excel_data: dict[str, dict[str, Any]] = {}
         if model_codes:
             for m in model_codes:
-                if m in job.model_columns and has_multiple_models:
-                    m_rows = [r for r in job.rows if is_valid_quantity(r.get(m))]
-                else:
-                    m_rows = job.rows
+                m_rows = []
+                for r in job.rows:
+                    r_copy = dict(r)
+                    if m in job.model_columns:
+                        if is_valid_quantity(r_copy.get(m)):
+                            r_copy[m] = str(r_copy.get(m)).strip()
+                        else:
+                            r_copy[m] = ""
+                            r_copy["remarks"] = ""
+                    m_rows.append(r_copy)
+
                 m_excel_buf = generate_excel_workbook(
                     rows=m_rows,
                     model_columns=[m] if m in job.model_columns else (job.model_columns or [m]),
@@ -377,8 +384,8 @@ def run_pipeline_worker(
                 elif has_multiple_models:
                     for m in model_codes:
                         m_rows = model_excel_data[m]["rows"]
-                        m_fig_nos = {str(r.get("fig_no", "")).strip() for r in m_rows if r.get("fig_no")}
-                        m_fig_names = {str(r.get("fig_name", "")).strip().upper() for r in m_rows if r.get("fig_name")}
+                        m_fig_nos = {str(r.get("fig_no", "")).strip() for r in m_rows if r.get("fig_no") and is_valid_quantity(r.get(m))}
+                        m_fig_names = {str(r.get("fig_name", "")).strip().upper() for r in m_rows if r.get("fig_name") and is_valid_quantity(r.get(m))}
                         if not m_fig_nos and not m_fig_names:
                             applicable_models.append(m)
                         elif img_fig_no in m_fig_nos or img_fig_name in m_fig_names:
@@ -481,8 +488,8 @@ def run_pipeline_worker(
                 for m in model_codes:
                     m_info = model_excel_data[m]
                     m_rows = m_info["rows"]
-                    m_fig_nos = {str(r.get("fig_no", "")).strip() for r in m_rows if r.get("fig_no")}
-                    m_fig_names = {str(r.get("fig_name", "")).strip().upper() for r in m_rows if r.get("fig_name")}
+                    m_fig_nos = {str(r.get("fig_no", "")).strip() for r in m_rows if r.get("fig_no") and is_valid_quantity(r.get(m))}
+                    m_fig_names = {str(r.get("fig_name", "")).strip().upper() for r in m_rows if r.get("fig_name") and is_valid_quantity(r.get(m))}
 
                     # 1. Add model-specific Excel sheet into its dedicated folder: {m}/
                     zf.writestr(f"{m}/{m_info['excel_filename']}", m_info["excel_bytes"])

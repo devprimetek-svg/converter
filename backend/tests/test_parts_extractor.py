@@ -792,5 +792,147 @@ def test_remark_flag_column_with_x_on_parent_row():
     assert (ws.cell(row=5, column=flag_idx).value or "") == ""
 
 
+def test_split_excel_remarks_by_model_quantity():
+    """Verify user requirement:
+    When PDF has 2 model codes (e.g. BGP1 and BGP2), at Excel split time:
+    1. All catalogue rows remain in both Excels.
+    2. Remarks reflect only for rows where that model's quantity is recorded.
+    3. In the other Excel where quantity is blank, Remarks MUST ALSO be blank.
+    4. Remark Flag 'X' is set on parent row only if that model has non-empty remarks in that figure.
+    """
+    import openpyxl
+    from app.excel_export import generate_excel_workbook
+
+    catalogue_rows = [
+        # Figure 1: CYLINDER
+        # Row 1: Common to both BGP1 and BGP2
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "parent_fig_no": "1",
+            "parent_fig_name": "CYLINDER",
+            "ref_no": "1",
+            "part_no": "BGP-E1102-00",
+            "description": "CYLINDER HEAD ASSY",
+            "BGP1": "1",
+            "BGP2": "1",
+            "remarks": "STD",
+        },
+        # Row 2: Recorded for BGP1, BLANK for BGP2
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "parent_fig_no": "1",
+            "parent_fig_name": "CYLINDER",
+            "ref_no": "2",
+            "part_no": "95022-06010",
+            "description": "BOLT FLANGE",
+            "BGP1": "4",
+            "BGP2": "",
+            "remarks": "UR FOR RED",
+        },
+        # Row 3: BLANK for BGP1, Recorded for BGP2
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "parent_fig_no": "1",
+            "parent_fig_name": "CYLINDER",
+            "ref_no": "3",
+            "part_no": "90430-06817",
+            "description": "GASKET",
+            "BGP1": "",
+            "BGP2": "2",
+            "remarks": "UR FOR BLUE",
+        },
+        # Figure 2: CRANKSHAFT
+        # Row 4: Only recorded for BGP1 with remarks; BGP2 is BLANK
+        {
+            "page": 2,
+            "fig_no": "2",
+            "fig_name": "CRANKSHAFT",
+            "parent_fig_no": "2",
+            "parent_fig_name": "CRANKSHAFT",
+            "ref_no": "1",
+            "part_no": "BGP-E1400-00",
+            "description": "CRANKSHAFT ASSY",
+            "BGP1": "1",
+            "BGP2": "",
+            "remarks": "UR FOR SILVER",
+        },
+    ]
+
+    # --- Test BGP1 Split Excel ---
+    bgp1_buf = generate_excel_workbook(catalogue_rows, model_columns=["BGP1"], model_code="BGP1")
+    wb1 = openpyxl.load_workbook(bgp1_buf)
+    ws1 = wb1.active
+
+    headers1 = [ws1.cell(row=1, column=c).value for c in range(1, ws1.max_column + 1)]
+    assert "BGP1" in headers1
+    assert "Remarks" in headers1
+    assert "Remark Flag" in headers1
+
+    qty_col1 = headers1.index("BGP1") + 1
+    rem_col1 = headers1.index("Remarks") + 1
+    flag_col1 = headers1.index("Remark Flag") + 1
+
+    # Row 2 (Ref 1): BGP1 qty 1, Remarks "STD"
+    assert ws1.cell(row=2, column=qty_col1).value == "1"
+    assert ws1.cell(row=2, column=rem_col1).value == "STD"
+    # Parent row Fig 1: Remark Flag is "X"
+    assert ws1.cell(row=2, column=flag_col1).value == "X"
+
+    # Row 3 (Ref 2): BGP1 qty 4, Remarks "UR FOR RED"
+    assert ws1.cell(row=3, column=qty_col1).value == "4"
+    assert ws1.cell(row=3, column=rem_col1).value == "UR FOR RED"
+
+    # Row 4 (Ref 3): BGP1 qty BLANK -> Remarks MUST BE BLANK!
+    assert (ws1.cell(row=4, column=qty_col1).value or "") == ""
+    assert (ws1.cell(row=4, column=rem_col1).value or "") == ""
+
+    # Row 5 (Ref 1 of Fig 2): BGP1 qty 1, Remarks "UR FOR SILVER"
+    assert ws1.cell(row=5, column=qty_col1).value == "1"
+    assert ws1.cell(row=5, column=rem_col1).value == "UR FOR SILVER"
+    # Parent row Fig 2: Remark Flag is "X" for BGP1
+    assert ws1.cell(row=5, column=flag_col1).value == "X"
+
+    # --- Test BGP2 Split Excel ---
+    bgp2_buf = generate_excel_workbook(catalogue_rows, model_columns=["BGP2"], model_code="BGP2")
+    wb2 = openpyxl.load_workbook(bgp2_buf)
+    ws2 = wb2.active
+
+    headers2 = [ws2.cell(row=1, column=c).value for c in range(1, ws2.max_column + 1)]
+    assert "BGP2" in headers2
+    assert "Remarks" in headers2
+    assert "Remark Flag" in headers2
+
+    qty_col2 = headers2.index("BGP2") + 1
+    rem_col2 = headers2.index("Remarks") + 1
+    flag_col2 = headers2.index("Remark Flag") + 1
+
+    # Row 2 (Ref 1): BGP2 qty 1, Remarks "STD"
+    assert ws2.cell(row=2, column=qty_col2).value == "1"
+    assert ws2.cell(row=2, column=rem_col2).value == "STD"
+    # Parent row Fig 1: Remark Flag is "X"
+    assert ws2.cell(row=2, column=flag_col2).value == "X"
+
+    # Row 3 (Ref 2): BGP2 qty BLANK -> Remarks MUST BE BLANK!
+    assert (ws2.cell(row=3, column=qty_col2).value or "") == ""
+    assert (ws2.cell(row=3, column=rem_col2).value or "") == ""
+
+    # Row 4 (Ref 3): BGP2 qty 2, Remarks "UR FOR BLUE"
+    assert ws2.cell(row=4, column=qty_col2).value == "2"
+    assert ws2.cell(row=4, column=rem_col2).value == "UR FOR BLUE"
+
+    # Row 5 (Ref 1 of Fig 2): BGP2 qty BLANK -> Remarks MUST BE BLANK!
+    assert (ws2.cell(row=5, column=qty_col2).value or "") == ""
+    assert (ws2.cell(row=5, column=rem_col2).value or "") == ""
+    # Parent row Fig 2: BGP2 has NO remarks in Fig 2 -> Remark Flag MUST BE BLANK!
+    assert (ws2.cell(row=5, column=flag_col2).value or "") == ""
+
+
+
 
 

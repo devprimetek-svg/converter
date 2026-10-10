@@ -160,8 +160,10 @@ def generate_excel_workbook(
     """Create an in-memory Excel workbook (.xlsx) from parts rows.
 
     Filtering rule:
-    - If a specific model is being exported (len(model_columns) == 1), rows where that
-      model's quantity is blank are excluded along with their remarks.
+    - If a specific model is being exported (len(model_columns) == 1), all parts rows remain in the
+      Excel workbook to maintain figure sequence. If the model's quantity is recorded, quantity and
+      remarks are retained. If the model's quantity is blank/invalid, quantity is blank and remarks is
+      also blank.
     - If multiple models exist, rows where all model quantities are blank are excluded.
 
     Parent cell rule:
@@ -169,10 +171,18 @@ def generate_excel_workbook(
       contains the value. Child rows under the same figure remain blank.
     - An extra 'Catalogue Code' column is added immediately after 'Parts Name'.
     """
-    # Enforce blank quantity exclusion
     if len(model_columns) == 1:
         target_model = model_columns[0]
-        rows = [r for r in rows if is_valid_quantity(r.get(target_model))]
+        processed_rows = []
+        for r in rows:
+            r_copy = dict(r)
+            if is_valid_quantity(r_copy.get(target_model)):
+                r_copy[target_model] = str(r_copy.get(target_model)).strip()
+            else:
+                r_copy[target_model] = ""
+                r_copy["remarks"] = ""
+            processed_rows.append(r_copy)
+        rows = processed_rows
         if sheet_title == "Parts List":
             sheet_title = f"Parts_{target_model}"[:31]
     elif len(model_columns) >= 2:
@@ -289,15 +299,23 @@ def generate_excel_workbook(
         else:
             fig_key = ("page", str(row_data.get("page", "")))
 
-        row_model_code = str(row_data.get("model_code") or "").strip().upper() or active_model_code
+        row_model_code = active_model_code if active_model_code else (str(row_data.get("model_code") or "").strip().upper() or "MODEL")
         is_parent_cell = (fig_key != last_fig_key)
         if is_parent_cell:
             last_fig_key = fig_key
             curr_page = str(row_data.get("page", ""))
             curr_fig_no = raw_fig_no
             curr_fig_name = raw_fig_name
-            curr_cat_code = row_data.get("catalogue_code") or build_catalogue_code(row_model_code, raw_fig_name, raw_fig_no)
-            curr_pic = row_data.get("pic") or row_data.get("image") or (f"{curr_cat_code}.jpeg" if curr_cat_code else "")
+            existing_cat = str(row_data.get("catalogue_code") or "").strip()
+            if existing_cat and existing_cat.startswith(f"YAM_{row_model_code}_"):
+                curr_cat_code = existing_cat
+            else:
+                curr_cat_code = build_catalogue_code(row_model_code, raw_fig_name, raw_fig_no)
+            existing_pic = str(row_data.get("pic") or row_data.get("image") or "").strip()
+            if existing_pic and existing_pic.startswith(f"YAM_{row_model_code}_"):
+                curr_pic = existing_pic
+            else:
+                curr_pic = f"{curr_cat_code}.jpeg" if curr_cat_code else ""
             # Model name: format parent model name standard record
             raw_mn = str(row_data.get("model_name") or "").strip()
             curr_model_name = format_parent_model_name(raw_mn, row_model_code, raw_fig_name)

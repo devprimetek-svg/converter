@@ -106,8 +106,13 @@ def test_multi_model_export():
     assert "Catalogue_2026_BGPL_Parts.xlsx" in res_bgpl.headers.get("content-disposition", "")
 
 
-def test_blank_quantity_row_and_remarks_omitted():
-    """Verify that when a model code quantity is blank, the entire row and remarks are excluded from Excel."""
+def test_model_split_retains_rows_and_splits_remarks_by_quantity():
+    """Verify that when exporting an individual model from a multi-model catalogue:
+    1. All catalogue parts rows are retained so the parts list and figure sequence remain complete.
+    2. If a row has recorded quantity for the model, quantity and remarks are retained.
+    3. If a row has blank/invalid quantity for the model, quantity is blank and remarks is blank.
+    4. Rows having no quantity in ANY model are omitted.
+    """
     import openpyxl
 
     rows = [
@@ -160,18 +165,17 @@ def test_blank_quantity_row_and_remarks_omitted():
     assert res_bgpk.status_code == 200
     wb_bgpk = openpyxl.load_workbook(io.BytesIO(res_bgpk.content))
     ws_bgpk = wb_bgpk.active
-    # Collect all cell text across all rows
-    all_bgpk_texts = [cell.value for r in ws_bgpk.iter_rows() for cell in r if cell.value is not None]
+    all_bgpk_texts = [str(cell.value) for r in ws_bgpk.iter_rows() for cell in r if cell.value is not None]
 
-    # Row 1 must be present (BGPK has qty 2)
+    # Row 1 must be present with quantity & remarks (BGPK has qty 2)
     assert "95022-06010" in all_bgpk_texts
     assert "UR FOR BGPK ONLY" in all_bgpk_texts
 
-    # Row 2 (BGPK is blank) must NOT be present (part no and remarks excluded)
-    assert "90430-06817" not in all_bgpk_texts
+    # Row 2 (BGPK is blank) must be present in the sheet, but its remarks MUST be blank
+    assert "90430-06817" in all_bgpk_texts
     assert "UR FOR BGPL ONLY" not in all_bgpk_texts
 
-    # Row 3 (both blank) must NOT be present
+    # Row 3 (both blank) has no quantity in any model -> omitted
     assert "99999-00000" not in all_bgpk_texts
     assert "NEITHER MODEL" not in all_bgpk_texts
 
@@ -189,14 +193,14 @@ def test_blank_quantity_row_and_remarks_omitted():
     assert res_bgpl.status_code == 200
     wb_bgpl = openpyxl.load_workbook(io.BytesIO(res_bgpl.content))
     ws_bgpl = wb_bgpl.active
-    all_bgpl_texts = [cell.value for r in ws_bgpl.iter_rows() for cell in r if cell.value is not None]
+    all_bgpl_texts = [str(cell.value) for r in ws_bgpl.iter_rows() for cell in r if cell.value is not None]
 
-    # Row 2 must be present (BGPL has qty 1)
+    # Row 2 must be present with quantity & remarks (BGPL has qty 1)
     assert "90430-06817" in all_bgpl_texts
     assert "UR FOR BGPL ONLY" in all_bgpl_texts
 
-    # Row 1 (BGPL is "-") must NOT be present
-    assert "95022-06010" not in all_bgpl_texts
+    # Row 1 (BGPL is "-") must be present in the sheet, but its remarks MUST be blank
+    assert "95022-06010" in all_bgpl_texts
     assert "UR FOR BGPK ONLY" not in all_bgpl_texts
 
     # 3. Export ALL models
@@ -212,7 +216,7 @@ def test_blank_quantity_row_and_remarks_omitted():
     assert res_all.status_code == 200
     wb_all = openpyxl.load_workbook(io.BytesIO(res_all.content))
     ws_all = wb_all.active
-    all_texts = [cell.value for r in ws_all.iter_rows() for cell in r if cell.value is not None]
+    all_texts = [str(cell.value) for r in ws_all.iter_rows() for cell in r if cell.value is not None]
 
     # Row 1 and Row 2 have at least one valid qty, so present
     assert "95022-06010" in all_texts
