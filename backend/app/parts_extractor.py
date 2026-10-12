@@ -755,6 +755,7 @@ def extract_parts_from_pdf(
                     "model_name": model_name_val,
                     "pic": pic_val,
                     "image": pic_val,
+                    "pic_path": pic_val,
                     "ref_no": ref_no,
                     "part_no": part_no,
                     "description": description,

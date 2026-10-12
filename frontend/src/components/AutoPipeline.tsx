@@ -153,10 +153,12 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
     }
   }, [status?.status, status?.job_id]);
 
-  // Model Name Editing States (Parity with PDF-to-Excel extractor module)
+  // Model Name & Pic Path Editing States (Parity with PDF-to-Excel extractor module)
   const [defaultModelName, setDefaultModelName] = useState<string>('');
   const [editedModelNames, setEditedModelNames] = useState<Record<string, string>>({});
   const [globalModelInput, setGlobalModelInput] = useState<string>('');
+  const [editedPicPaths, setEditedPicPaths] = useState<Record<string, string>>({});
+  const [globalPicPathPrefix, setGlobalPicPathPrefix] = useState<string>('');
   const [isProceeding, setIsProceeding] = useState<boolean>(false);
 
   // Visual Diagram Modal State
@@ -166,33 +168,62 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
     imageUrl?: string;
   } | null>(null);
 
-  const hasEdits = Object.keys(editedModelNames).length > 0 || globalModelInput.trim().length > 0;
+  const hasEdits =
+    Object.keys(editedModelNames).length > 0 ||
+    globalModelInput.trim().length > 0 ||
+    Object.keys(editedPicPaths).length > 0 ||
+    globalPicPathPrefix.trim().length > 0;
 
   const rowsWithEdits: PartRow[] = useMemo(() => {
     const baseRows: PartRow[] = status?.rows || status?.rows_sample || [];
-    if (Object.keys(editedModelNames).length === 0 && !globalModelInput.trim()) return baseRows;
+    const hasModelEdits = Object.keys(editedModelNames).length > 0 || globalModelInput.trim().length > 0;
+    const hasPicPathEdits = Object.keys(editedPicPaths).length > 0 || globalPicPathPrefix.trim().length > 0;
+    if (!hasModelEdits && !hasPicPathEdits) return baseRows;
     const rawGlobal = extractRawModelName(globalModelInput);
     const globalBrand = detectBrand(globalModelInput);
+    const globalPrefix = globalPicPathPrefix.trim();
 
     return baseRows.map((row) => {
       const isParent = (row as any).is_parent || String(row.ref_no).trim() === '1';
-      if (!isParent) {
-        return { ...row, model_name: '' };
-      }
       const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
       const figModelCode = (row as any).model_code || status?.model_columns?.[0] || 'MODEL';
       const figName = (row as any).parent_fig_name || row.fig_name || 'PARTS';
+      const cleanFig = figName.replace(/[^A-Za-z0-9&]+/g, ' ').trim().toUpperCase() || 'PARTS';
+      const catCode = (row as any).catalogue_code || `YAM_${figModelCode}_${cleanFig}`;
+      const picVal = (row as any).pic || (row as any).image || (catCode ? `${catCode}.jpeg` : '');
 
-      const editedVal = editedModelNames[figKey];
-      if (editedVal !== undefined) {
-        return { ...row, model_name: buildComposedModelName(editedVal, figModelCode, figName) };
+      let updatedModelName = row.model_name;
+      if (!isParent) {
+        updatedModelName = '';
+      } else {
+        const editedVal = editedModelNames[figKey];
+        if (editedVal !== undefined) {
+          updatedModelName = buildComposedModelName(editedVal, figModelCode, figName);
+        } else if (rawGlobal) {
+          updatedModelName = buildComposedModelName(rawGlobal, figModelCode, figName, globalBrand);
+        }
       }
-      if (rawGlobal) {
-        return { ...row, model_name: buildComposedModelName(rawGlobal, figModelCode, figName, globalBrand) };
+
+      let updatedPicPath = '';
+      if (isParent) {
+        const rawBasePic = (row as any).pic_path || (row as any).pic || (row as any).image || (catCode ? `${catCode}.jpeg` : '');
+        if (editedPicPaths[figKey] !== undefined) {
+          updatedPicPath = editedPicPaths[figKey];
+        } else if (globalPrefix) {
+          updatedPicPath = `${globalPrefix}${rawBasePic}`;
+        } else {
+          updatedPicPath = rawBasePic;
+        }
       }
-      return row;
+
+      return {
+        ...row,
+        model_name: updatedModelName,
+        pic: isParent ? picVal : '',
+        pic_path: updatedPicPath,
+      };
     });
-  }, [status?.rows, status?.rows_sample, status?.model_columns, editedModelNames, globalModelInput]);
+  }, [status?.rows, status?.rows_sample, status?.model_columns, editedModelNames, globalModelInput, editedPicPaths, globalPicPathPrefix]);
 
   const effectiveRows: PartRow[] = rowsWithEdits;
 
@@ -238,6 +269,29 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
       }
     });
     setEditedModelNames(newEdits);
+  };
+
+  const handlePicPathEdit = useCallback((figKey: string, newValue: string) => {
+    setEditedPicPaths((prev) => ({ ...prev, [figKey]: newValue }));
+  }, []);
+
+  const handleApplyGlobalPicPath = () => {
+    const prefix = globalPicPathPrefix.trim();
+    if (!prefix || !status?.rows) return;
+    const newEdits: Record<string, string> = { ...editedPicPaths };
+    status.rows.forEach((row) => {
+      const isParent = (row as any).is_parent || String(row.ref_no).trim() === '1';
+      if (isParent) {
+        const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
+        const figModelCode = (row as any).model_code || status?.model_columns?.[0] || 'MODEL';
+        const figName = (row as any).parent_fig_name || row.fig_name || 'PARTS';
+        const cleanFig = figName.replace(/[^A-Za-z0-9&]+/g, ' ').trim().toUpperCase() || 'PARTS';
+        const catCode = (row as any).catalogue_code || `YAM_${figModelCode}_${cleanFig}`;
+        const basePic = (row as any).pic || (row as any).image || (catCode ? `${catCode}.jpeg` : '');
+        newEdits[figKey] = `${prefix}${basePic}`;
+      }
+    });
+    setEditedPicPaths(newEdits);
   };
 
   const handleProceedPipeline = async () => {
@@ -585,6 +639,8 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
     setErrorMessage(null);
     setEditedModelNames({});
     setGlobalModelInput('');
+    setEditedPicPaths({});
+    setGlobalPicPathPrefix('');
     setIsProceeding(false);
     setSelectedImageIds(new Set());
     setIsProceedingImages(false);
@@ -1166,59 +1222,105 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
             </div>
 
             {/* Quick Batch Editor & Proceed Button Bar */}
-            <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-              <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 flex flex-col gap-3">
+              {/* Row 1: Model Name Editor & Proceed Button */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300 whitespace-nowrap min-w-[80px]">
+                    Model Name:
+                  </span>
+                  <input
+                    type="text"
+                    value={globalModelInput}
+                    onChange={(e) => setGlobalModelInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleApplyGlobalModelName();
+                    }}
+                    placeholder="Enter Model only (e.g. FASCINO 125CC DISK, FZ-S FI)..."
+                    className="flex-1 px-3.5 py-2 text-xs font-mono font-bold rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleApplyGlobalModelName}
+                    disabled={!globalModelInput.trim()}
+                    className="px-4 py-2 rounded-xl bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold whitespace-nowrap disabled:opacity-40 transition-colors cursor-pointer"
+                    title="Apply this model name to all figures with their respective parent code and series"
+                  >
+                    Apply to All Figures
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleProceedPipeline}
+                    disabled={isProceeding}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs sm:text-sm font-bold shadow-md shadow-blue-600/25 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+                    title="Save model names and proceed with Excel generation and image processing"
+                  >
+                    {isProceeding ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        Proceeding...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 text-white" />
+                        Proceed Auto-Pipeline
+                        <ArrowRight className="w-4 h-4 text-white" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Row 2: Pic Path Editor (Add text / path prefix to Left Hand Side of all Pic records) */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-2.5 border-t border-zinc-200/80 dark:border-zinc-800">
+                <span className="text-xs font-bold text-blue-700 dark:text-blue-400 whitespace-nowrap min-w-[80px] flex items-center gap-1">
+                  <ImageIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  Pic Path:
+                </span>
                 <input
                   type="text"
-                  value={globalModelInput}
-                  onChange={(e) => setGlobalModelInput(e.target.value)}
+                  value={globalPicPathPrefix}
+                  onChange={(e) => setGlobalPicPathPrefix(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleApplyGlobalModelName();
+                    if (e.key === 'Enter') handleApplyGlobalPicPath();
                   }}
-                  placeholder="Enter Model only (e.g. FASCINO 125CC DISK, FZ-S FI) — format: BRAND CODE MODEL Series FIG apply automatically..."
-                  className="flex-1 px-3.5 py-2 text-xs font-mono font-bold rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Add text / folder path to Left Hand Side of Pic Path (e.g. images/, C:\spare_parts\)..."
+                  className="flex-1 px-3.5 py-2 text-xs font-mono font-bold rounded-xl border border-blue-200 dark:border-blue-900 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
                   type="button"
-                  onClick={handleApplyGlobalModelName}
-                  disabled={!globalModelInput.trim()}
-                  className="px-4 py-2 rounded-xl bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-semibold whitespace-nowrap disabled:opacity-40 transition-colors cursor-pointer"
-                  title="Apply this model name to all figures with their respective parent code and series"
+                  onClick={handleApplyGlobalPicPath}
+                  disabled={!globalPicPathPrefix.trim()}
+                  className="px-4 py-2 rounded-xl bg-blue-100 hover:bg-blue-200 dark:bg-blue-950/80 dark:hover:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs font-semibold whitespace-nowrap disabled:opacity-40 transition-colors cursor-pointer"
+                  title="Add this text to the left-hand side of Pic in all figures' parent rows"
                 >
                   Apply to All Figures
                 </button>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleProceedPipeline}
-                  disabled={isProceeding}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs sm:text-sm font-bold shadow-md shadow-blue-600/25 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
-                  title="Save model names and proceed with Excel generation and image processing"
-                >
-                  {isProceeding ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin text-white" />
-                      Proceeding...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 text-white" />
-                      Proceed Auto-Pipeline
-                      <ArrowRight className="w-4 h-4 text-white" />
-                    </>
-                  )}
-                </button>
+                {Object.keys(editedPicPaths).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditedPicPaths({});
+                      setGlobalPicPathPrefix('');
+                    }}
+                    className="px-3 py-2 rounded-xl text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer"
+                    title="Reset Pic Path to original filenames"
+                  >
+                    Reset
+                  </button>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Parts Table with Inline Model Name Editing */}
+          {/* Parts Table with Inline Model Name & Pic Path Editing */}
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
-                Tip: Click any cell in the <strong>Model Name</strong> column to edit Model only. Brand, Code &amp; Series are automatically preserved.
+                Tip: Click any cell in <strong>Model Name</strong> to edit Model only, or use the edit option on the left-hand side of <strong>Pic Path</strong> to add text.
               </span>
               <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
                 <input
@@ -1237,6 +1339,8 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
               cleanParts={cleanParts}
               editedModelNames={editedModelNames}
               onModelNameEdit={handleModelNameEdit}
+              editedPicPaths={editedPicPaths}
+              onPicPathEdit={handlePicPathEdit}
               onOpenHotspotDiagram={(figNo) => openHotspotForFigNo(figNo)}
             />
           </div>
@@ -1839,6 +1943,8 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                 cleanParts={cleanParts}
                 editedModelNames={editedModelNames}
                 onModelNameEdit={handleModelNameEdit}
+                editedPicPaths={editedPicPaths}
+                onPicPathEdit={handlePicPathEdit}
               />
             </div>
           )}

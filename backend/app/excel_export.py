@@ -239,6 +239,7 @@ def generate_excel_workbook(
         ("Catalogue Code", "catalogue_code", left_align),
         ("Model Name", "model_name", left_align),
         ("Pic", "pic", left_align),
+        ("Pic Path", "pic_path", left_align),
         ("Ref No.", "ref_no", center_align),
         ("Part No.", "part_no", left_align),
         ("Description", "description", left_align),
@@ -329,18 +330,29 @@ def generate_excel_workbook(
             else:
                 curr_pic = existing_pic if existing_pic else (f"{curr_cat_code}.jpeg" if curr_cat_code else "")
 
+            # Pic Path: resolve pic_path or default to pic
+            existing_pic_path = str(row_data.get("pic_path") or "").strip()
+            if len(model_columns) == 1 and active_model_code:
+                if existing_pic_path:
+                    curr_pic_path = re.sub(r"^YAM_[A-Za-z0-9]+?_", f"YAM_{active_model_code}_", existing_pic_path)
+                else:
+                    curr_pic_path = curr_pic
+            else:
+                curr_pic_path = existing_pic_path if existing_pic_path else curr_pic
+
             # Model name: format parent model name standard record
             raw_mn = str(row_data.get("model_name") or "").strip()
             curr_model_name = format_parent_model_name(raw_mn, row_model_code, raw_fig_name, old_model_code=orig_row_mc)
             curr_remark_flag = "X" if fig_key in figs_with_remarks else ""
         else:
-            # Child cell: page, fig_no, fig_name, catalogue_code, model_name, and pic do NOT repeat — remain blank
+            # Child cell: page, fig_no, fig_name, catalogue_code, model_name, pic, and pic_path do NOT repeat — remain blank
             curr_page = ""
             curr_fig_no = ""
             curr_fig_name = ""
             curr_cat_code = ""
             curr_model_name = ""
             curr_pic = ""
+            curr_pic_path = ""
             curr_remark_flag = ""
 
         for col_idx, (_, field_key, cell_align) in enumerate(headers, start=1):
@@ -356,6 +368,8 @@ def generate_excel_workbook(
                 val = curr_model_name
             elif field_key in ("pic", "image"):
                 val = curr_pic
+            elif field_key == "pic_path":
+                val = curr_pic_path
             elif field_key == "remark_flag":
                 val = curr_remark_flag
             elif field_key == "part_no":

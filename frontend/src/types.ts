@@ -6,6 +6,7 @@ export interface PartRow {
   model_name?: string;
   pic?: string;
   image?: string;
+  pic_path?: string;
   is_parent?: boolean;
   parent_fig_name?: string;
   ref_no: string;

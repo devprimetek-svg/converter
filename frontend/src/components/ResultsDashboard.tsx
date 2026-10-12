@@ -13,7 +13,7 @@ import {
   Pencil,
   AlertCircle,
 } from 'lucide-react';
-import type { ExtractionStatus } from '../types';
+import type { ExtractionStatus, PartRow } from '../types';
 import { PartsTable } from './PartsTable';
 import { extractRawModelName, buildComposedModelName, detectBrand } from '../utils/modelNameHelper';
 
@@ -39,37 +39,59 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
   /** Map of figKey → user-edited model name. Export is only enabled once this has entries. */
   const [editedModelNames, setEditedModelNames] = useState<Record<string, string>>({});
   const [globalModelInput, setGlobalModelInput] = useState<string>('');
+  const [editedPicPaths, setEditedPicPaths] = useState<Record<string, string>>({});
 
   const { rows = [], model_columns = [], figures = [], total_pages = 0 } = status;
 
-  const hasEdits = Object.keys(editedModelNames).length > 0;
+  const hasEdits = Object.keys(editedModelNames).length > 0 || Object.keys(editedPicPaths).length > 0;
 
-  /** Merge edited model names back into every row before export */
-  const rowsWithEdits = useMemo(() => {
+  /** Merge edited model names and pic paths back into every row before export */
+  const rowsWithEdits: PartRow[] = useMemo(() => {
     if (!hasEdits) return rows;
-    return rows.map((row) => {
+    return rows.map((row): PartRow => {
       const isParent = (row as any).is_parent || String(row.ref_no).trim() === '1';
-      if (!isParent) {
-        return { ...row, model_name: '' };
-      }
       const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
       const figModelCode = (row as any).model_code || model_columns[0] || 'MODEL';
       const figName = (row as any).parent_fig_name || row.fig_name || 'PARTS';
-      const editedVal = editedModelNames[figKey];
-      if (editedVal !== undefined) {
-        return { ...row, model_name: buildComposedModelName(editedVal, figModelCode, figName) };
+      const cleanFig = figName.replace(/[^A-Za-z0-9&]+/g, ' ').trim().toUpperCase() || 'PARTS';
+      const catCode = (row as any).catalogue_code || `YAM_${figModelCode}_${cleanFig}`;
+      const picVal = (row as any).pic || (row as any).image || (catCode ? `${catCode}.jpeg` : '');
+
+      let updatedModelName = row.model_name;
+      if (!isParent) {
+        updatedModelName = '';
+      } else {
+        const editedVal = editedModelNames[figKey];
+        if (editedVal !== undefined) {
+          updatedModelName = buildComposedModelName(editedVal, figModelCode, figName);
+        } else if (globalModelInput.trim()) {
+          const rawGlobal = extractRawModelName(globalModelInput);
+          const globalBrand = detectBrand(globalModelInput);
+          updatedModelName = buildComposedModelName(rawGlobal, figModelCode, figName, globalBrand);
+        }
       }
-      if (globalModelInput.trim()) {
-        const rawGlobal = extractRawModelName(globalModelInput);
-        const globalBrand = detectBrand(globalModelInput);
-        return { ...row, model_name: buildComposedModelName(rawGlobal, figModelCode, figName, globalBrand) };
+
+      let updatedPicPath = '';
+      if (isParent) {
+        const rawBasePic = (row as any).pic_path || picVal;
+        updatedPicPath = editedPicPaths[figKey] !== undefined ? editedPicPaths[figKey] : rawBasePic;
       }
-      return row;
+
+      return {
+        ...row,
+        model_name: updatedModelName,
+        pic: isParent ? picVal : '',
+        pic_path: updatedPicPath,
+      };
     });
-  }, [rows, editedModelNames, hasEdits, model_columns, globalModelInput]);
+  }, [rows, editedModelNames, editedPicPaths, hasEdits, model_columns, globalModelInput]);
 
   const handleModelNameEdit = useCallback((figKey: string, newValue: string) => {
     setEditedModelNames((prev) => ({ ...prev, [figKey]: newValue }));
+  }, []);
+
+  const handlePicPathEdit = useCallback((figKey: string, newValue: string) => {
+    setEditedPicPaths((prev) => ({ ...prev, [figKey]: newValue }));
   }, []);
 
   const handleApplyGlobalModelName = () => {
@@ -114,7 +136,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
       if (selectedFigure !== 'ALL' && row.fig_no !== selectedFigure) return false;
 
       if (selectedModel !== 'ALL') {
-        const val = String(row[selectedModel] ?? '').trim();
+        const val = String((row as any)[selectedModel] ?? '').trim();
         if (!val || val === '-' || val === '0' || val === '*' ||
           val.toLowerCase() === 'none' || val.toLowerCase() === 'null') return false;
       }
@@ -384,6 +406,8 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
         cleanParts={cleanParts}
         editedModelNames={editedModelNames}
         onModelNameEdit={handleModelNameEdit}
+        editedPicPaths={editedPicPaths}
+        onPicPathEdit={handlePicPathEdit}
       />
     </div>
   );

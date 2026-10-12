@@ -23,6 +23,10 @@ export interface PartsTableProps {
   editedModelNames?: Record<string, string>;
   /** Called when user commits an edited model name for a figure. */
   onModelNameEdit?: (figKey: string, newValue: string) => void;
+  /** Map of fig_key → edited pic path. Only parent rows are editable. */
+  editedPicPaths?: Record<string, string>;
+  /** Called when user commits an edited pic path for a figure. */
+  onPicPathEdit?: (figKey: string, newValue: string) => void;
   /** Optional callback when rows are updated */
   onRowsUpdate?: (updatedRows: PartRow[]) => void;
   /** Optional handler to trigger Interactive Hotspot diagram modal */
@@ -36,6 +40,7 @@ type SortField =
   | 'catalogue_code'
   | 'model_name'
   | 'pic'
+  | 'pic_path'
   | 'ref_no'
   | 'part_no'
   | 'description'
@@ -51,6 +56,8 @@ export const PartsTable: React.FC<PartsTableProps> = ({
   cleanParts,
   editedModelNames = {},
   onModelNameEdit,
+  editedPicPaths = {},
+  onPicPathEdit,
   onRowsUpdate: _onRowsUpdate,
   onOpenHotspotDiagram: _onOpenHotspotDiagram,
 }) => {
@@ -71,6 +78,12 @@ export const PartsTable: React.FC<PartsTableProps> = ({
   const [draftValue, setDraftValue] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
 
+  /** figKey of the pic_path cell currently being edited (null = none) */
+  const [editingPicPathFigKey, setEditingPicPathFigKey] = useState<string | null>(null);
+  /** Draft value while editing pic_path */
+  const [draftPicPath, setDraftPicPath] = useState<string>('');
+  const picPathInputRef = useRef<HTMLInputElement>(null);
+
   const startEditing = useCallback((figKey: string, currentRawModel: string) => {
     setEditingFigKey(figKey);
     setDraftValue(currentRawModel);
@@ -88,6 +101,22 @@ export const PartsTable: React.FC<PartsTableProps> = ({
       setEditingFigKey(null);
     },
     [draftValue, onModelNameEdit]
+  );
+
+  const startEditingPicPath = useCallback((figKey: string, currentPicPath: string) => {
+    setEditingPicPathFigKey(figKey);
+    setDraftPicPath(currentPicPath);
+    setTimeout(() => picPathInputRef.current?.focus(), 0);
+  }, []);
+
+  const commitPicPathEdit = useCallback(
+    (figKey: string) => {
+      if (onPicPathEdit) {
+        onPicPathEdit(figKey, draftPicPath.trim());
+      }
+      setEditingPicPathFigKey(null);
+    },
+    [draftPicPath, onPicPathEdit]
   );
 
   const handleSort = (field: SortField) => {
@@ -243,6 +272,16 @@ export const PartsTable: React.FC<PartsTableProps> = ({
               </th>
 
               <th
+                onClick={() => handleSort('pic_path')}
+                className="group px-3 py-3 font-bold cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors whitespace-nowrap min-w-[200px]"
+              >
+                <div className="flex items-center gap-1">
+                  <span>Pic Path</span>
+                  {renderSortIcon('pic_path')}
+                </div>
+              </th>
+
+              <th
                 onClick={() => handleSort('ref_no')}
                 className="group px-3 py-3 font-bold cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors whitespace-nowrap text-center w-16"
               >
@@ -314,7 +353,7 @@ export const PartsTable: React.FC<PartsTableProps> = ({
             {displayedItems.length === 0 ? (
               <tr>
                 <td
-                  colSpan={11 + modelColumns.length}
+                  colSpan={12 + modelColumns.length}
                   className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 font-sans"
                 >
                   No parts match the current filter or search criteria.
@@ -355,6 +394,15 @@ export const PartsTable: React.FC<PartsTableProps> = ({
 
                 const isEditing = isFirstOfFig && editingFigKey === figKey;
                 const isEdited = Boolean(rawOverride !== undefined || (extractedModelName && rawModelVal));
+
+                // Resolve Pic Path: default to picVal if empty
+                const rawPicPathOverride = editedPicPaths[figKey];
+                const activePicPath =
+                  rawPicPathOverride !== undefined
+                    ? rawPicPathOverride
+                    : ((row as any).pic_path || picVal);
+                const isPicPathEdited = rawPicPathOverride !== undefined;
+                const isEditingPicPath = isFirstOfFig && editingPicPathFigKey === figKey;
 
 
                 return (
@@ -478,6 +526,70 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                           <ImageIcon className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                           <span className="truncate">{picVal}</span>
                         </div>
+                      ) : (
+                        ''
+                      )}
+                    </td>
+
+                    {/* Inline-editable Pic Path cell with edit option on the left hand side */}
+                    <td className="px-2 py-1.5 min-w-[220px] max-w-[340px]">
+                      {isFirstOfFig ? (
+                        isEditingPicPath ? (
+                          <div className="flex items-center gap-1.5 p-1 rounded-xl border-2 border-blue-500 bg-white dark:bg-slate-900 shadow-md">
+                            <input
+                              ref={picPathInputRef}
+                              type="text"
+                              value={draftPicPath}
+                              onChange={(e) => setDraftPicPath(e.target.value)}
+                              onBlur={() => commitPicPathEdit(figKey)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') commitPicPathEdit(figKey);
+                                if (e.key === 'Escape') setEditingPicPathFigKey(null);
+                              }}
+                              placeholder="Enter Pic Path (e.g. images/...)..."
+                              className="flex-1 min-w-0 px-2 py-1 text-xs font-mono font-bold rounded-lg border border-blue-300 dark:border-blue-700 bg-blue-50/60 dark:bg-blue-950/40 text-blue-950 dark:text-blue-100 outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            <button
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                commitPicPathEdit(figKey);
+                              }}
+                              className="shrink-0 p-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white transition-colors cursor-pointer shadow-xs"
+                              title="Save Pic Path"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            className={`group flex items-center justify-between gap-1.5 cursor-pointer rounded-lg px-2.5 py-1.5 transition-all ${
+                              isPicPathEdited
+                                ? 'bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-700'
+                                : 'hover:bg-slate-100 dark:hover:bg-slate-800/80 border border-slate-200/60 dark:border-slate-800'
+                            }`}
+                            onClick={() => onPicPathEdit !== undefined && startEditingPicPath(figKey, activePicPath)}
+                            title={onPicPathEdit ? `Click to edit / add text to Pic Path: ${activePicPath}` : activePicPath}
+                          >
+                            <div className="flex items-center gap-1.5 text-xs truncate">
+                              {onPicPathEdit && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    startEditingPicPath(figKey, activePicPath);
+                                  }}
+                                  className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 transition-colors cursor-pointer shrink-0"
+                                  title="Edit / add text to Pic Path"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <span className="font-mono text-slate-700 dark:text-slate-300 truncate" title={activePicPath}>
+                                {activePicPath}
+                              </span>
+                            </div>
+                          </div>
+                        )
                       ) : (
                         ''
                       )}

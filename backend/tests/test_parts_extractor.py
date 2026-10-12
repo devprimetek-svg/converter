@@ -383,9 +383,9 @@ def test_parent_cell_blanking_and_catalogue_code_in_excel():
     wb = openpyxl.load_workbook(buf)
     ws = wb.active
 
-    # Check Headers — now includes Model Name between Catalogue Code and Pic
-    headers = [ws.cell(row=1, column=c).value for c in range(1, 11)]
-    assert headers[:9] == ["Page", "Fig No.", "Parts Name", "Catalogue Code", "Model Name", "Pic", "Ref No.", "Part No.", "Description"]
+    # Check Headers — now includes Model Name between Catalogue Code and Pic, and Pic Path between Pic and Ref No.
+    headers = [ws.cell(row=1, column=c).value for c in range(1, 12)]
+    assert headers[:10] == ["Page", "Fig No.", "Parts Name", "Catalogue Code", "Model Name", "Pic", "Pic Path", "Ref No.", "Part No.", "Description"]
 
     # Figure 1 - Row 2 (Parent Cell)
     assert ws.cell(row=2, column=1).value == "1"            # Page
@@ -395,27 +395,30 @@ def test_parent_cell_blanking_and_catalogue_code_in_excel():
     # Model Name: YAMAHA BGPK Series CYLINDER (no pdf model name in unit test rows)
     assert "CYLINDER" in ws.cell(row=2, column=5).value    # Model Name (contains parts name)
     assert ws.cell(row=2, column=6).value == "YAM_BGPK_CYLINDER.jpeg"  # Pic (Parent Image Record)
-    assert ws.cell(row=2, column=7).value == "1"            # Ref No.
-    assert ws.cell(row=2, column=8).value == "BGP-E1111-00" # Part No.
+    assert ws.cell(row=2, column=7).value == "YAM_BGPK_CYLINDER.jpeg"  # Pic Path (Parent Path Record)
+    assert ws.cell(row=2, column=8).value == "1"            # Ref No.
+    assert ws.cell(row=2, column=9).value == "BGP-E1111-00" # Part No.
 
-    # Figure 1 - Row 3 (Child 1: page, fig_no, fig_name, catalogue_code, model_name, pic must be blank)
+    # Figure 1 - Row 3 (Child 1: page, fig_no, fig_name, catalogue_code, model_name, pic, pic_path must be blank)
     assert (ws.cell(row=3, column=1).value or "") == ""     # Page (BLANK)
     assert (ws.cell(row=3, column=2).value or "") == ""     # Fig No. (BLANK)
     assert (ws.cell(row=3, column=3).value or "") == ""     # Parts Name (BLANK)
     assert (ws.cell(row=3, column=4).value or "") == ""     # Catalogue Code (BLANK)
     assert (ws.cell(row=3, column=5).value or "") == ""     # Model Name (BLANK)
     assert (ws.cell(row=3, column=6).value or "") == ""     # Pic (BLANK)
-    assert ws.cell(row=3, column=7).value == "2"            # Ref No.
-    assert ws.cell(row=3, column=8).value == "90105-088D1"
+    assert (ws.cell(row=3, column=7).value or "") == ""     # Pic Path (BLANK)
+    assert ws.cell(row=3, column=8).value == "2"            # Ref No.
+    assert ws.cell(row=3, column=9).value == "90105-088D1"
 
-    # Figure 1 - Row 4 (Child 2: page, fig_no, fig_name, catalogue_code, model_name, pic must be blank)
+    # Figure 1 - Row 4 (Child 2: page, fig_no, fig_name, catalogue_code, model_name, pic, pic_path must be blank)
     assert (ws.cell(row=4, column=1).value or "") == ""     # Page (BLANK)
     assert (ws.cell(row=4, column=2).value or "") == ""     # Fig No. (BLANK)
     assert (ws.cell(row=4, column=3).value or "") == ""     # Parts Name (BLANK)
     assert (ws.cell(row=4, column=4).value or "") == ""     # Catalogue Code (BLANK)
     assert (ws.cell(row=4, column=5).value or "") == ""     # Model Name (BLANK)
     assert (ws.cell(row=4, column=6).value or "") == ""     # Pic (BLANK)
-    assert ws.cell(row=4, column=7).value == "3"            # Ref No.
+    assert (ws.cell(row=4, column=7).value or "") == ""     # Pic Path (BLANK)
+    assert ws.cell(row=4, column=8).value == "3"            # Ref No.
 
     # Figure 2 - Row 5 (Parent Cell for Figure 2)
     assert ws.cell(row=5, column=1).value == "2"            # Page
@@ -424,16 +427,18 @@ def test_parent_cell_blanking_and_catalogue_code_in_excel():
     assert "CRANKSHAFT" in ws.cell(row=5, column=4).value  # Catalogue Code
     assert "CRANKSHAFT" in ws.cell(row=5, column=5).value  # Model Name
     assert "CRANKSHAFT.jpeg" in ws.cell(row=5, column=6).value  # Pic
-    assert ws.cell(row=5, column=7).value == "1"            # Ref No.
+    assert "CRANKSHAFT.jpeg" in ws.cell(row=5, column=7).value  # Pic Path
+    assert ws.cell(row=5, column=8).value == "1"            # Ref No.
 
-    # Figure 2 - Row 6 (Child 1: page, fig_no, fig_name, catalogue_code, model_name, pic must be blank)
+    # Figure 2 - Row 6 (Child 1: page, fig_no, fig_name, catalogue_code, model_name, pic, pic_path must be blank)
     assert (ws.cell(row=6, column=1).value or "") == ""     # Page (BLANK)
     assert (ws.cell(row=6, column=2).value or "") == ""     # Fig No. (BLANK)
     assert (ws.cell(row=6, column=3).value or "") == ""     # Parts Name (BLANK)
     assert (ws.cell(row=6, column=4).value or "") == ""     # Catalogue Code (BLANK)
     assert (ws.cell(row=6, column=5).value or "") == ""     # Model Name (BLANK)
     assert (ws.cell(row=6, column=6).value or "") == ""     # Pic (BLANK)
-    assert ws.cell(row=6, column=7).value == "2"            # Ref No.
+    assert (ws.cell(row=6, column=7).value or "") == ""     # Pic Path (BLANK)
+    assert ws.cell(row=6, column=8).value == "2"            # Ref No.
 
 
 def test_custom_edited_model_name_in_excel():
@@ -476,6 +481,53 @@ def test_custom_edited_model_name_in_excel():
     assert ws.cell(row=2, column=5).value == "YAMAHA BGPK R15 V4 Series CYLINDER"
     # Row 3 (Child): blank
     assert (ws.cell(row=3, column=5).value or "") == ""
+
+
+def test_custom_edited_pic_path_in_excel():
+    """Verify that when user edits pic_path (e.g. prepends 'images/'),
+    the parent cell in Excel contains the custom pic_path and child cells remain blank."""
+    rows = [
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "catalogue_code": "YAM_BGPK_CYLINDER",
+            "model_name": "YAMAHA BGPK R15 V4 Series CYLINDER",
+            "pic": "YAM_BGPK_CYLINDER.jpeg",
+            "pic_path": "images/YAM_BGPK_CYLINDER.jpeg",
+            "ref_no": "1",
+            "part_no": "BGP-E1111-00",
+            "description": "HEAD, CYLINDER 1",
+            "BGPK": "1",
+        },
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "catalogue_code": "",
+            "model_name": "",
+            "pic": "",
+            "pic_path": "",
+            "ref_no": "2",
+            "part_no": "90105-088D1",
+            "description": "BOLT, FLANGE",
+            "BGPK": "4",
+        },
+    ]
+
+    buf = generate_excel_workbook(rows=rows, model_columns=["BGPK"], model_code="BGPK")
+    wb = openpyxl.load_workbook(buf)
+    ws = wb.active
+
+    # Col 6 is Pic, Col 7 is Pic Path
+    assert ws.cell(row=1, column=6).value == "Pic"
+    assert ws.cell(row=1, column=7).value == "Pic Path"
+    # Row 2 (Parent): Pic has base pic, Pic Path has custom edited path
+    assert ws.cell(row=2, column=6).value == "YAM_BGPK_CYLINDER.jpeg"
+    assert ws.cell(row=2, column=7).value == "images/YAM_BGPK_CYLINDER.jpeg"
+    # Row 3 (Child): blank
+    assert (ws.cell(row=3, column=6).value or "") == ""
+    assert (ws.cell(row=3, column=7).value or "") == ""
 
 
 def test_raw_model_input_auto_formats_to_brand_code_series():
@@ -699,10 +751,12 @@ def test_ampersand_preserved_in_catalogue_code_and_parts_name():
     assert ws.cell(row=2, column=4).value == "YAM_BGPK_CRANKSHAFT & PISTON"
     # Check Model Name (Col 5)
     assert ws.cell(row=2, column=5).value == "YAMAHA BGPK FASCINO 125 Series CRANKSHAFT & PISTON"
-    # Check Description (Col 9) - '.' must be stripped
-    assert ws.cell(row=2, column=9).value == "CRANKSHAFT COMP"
     # Check Pic (Col 6)
     assert ws.cell(row=2, column=6).value == "YAM_BGPK_CRANKSHAFT & PISTON.jpeg"
+    # Check Pic Path (Col 7)
+    assert ws.cell(row=2, column=7).value == "YAM_BGPK_CRANKSHAFT & PISTON.jpeg"
+    # Check Description (Col 10) - '.' must be stripped
+    assert ws.cell(row=2, column=10).value == "CRANKSHAFT COMP"
 
 
 def test_remark_flag_column_with_x_on_parent_row():
