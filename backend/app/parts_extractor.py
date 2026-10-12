@@ -39,13 +39,11 @@ class PartRow(TypedDict):
     # Plus dynamic model code columns mapped as { "MODEL": "QTY" }
 
 
-class ExtractionResult(TypedDict, total=False):
+class ExtractionResult(TypedDict):
     rows: list[dict]
     model_columns: list[str]
     total_pages: int
     figures: list[dict]
-    page_figure_map: dict[int, dict[str, str]]
-    contents_figures: list[dict[str, str]]
 
 
 def build_catalogue_code(model_code: str, fig_name: str, fig_no: str = "") -> str:
@@ -411,47 +409,6 @@ def detect_vertical_model_columns(
     return model_columns
 
 
-def parse_contents_page(lines: list[list[dict]]) -> list[dict[str, str]]:
-    """Parse a CONTENTS page listing parts names under ENGINE and CHASSIS sections.
-    Returns list of dicts:
-    [{"fig_no": "1", "fig_name": "CYLINDER HEAD", "section": "ENGINE"}, ...]
-    """
-    entries: list[dict[str, str]] = []
-    current_section = "ENGINE"
-    for line in lines:
-        line_str = " ".join(w["text"] for w in line).strip()
-        line_upper = line_str.upper()
-        if re.search(r"\bENGINE\b", line_upper) and len(line_upper.split()) <= 4:
-            current_section = "ENGINE"
-            continue
-        elif re.search(r"\bCHASSIS\b", line_upper) and len(line_upper.split()) <= 4:
-            current_section = "CHASSIS"
-            continue
-        elif re.search(r"\bELECTRICAL\b", line_upper) and len(line_upper.split()) <= 4:
-            current_section = "CHASSIS"
-            continue
-
-        # Match figure entry: e.g. "FIG. 1 CYLINDER HEAD" or "FIG. 1 CYLINDER HEAD ... 1" or "1 CYLINDER HEAD 1"
-        matches = re.finditer(
-            r"(?:FIG\.?\s*)?(\b\d+[A-Za-z]?\b)\s+([A-Za-z0-9\s&/,\.\-\(\)]+?)(?:\s+\.{2,}|\s+\d+\s*$|$)",
-            line_str,
-            flags=re.IGNORECASE,
-        )
-        for m in matches:
-            f_no = m.group(1).strip()
-            f_name = m.group(2).strip()
-            # Clean trailing dots, page digits, or quotes
-            f_name = re.sub(r"[\.\s]+$", "", f_name).strip()
-            f_name = re.sub(r"\s+\d+$", "", f_name).strip()
-            if f_name and not re.match(r"^(?:PAGE|NO|REF|PART|DESCRIPTION|REMARKS|CONTENTS|INDEX)$", f_name, re.IGNORECASE):
-                entries.append({
-                    "fig_no": f_no,
-                    "fig_name": f_name,
-                    "section": current_section,
-                })
-    return entries
-
-
 def extract_parts_from_pdf(
     pdf_source: io.BytesIO | bytes | str,
     progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
@@ -501,7 +458,6 @@ def extract_parts_from_pdf(
     last_ref_no: str = ""
     last_known_model_columns: list[ModelColumn] = []
     page_figure_map: dict[int, dict[str, str]] = {}
-    contents_figures: list[dict[str, str]] = []
 
     total_words_extracted = 0
 
@@ -532,33 +488,6 @@ def extract_parts_from_pdf(
             if is_numerical_index:
                 if progress_callback:
                     progress_callback(page_num, total_pages, "INDEX", "NUMERICAL INDEX")
-                continue
-
-            # Check for CONTENTS page listing ENGINE and CHASSIS parts names
-            is_contents = False
-            for line in lines[:6]:
-                line_str = " ".join(w["text"].upper() for w in line)
-                if re.search(r"\b(?:CONTENTS|TABLE\s+OF\s+CONTENTS)\b", line_str):
-                    is_contents = True
-                    break
-
-            if is_contents:
-                found_entries = parse_contents_page(lines)
-                if found_entries:
-                    contents_figures.extend(found_entries)
-                    for entry in found_entries:
-                        f_no = entry["fig_no"]
-                        f_name = entry["fig_name"]
-                        if f_no not in seen_fig_set:
-                            seen_fig_set.add(f_no)
-                            figures_seen.append({
-                                "fig_no": f_no,
-                                "fig_name": f_name,
-                                "first_page": page_num,
-                                "section": entry.get("section", "PARTS"),
-                            })
-                if progress_callback:
-                    progress_callback(page_num, total_pages, "CONTENTS", "CONTENTS")
                 continue
 
             # Rule 3: Detect page heading matching regex ^FIG\.?\s*(\d+[A-Za-z]?)\s+(.*)$
@@ -889,5 +818,4 @@ def extract_parts_from_pdf(
         "total_pages": total_pages,
         "figures": figures_seen,
         "page_figure_map": page_figure_map,
-        "contents_figures": contents_figures,
     }

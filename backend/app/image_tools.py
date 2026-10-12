@@ -363,7 +363,6 @@ def get_text_below_image(page: Any, img_bbox: dict[str, Any], vertical_margin: f
 def extract_images_from_pdf(
     pdf_bytes: bytes,
     figure_pages: Optional[dict[int, dict[str, str]]] = None,
-    contents_figures: Optional[list[dict[str, Any]]] = None,
     parts_only: bool = False,
     min_dimension: int = 150,
     model_code: Optional[str] = None,
@@ -371,7 +370,7 @@ def extract_images_from_pdf(
 ) -> list[dict[str, Any]]:
     """Extract embedded raster images from a PDF document in-memory.
 
-    - Parts diagrams are mapped from figure pages and CONTENTS page entries (Engine & Chassis).
+    - Parts diagrams are mapped from figure pages.
     - If include_bike_images is True, motorcycle photographs located on non-figure pages
       (e.g. Color Chart, Overview, Cover pages) with Color Name or Color Code written
       beneath them are extracted cleanly without watermark, regardless of color saturation.
@@ -390,7 +389,7 @@ def extract_images_from_pdf(
     if not clean_model_code:
         clean_model_code = "MODEL"
 
-    effective_parts_only = parts_only or (figure_pages is not None and len(figure_pages) > 0) or (contents_figures is not None and len(contents_figures) > 0)
+    effective_parts_only = parts_only or (figure_pages is not None and len(figure_pages) > 0)
     effective_min_dim = min_dimension if effective_parts_only else 10
 
     plumber_pdf = None
@@ -404,6 +403,10 @@ def extract_images_from_pdf(
     try:
         for page_idx, page in enumerate(reader.pages):
             page_num = page_idx + 1
+
+            # Check if this page is registered as a parts figure page
+            fig_info = figure_pages.get(page_num) if figure_pages else None
+            is_figure_page = bool(fig_info)
 
             # Plumber page and image bboxes
             plumber_page = None
@@ -427,49 +430,8 @@ def extract_images_from_pdf(
                 except Exception:
                     pass
 
-            # Check if this page is registered as a parts figure page
-            fig_info = None
-            if not is_color_chart_page:
-                fig_info = figure_pages.get(page_num) if figure_pages else None
-
-                # If not explicitly on page_num, detect figure match via adjacent pages or text (only for page_num > 1)
-                if not fig_info and figure_pages and page_num > 1:
-                    if plumber_page:
-                        try:
-                            p_txt = plumber_page.extract_text() or ""
-                            m_fig = re.search(r'\bFIG\.?\s*(\d+[A-Za-z]?)\b', p_txt, re.IGNORECASE)
-                            if m_fig:
-                                matched_no = m_fig.group(1).strip()
-                                for fp in figure_pages.values():
-                                    if fp.get("fig_no") == matched_no:
-                                        fig_info = fp
-                                        break
-                        except Exception:
-                            pass
-                    if not fig_info:
-                        # In Yamaha catalogues, illustration is often on page N, table on page N+1 or N-1
-                        if (page_num + 1) in figure_pages:
-                            fig_info = figure_pages[page_num + 1]
-                        elif (page_num - 1) in figure_pages:
-                            fig_info = figure_pages[page_num - 1]
-
-                # If still not found, check contents_figures by text on page (only for page_num > 1)
-                if not fig_info and contents_figures and page_num > 1:
-                    if plumber_page:
-                        try:
-                            p_txt = (plumber_page.extract_text() or "").upper()
-                            for cf in contents_figures:
-                                fn = cf.get("fig_name", "").upper()
-                                if fn and fn in p_txt:
-                                    fig_info = cf
-                                    break
-                        except Exception:
-                            pass
-
-            is_figure_page = bool(fig_info)
-
             if effective_parts_only and figure_pages is not None and not is_figure_page:
-                if not include_bike_images and not contents_figures:
+                if not include_bike_images:
                     continue
 
             # Soft masks (SMask) collection to prevent extracting alpha stencils
@@ -618,33 +580,7 @@ def extract_images_from_pdf(
                             fig_no = "BIKE"
                             fig_name = f"{color_name} ({color_code})" if (color_name and color_code) else (color_name or (f"BIKE {color_code}" if color_code else "BIKE PHOTO"))
                         else:
-                            # If not explicitly a bike, check if this is an unmapped diagram for a figure from contents_figures
-                            if contents_figures and (width >= 150 and height >= 150):
-                                unassigned_cf = next(
-                                    (cf for cf in contents_figures if cf.get("fig_name") and f"{cf.get('fig_no')}_{re.sub(r'[^A-Z0-9]+', ' ', cf['fig_name'].upper()).strip()}" not in fig_counter),
-                                    None
-                                )
-                                if unassigned_cf:
-                                    fig_no = str(unassigned_cf.get("fig_no", "")).strip()
-                                    fig_name = str(unassigned_cf.get("fig_name", "")).strip()
-                                    clean_part_name = re.sub(r'[\/:*?"<>|\r\n\t]', " ", fig_name)
-                                    clean_part_name = re.sub(r"\s+", " ", clean_part_name).strip()
-                                    counter_key = f"{fig_no}_{clean_part_name}"
-                                    count = fig_counter.get(counter_key, 0) + 1
-                                    fig_counter[counter_key] = count
-                                    filename = f"YAM_{clean_model_code}_{clean_part_name}" if count == 1 else f"YAM_{clean_model_code}_{clean_part_name}_{count}"
-                                    fig_info = unassigned_cf
-                                else:
-                                    if effective_parts_only:
-                                        continue
-                                    clean_part_name = f"PAGE_{page_num}_IMG_{img_idx + 1}"
-                                    counter_key = clean_part_name
-                                    count = fig_counter.get(counter_key, 0) + 1
-                                    fig_counter[counter_key] = count
-                                    filename = f"YAM_{clean_model_code}_{clean_part_name}" if count == 1 else f"YAM_{clean_model_code}_{clean_part_name}_{count}"
-                                    fig_no = ""
-                                    fig_name = ""
-                            elif effective_parts_only:
+                            if effective_parts_only:
                                 continue
                             else:
                                 clean_part_name = f"PAGE_{page_num}_IMG_{img_idx + 1}"

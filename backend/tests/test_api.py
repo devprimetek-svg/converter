@@ -173,8 +173,8 @@ def test_model_split_retains_rows_and_splits_remarks_by_quantity():
     assert "YAM_BGPK_CYLINDER" in all_bgpk_texts
     assert "YAM_BGPK_CYLINDER.jpeg" in all_bgpk_texts
 
-    # Row 2 (BGPK is blank) is retained to preserve figure sequence, but its remarks are BLANK
-    assert "90430-06817" in all_bgpk_texts
+    # Row 2 (BGPK is blank) must be EXCLUDED from BGPK sheet
+    assert "90430-06817" not in all_bgpk_texts
     assert "UR FOR BGPL ONLY" not in all_bgpk_texts
 
     # Row 3 (both blank) has no quantity in any model -> omitted
@@ -205,8 +205,8 @@ def test_model_split_retains_rows_and_splits_remarks_by_quantity():
     assert "YAM_BGPL_CYLINDER.jpeg" in all_bgpl_texts
     assert "YAM_BGPK_CYLINDER" not in all_bgpl_texts
 
-    # Row 1 (BGPL is "-") is retained to preserve figure sequence, but its remarks are BLANK
-    assert "95022-06010" in all_bgpl_texts
+    # Row 1 (BGPL is "-") must be EXCLUDED from BGPL sheet
+    assert "95022-06010" not in all_bgpl_texts
     assert "UR FOR BGPK ONLY" not in all_bgpl_texts
 
     # 3. Export ALL models

@@ -896,25 +896,19 @@ def test_split_excel_remarks_by_model_quantity():
     assert ws1.cell(row=3, column=qty_col1).value == "4"
     assert ws1.cell(row=3, column=rem_col1).value == "UR FOR RED"
 
-    # Row 4 (Ref 3): BGP1 qty was BLANK -> qty and remarks are BLANK (data removed for this model)
-    assert (ws1.cell(row=4, column=qty_col1).value or "") == ""
-    assert (ws1.cell(row=4, column=rem_col1).value or "") == ""
-
-    # Row 5 (Ref 1 of Fig 2): BGP1 qty 1, Remarks "UR FOR SILVER"
-    assert ws1.cell(row=5, column=qty_col1).value == "1"
-    assert ws1.cell(row=5, column=rem_col1).value == "UR FOR SILVER"
-    assert ws1.cell(row=5, column=flag_col1).value == "X"
+    # Ref 3 (BGP1 qty was BLANK) is excluded from BGP1 sheet!
+    # Row 4 is Ref 1 of Fig 2: BGP1 qty 1, Remarks "UR FOR SILVER"
+    assert ws1.cell(row=4, column=qty_col1).value == "1"
+    assert ws1.cell(row=4, column=rem_col1).value == "UR FOR SILVER"
+    assert ws1.cell(row=4, column=flag_col1).value == "X"
+    # Total data rows in BGP1 sheet is 3
+    assert ws1.max_row == 4
 
     # Model code assertions for BGP1:
     assert ws1.cell(row=2, column=3).value == "CYLINDER"
     assert ws1.cell(row=2, column=4).value == "YAM_BGP1_CYLINDER"
     assert ws1.cell(row=2, column=5).value == "YAMAHA BGP1 Series CYLINDER"
     assert ws1.cell(row=2, column=6).value == "YAM_BGP1_CYLINDER.jpeg"
-
-    assert ws1.cell(row=5, column=3).value == "CRANKSHAFT"
-    assert ws1.cell(row=5, column=4).value == "YAM_BGP1_CRANKSHAFT"
-    assert ws1.cell(row=5, column=5).value == "YAMAHA BGP1 Series CRANKSHAFT"
-    assert ws1.cell(row=5, column=6).value == "YAM_BGP1_CRANKSHAFT.jpeg"
 
     # --- Test BGP2 Split Excel ---
     bgp2_buf = generate_excel_workbook(catalogue_rows, model_columns=["BGP2"], model_code="BGP2")
@@ -935,60 +929,20 @@ def test_split_excel_remarks_by_model_quantity():
     assert ws2.cell(row=2, column=rem_col2).value == "STD"
     assert ws2.cell(row=2, column=flag_col2).value == "X"
 
-    # Row 3 (Ref 2): BGP2 qty was BLANK -> qty and remarks are BLANK
-    assert (ws2.cell(row=3, column=qty_col2).value or "") == ""
-    assert (ws2.cell(row=3, column=rem_col2).value or "") == ""
+    # Ref 2 (BGP2 was blank) is excluded!
+    # Row 3 is Ref 3: BGP2 qty 2, Remarks "UR FOR BLUE"
+    assert ws2.cell(row=3, column=qty_col2).value == "2"
+    assert ws2.cell(row=3, column=rem_col2).value == "UR FOR BLUE"
 
-    # Row 4 (Ref 3): BGP2 qty 2, Remarks "UR FOR BLUE"
-    assert ws2.cell(row=4, column=qty_col2).value == "2"
-    assert ws2.cell(row=4, column=rem_col2).value == "UR FOR BLUE"
+    # Fig 2 Ref 1 (BGP2 was blank) is excluded!
+    # Total data rows in BGP2 sheet is 2
+    assert ws2.max_row == 3
 
-    # Row 5 (Ref 1 of Fig 2): BGP2 qty was BLANK -> qty and remarks are BLANK; Remark Flag is blank
-    assert (ws2.cell(row=5, column=qty_col2).value or "") == ""
-    assert (ws2.cell(row=5, column=rem_col2).value or "") == ""
-    assert (ws2.cell(row=5, column=flag_col2).value or "") == ""
-
-    # Model code assertions for BGP2: replaced BGP1 with BGP2, but parts names and images are present!
+    # Model code assertions for BGP2: replaced BGP1 with BGP2!
     assert ws2.cell(row=2, column=3).value == "CYLINDER"
     assert ws2.cell(row=2, column=4).value == "YAM_BGP2_CYLINDER"
     assert ws2.cell(row=2, column=5).value == "YAMAHA BGP2 Series CYLINDER"
     assert ws2.cell(row=2, column=6).value == "YAM_BGP2_CYLINDER.jpeg"
-
-    assert ws2.cell(row=5, column=3).value == "CRANKSHAFT"
-    assert ws2.cell(row=5, column=4).value == "YAM_BGP2_CRANKSHAFT"
-    assert ws2.cell(row=5, column=5).value == "YAMAHA BGP2 Series CRANKSHAFT"
-    assert ws2.cell(row=5, column=6).value == "YAM_BGP2_CRANKSHAFT.jpeg"
-
-
-def test_contents_page_parsing():
-    """Verify that CONTENTS page listing ENGINE and CHASSIS parts names is parsed correctly."""
-    from app.parts_extractor import parse_contents_page
-
-    def make_word(text: str, x0: float = 50.0) -> dict:
-        return {"text": text, "x0": x0, "x1": x0 + len(text) * 6, "top": 100, "bottom": 110}
-
-    lines = [
-        [make_word("CONTENTS")],
-        [make_word("ENGINE")],
-        [make_word("FIG."), make_word("1"), make_word("CYLINDER"), make_word("HEAD"), make_word("1", 400)],
-        [make_word("FIG."), make_word("2"), make_word("CRANKSHAFT"), make_word("&"), make_word("PISTON"), make_word("2", 400)],
-        [make_word("CHASSIS")],
-        [make_word("FIG."), make_word("14"), make_word("FENDER"), make_word("17", 400)],
-    ]
-
-    entries = parse_contents_page(lines)
-    assert len(entries) == 3
-    assert entries[0]["fig_no"] == "1"
-    assert entries[0]["fig_name"] == "CYLINDER HEAD"
-    assert entries[0]["section"] == "ENGINE"
-
-    assert entries[1]["fig_no"] == "2"
-    assert entries[1]["fig_name"] == "CRANKSHAFT & PISTON"
-    assert entries[1]["section"] == "ENGINE"
-
-    assert entries[2]["fig_no"] == "14"
-    assert entries[2]["fig_name"] == "FENDER"
-    assert entries[2]["section"] == "CHASSIS"
 
 
 
