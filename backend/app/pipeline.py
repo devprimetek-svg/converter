@@ -201,6 +201,7 @@ def run_pipeline_worker(
         parts_result = extract_parts_from_pdf(pdf_bytes, progress_callback=on_page_progress)
 
         page_figure_map = parts_result.get("page_figure_map", {})
+        contents_figures = parts_result.get("contents_figures", [])
 
         with job.lock:
             job.total_pages = parts_result.get("total_pages", 0)
@@ -287,7 +288,16 @@ def run_pipeline_worker(
         model_excel_data: dict[str, dict[str, Any]] = {}
         if model_codes:
             for m in model_codes:
-                m_rows = [r for r in job.rows if is_valid_quantity(r.get(m))]
+                m_rows = []
+                for r in job.rows:
+                    r_copy = dict(r)
+                    if m in job.model_columns:
+                        if is_valid_quantity(r_copy.get(m)):
+                            r_copy[m] = str(r_copy.get(m)).strip()
+                        else:
+                            r_copy[m] = ""
+                            r_copy["remarks"] = ""
+                    m_rows.append(r_copy)
 
                 m_excel_buf = generate_excel_workbook(
                     rows=m_rows,
@@ -317,13 +327,19 @@ def run_pipeline_worker(
         raw_images = extract_images_from_pdf(
             pdf_bytes=pdf_bytes,
             figure_pages=page_figure_map if page_figure_map else None,
-            parts_only=bool(page_figure_map),
+            contents_figures=contents_figures if contents_figures else None,
+            parts_only=bool(page_figure_map or contents_figures),
             model_code=pipeline_model_code,
         )
 
         # Fallback if no images found with figure filter but images exist in PDF
         if not raw_images:
-            raw_images = extract_images_from_pdf(pdf_bytes, parts_only=False, model_code=pipeline_model_code)
+            raw_images = extract_images_from_pdf(
+                pdf_bytes=pdf_bytes,
+                contents_figures=contents_figures if contents_figures else None,
+                parts_only=False,
+                model_code=pipeline_model_code,
+            )
 
         # Step 4: Watermark & Resize every extracted image immediately with strict presets
         with job.lock:

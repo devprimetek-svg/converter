@@ -177,12 +177,18 @@ def generate_excel_workbook(
     """
     if len(model_columns) == 1:
         target_model = model_columns[0]
+        # In single model split export, retain all parts rows so every figure and parts name record
+        # remains identical in both Excel files. If this model has valid recorded quantity, quantity and
+        # remarks are retained. If this model has blank quantity, quantity and remarks are cleared (blank).
         processed_rows = []
         for r in rows:
-            if is_valid_quantity(r.get(target_model)):
-                r_copy = dict(r)
+            r_copy = dict(r)
+            if is_valid_quantity(r_copy.get(target_model)):
                 r_copy[target_model] = str(r_copy.get(target_model)).strip()
-                processed_rows.append(r_copy)
+            else:
+                r_copy[target_model] = ""
+                r_copy["remarks"] = ""
+            processed_rows.append(r_copy)
         rows = processed_rows
         if sheet_title == "Parts List":
             sheet_title = f"Parts_{target_model}"[:31]
