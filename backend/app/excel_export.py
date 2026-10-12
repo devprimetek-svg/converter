@@ -371,7 +371,11 @@ def generate_excel_workbook(
             elif field_key == "pic_path":
                 val = curr_pic_path
             elif field_key == "remark_flag":
-                val = curr_remark_flag
+                row_rf = row_data.get("remark_flag")
+                if row_rf is not None and str(row_rf).strip() != "":
+                    val = str(row_rf).strip()
+                else:
+                    val = curr_remark_flag
             elif field_key == "part_no":
                 val = row_data.get("part_no", "")
                 if clean_parts:

@@ -23,9 +23,11 @@ import {
   X,
   CheckSquare,
   Square,
+  Flag,
 } from 'lucide-react';
 import type { PartRow } from '../types';
 import { PartsTable } from './PartsTable';
+import { cleanRemarks } from '../utils/cleanRemarks';
 import { extractRawModelName, buildComposedModelName, detectBrand } from '../utils/modelNameHelper';
 import { InteractiveHotspotDiagramModal } from './InteractiveHotspotDiagramModal';
 
@@ -159,6 +161,9 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
   const [globalModelInput, setGlobalModelInput] = useState<string>('');
   const [editedPicPaths, setEditedPicPaths] = useState<Record<string, string>>({});
   const [globalPicPathPrefix, setGlobalPicPathPrefix] = useState<string>('');
+  // Remark Flag Editing States: parent cell "X" and the 5 cells directly below it
+  const [globalRemarkFlagCells, setGlobalRemarkFlagCells] = useState<[string, string, string, string, string]>(['', '', '', '', '']);
+  const [editedRemarkFlags, setEditedRemarkFlags] = useState<Record<string, string>>({});
   const [isProceeding, setIsProceeding] = useState<boolean>(false);
 
   // Visual Diagram Modal State
@@ -172,20 +177,47 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
     Object.keys(editedModelNames).length > 0 ||
     globalModelInput.trim().length > 0 ||
     Object.keys(editedPicPaths).length > 0 ||
-    globalPicPathPrefix.trim().length > 0;
+    globalPicPathPrefix.trim().length > 0 ||
+    Object.keys(editedRemarkFlags).length > 0 ||
+    globalRemarkFlagCells.some((c) => c.trim().length > 0);
 
   const rowsWithEdits: PartRow[] = useMemo(() => {
     const baseRows: PartRow[] = status?.rows || status?.rows_sample || [];
-    const hasModelEdits = Object.keys(editedModelNames).length > 0 || globalModelInput.trim().length > 0;
-    const hasPicPathEdits = Object.keys(editedPicPaths).length > 0 || globalPicPathPrefix.trim().length > 0;
-    if (!hasModelEdits && !hasPicPathEdits) return baseRows;
+    if (!baseRows || baseRows.length === 0) return [];
+
     const rawGlobal = extractRawModelName(globalModelInput);
     const globalBrand = detectBrand(globalModelInput);
     const globalPrefix = globalPicPathPrefix.trim();
 
+    // Identify which figure groups contain remarks
+    const figsWithRemarks = new Set<string>();
+    for (const r of baseRows) {
+      if ((r as any).remark_flag === 'X') {
+        const fn = String((r as any).parent_fig_no || r.fig_no || '').trim();
+        const fnn = String((r as any).parent_fig_name || r.fig_name || '').trim();
+        figsWithRemarks.add(`${fn}__${fnn}`);
+      } else if (cleanRemarks(r.remarks)) {
+        const fn = String((r as any).parent_fig_no || r.fig_no || '').trim();
+        const fnn = String((r as any).parent_fig_name || r.fig_name || '').trim();
+        figsWithRemarks.add(`${fn}__${fnn}`);
+      }
+    }
+
+    let currentFigKey = '';
+    let currentOffset = 0;
+
     return baseRows.map((row) => {
       const isParent = (row as any).is_parent || String(row.ref_no).trim() === '1';
       const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
+
+      if (figKey !== currentFigKey) {
+        currentFigKey = figKey;
+        currentOffset = 0;
+      } else {
+        currentOffset++;
+      }
+      const figRowOffset = currentOffset;
+
       const figModelCode = (row as any).model_code || status?.model_columns?.[0] || 'MODEL';
       const figName = (row as any).parent_fig_name || row.fig_name || 'PARTS';
       const cleanFig = figName.replace(/[^A-Za-z0-9&]+/g, ' ').trim().toUpperCase() || 'PARTS';
@@ -216,14 +248,52 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
         }
       }
 
+      // Remark Flag resolution
+      const hasFigureRemarks = figsWithRemarks.has(figKey);
+      let updatedRemarkFlag = (row as any).remark_flag || '';
+      const cellKey = `${figKey}__slot_${figRowOffset}`;
+
+      if (hasFigureRemarks) {
+        if (figRowOffset <= 5) {
+          if (editedRemarkFlags[cellKey] !== undefined) {
+            updatedRemarkFlag = editedRemarkFlags[cellKey];
+          } else if (figRowOffset === 0) {
+            updatedRemarkFlag = (row as any).remark_flag || 'X';
+          } else {
+            const batchVal = globalRemarkFlagCells[figRowOffset - 1];
+            if (batchVal !== undefined && batchVal !== '') {
+              updatedRemarkFlag = batchVal;
+            } else {
+              updatedRemarkFlag = (row as any).remark_flag || '';
+            }
+          }
+        } else {
+          updatedRemarkFlag = '';
+        }
+      } else {
+        updatedRemarkFlag = '';
+      }
+
       return {
         ...row,
+        fig_row_offset: figRowOffset,
         model_name: updatedModelName,
         pic: isParent ? picVal : '',
         pic_path: updatedPicPath,
+        remark_flag: updatedRemarkFlag,
       };
     });
-  }, [status?.rows, status?.rows_sample, status?.model_columns, editedModelNames, globalModelInput, editedPicPaths, globalPicPathPrefix]);
+  }, [
+    status?.rows,
+    status?.rows_sample,
+    status?.model_columns,
+    editedModelNames,
+    globalModelInput,
+    editedPicPaths,
+    globalPicPathPrefix,
+    editedRemarkFlags,
+    globalRemarkFlagCells,
+  ]);
 
   const effectiveRows: PartRow[] = rowsWithEdits;
 
@@ -292,6 +362,54 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
       }
     });
     setEditedPicPaths(newEdits);
+  };
+
+  const handleRemarkFlagEdit = useCallback((cellKey: string, newValue: string) => {
+    setEditedRemarkFlags((prev) => ({ ...prev, [cellKey]: newValue }));
+  }, []);
+
+  const handleApplyGlobalRemarkFlagCells = () => {
+    const hasAnyVal = globalRemarkFlagCells.some((c) => c.trim().length > 0);
+    if (!hasAnyVal || !status?.rows) return;
+
+    // Detect figures with remarks
+    const figsWithRemarks = new Set<string>();
+    status.rows.forEach((r) => {
+      if ((r as any).remark_flag === 'X' || cleanRemarks(r.remarks)) {
+        const fn = String((r as any).parent_fig_no || r.fig_no || '').trim();
+        const fnn = String((r as any).parent_fig_name || r.fig_name || '').trim();
+        figsWithRemarks.add(`${fn}__${fnn}`);
+      }
+    });
+
+    const newEdits = { ...editedRemarkFlags };
+    let currentFigKey = '';
+    let currentOffset = 0;
+
+    status.rows.forEach((row) => {
+      const figKey = `${(row as any).parent_fig_no || row.fig_no}__${(row as any).parent_fig_name || row.fig_name}`;
+      if (figKey !== currentFigKey) {
+        currentFigKey = figKey;
+        currentOffset = 0;
+      } else {
+        currentOffset++;
+      }
+
+      if (figsWithRemarks.has(figKey) && currentOffset >= 1 && currentOffset <= 5) {
+        const cellKey = `${figKey}__slot_${currentOffset}`;
+        const val = globalRemarkFlagCells[currentOffset - 1];
+        if (val !== undefined && val !== '') {
+          newEdits[cellKey] = val;
+        }
+      }
+    });
+
+    setEditedRemarkFlags(newEdits);
+  };
+
+  const handleResetRemarkFlagCells = () => {
+    setGlobalRemarkFlagCells(['', '', '', '', '']);
+    setEditedRemarkFlags({});
   };
 
   const handleProceedPipeline = async () => {
@@ -1313,14 +1431,70 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                   </button>
                 )}
               </div>
+
+              {/* Row 3: Remark Flag Cells Editor (5 cells directly below 'X') */}
+              <div className="flex flex-col gap-2 pt-2.5 border-t border-zinc-200/80 dark:border-zinc-800">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-amber-700 dark:text-amber-400 whitespace-nowrap min-w-[80px] flex items-center gap-1.5">
+                    <Flag className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    Remark Flag (5 Cells Below X):
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleApplyGlobalRemarkFlagCells}
+                      disabled={!globalRemarkFlagCells.some((c) => c.trim().length > 0)}
+                      className="px-4 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/80 dark:hover:bg-amber-900 text-amber-900 dark:text-amber-200 text-xs font-semibold whitespace-nowrap disabled:opacity-40 transition-colors cursor-pointer"
+                      title="Apply these 5 values to the 5 cells below 'X' in all figures with remarks"
+                    >
+                      Apply to All Figures
+                    </button>
+                    {(Object.keys(editedRemarkFlags).length > 0 || globalRemarkFlagCells.some((c) => c.trim().length > 0)) && (
+                      <button
+                        type="button"
+                        onClick={handleResetRemarkFlagCells}
+                        className="px-3 py-1.5 rounded-xl text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer"
+                        title="Reset all 5 cells below X"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 5 Input text boxes */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {[0, 1, 2, 3, 4].map((slotIdx) => (
+                    <div key={slotIdx} className="relative flex items-center">
+                      <span className="absolute left-2.5 text-[10px] font-mono font-bold text-amber-600/70 dark:text-amber-400/70 select-none">
+                        #{slotIdx + 1}:
+                      </span>
+                      <input
+                        type="text"
+                        value={globalRemarkFlagCells[slotIdx]}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setGlobalRemarkFlagCells((prev) => {
+                            const next = [...prev] as [string, string, string, string, string];
+                            next[slotIdx] = val;
+                            return next;
+                          });
+                        }}
+                        placeholder={`Cell ${slotIdx + 1} below X`}
+                        className="w-full pl-8 pr-2 py-1.5 text-xs font-mono font-bold rounded-xl border border-amber-200 dark:border-amber-900 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Parts Table with Inline Model Name & Pic Path Editing */}
+          {/* Parts Table with Inline Model Name, Pic Path & Remark Flag Editing */}
           <div className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400">
-                Tip: Click any cell in <strong>Model Name</strong> to edit Model only, or use the edit option on the left-hand side of <strong>Pic Path</strong> to add text.
+                Tip: Click any cell in <strong>Model Name</strong> to edit Model only, edit the left-hand side of <strong>Pic Path</strong> to add text, or edit <strong>Remark Flag</strong> ('X' and 5 cells below it).
               </span>
               <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
                 <input
@@ -1341,6 +1515,8 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
               onModelNameEdit={handleModelNameEdit}
               editedPicPaths={editedPicPaths}
               onPicPathEdit={handlePicPathEdit}
+              editedRemarkFlags={editedRemarkFlags}
+              onRemarkFlagEdit={handleRemarkFlagEdit}
               onOpenHotspotDiagram={(figNo) => openHotspotForFigNo(figNo)}
             />
           </div>

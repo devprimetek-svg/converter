@@ -999,6 +999,121 @@ def test_split_excel_remarks_by_model_quantity():
     assert ws2.cell(row=2, column=6).value == "YAM_BGP2_CYLINDER.jpeg"
 
 
+def test_custom_remark_flag_cells_below_x():
+    """Verify that when a user inputs custom values in Remark Flag (on parent cell X
+    and the 5 cells below X), all are correctly preserved in the Excel output."""
+    rows = [
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "catalogue_code": "YAM_BGPK_CYLINDER",
+            "model_name": "YAMAHA BGPK Series CYLINDER",
+            "pic": "YAM_BGPK_CYLINDER.jpeg",
+            "ref_no": "1",
+            "part_no": "BGP-E1111-00",
+            "description": "HEAD, CYLINDER 1",
+            "BGPK": "1",
+            "remarks": "STD",
+            "remark_flag": "X",  # Parent cell (X)
+        },
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "ref_no": "2",
+            "part_no": "90105-088D1",
+            "description": "BOLT, FLANGE",
+            "BGPK": "4",
+            "remarks": "",
+            "remark_flag": "FLAG_CELL_1",  # Cell 1 below X
+        },
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "ref_no": "3",
+            "part_no": "90105-088D2",
+            "description": "GASKET",
+            "BGPK": "1",
+            "remarks": "",
+            "remark_flag": "FLAG_CELL_2",  # Cell 2 below X
+        },
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "ref_no": "4",
+            "part_no": "90105-088D3",
+            "description": "VALVE",
+            "BGPK": "2",
+            "remarks": "",
+            "remark_flag": "FLAG_CELL_3",  # Cell 3 below X
+        },
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "ref_no": "5",
+            "part_no": "90105-088D4",
+            "description": "SPRING",
+            "BGPK": "2",
+            "remarks": "",
+            "remark_flag": "FLAG_CELL_4",  # Cell 4 below X
+        },
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "ref_no": "6",
+            "part_no": "90105-088D5",
+            "description": "COLLAR",
+            "BGPK": "2",
+            "remarks": "",
+            "remark_flag": "FLAG_CELL_5",  # Cell 5 below X
+        },
+        {
+            "page": 1,
+            "fig_no": "1",
+            "fig_name": "CYLINDER",
+            "ref_no": "7",
+            "part_no": "90105-088D6",
+            "description": "NUT",
+            "BGPK": "2",
+            "remarks": "",
+            "remark_flag": "",            # Cell 6 (unfilled/blank)
+        },
+    ]
+
+    buf = generate_excel_workbook(rows=rows, model_columns=["BGPK"], model_code="BGPK")
+    wb = openpyxl.load_workbook(buf)
+    ws = wb.active
+
+    # Find the Remark Flag column index in header row 1
+    flag_col = None
+    for col in range(1, ws.max_column + 1):
+        if ws.cell(row=1, column=col).value == "Remark Flag":
+            flag_col = col
+            break
+    assert flag_col is not None
+
+    # Parent row (row 2 in excel): Ref 1 has "X"
+    assert ws.cell(row=2, column=flag_col).value == "X"
+    # Row 3 (Ref 2, slot 1 below X)
+    assert ws.cell(row=3, column=flag_col).value == "FLAG_CELL_1"
+    # Row 4 (Ref 3, slot 2 below X)
+    assert ws.cell(row=4, column=flag_col).value == "FLAG_CELL_2"
+    # Row 5 (Ref 4, slot 3 below X)
+    assert ws.cell(row=5, column=flag_col).value == "FLAG_CELL_3"
+    # Row 6 (Ref 5, slot 4 below X)
+    assert ws.cell(row=6, column=flag_col).value == "FLAG_CELL_4"
+    # Row 7 (Ref 6, slot 5 below X)
+    assert ws.cell(row=7, column=flag_col).value == "FLAG_CELL_5"
+    # Row 8 (Ref 7, slot 6) should be empty/blank
+    assert (ws.cell(row=8, column=flag_col).value or "") == ""
+
+
+
 
 
 
