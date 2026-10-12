@@ -287,23 +287,14 @@ def run_pipeline_worker(
         model_excel_data: dict[str, dict[str, Any]] = {}
         if model_codes:
             for m in model_codes:
-                m_rows = []
-                for r in job.rows:
-                    r_copy = dict(r)
-                    if m in job.model_columns:
-                        if is_valid_quantity(r_copy.get(m)):
-                            r_copy[m] = str(r_copy.get(m)).strip()
-                        else:
-                            r_copy[m] = ""
-                            r_copy["remarks"] = ""
-                    m_rows.append(r_copy)
+                m_rows = [r for r in job.rows if is_valid_quantity(r.get(m))]
 
                 m_excel_buf = generate_excel_workbook(
                     rows=m_rows,
                     model_columns=[m] if m in job.model_columns else (job.model_columns or [m]),
                     clean_parts=clean_parts,
                     sheet_title=f"Parts_{m}"[:31],
-                    model_code=pipeline_model_code,
+                    model_code=m,
                 )
                 m_excel_bytes = m_excel_buf.getvalue()
                 m_excel_fname = f"{base_name}_{m}_Parts.xlsx"
@@ -476,12 +467,13 @@ def run_pipeline_worker(
                     # 1. Add model-specific Excel sheet into its dedicated folder: {m}/
                     zf.writestr(f"{m}/{m_info['excel_filename']}", m_info["excel_bytes"])
 
-                    # 2. Add all catalogue diagrams into {m}/images/ (identical across all models)
+                    # 2. Add all catalogue diagrams into {m}/images/ (model code renamed to match m)
                     m_image_items: list[tuple[str, bytes]] = []
                     for fname, proc_bytes, _ in processed_items:
                         clean_name = fname if fname.lower().endswith(".jpeg") else f"{fname}.jpeg"
-                        zf.writestr(f"{m}/images/{clean_name}", proc_bytes)
-                        m_image_items.append((clean_name, proc_bytes))
+                        m_img_name = re.sub(r"^YAM_[A-Za-z0-9]+?_", f"YAM_{m}_", clean_name)
+                        zf.writestr(f"{m}/images/{m_img_name}", proc_bytes)
+                        m_image_items.append((m_img_name, proc_bytes))
 
                     # 3. Create standalone individual ZIP bundle for this model code
                     m_zip_buf = io.BytesIO()

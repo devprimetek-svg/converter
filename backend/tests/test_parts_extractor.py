@@ -873,7 +873,7 @@ def test_split_excel_remarks_by_model_quantity():
     ]
 
     # --- Test BGP1 Split Excel ---
-    bgp1_buf = generate_excel_workbook(catalogue_rows, model_columns=["BGP1"])
+    bgp1_buf = generate_excel_workbook(catalogue_rows, model_columns=["BGP1"], model_code="BGP1")
     wb1 = openpyxl.load_workbook(bgp1_buf)
     ws1 = wb1.active
 
@@ -896,18 +896,22 @@ def test_split_excel_remarks_by_model_quantity():
     assert ws1.cell(row=3, column=qty_col1).value == "4"
     assert ws1.cell(row=3, column=rem_col1).value == "UR FOR RED"
 
-    # Row 4 (Ref 3): BGP1 qty BLANK -> Remarks MUST BE BLANK!
-    assert (ws1.cell(row=4, column=qty_col1).value or "") == ""
-    assert (ws1.cell(row=4, column=rem_col1).value or "") == ""
+    # Ref 3 (BGP1 qty was BLANK) is excluded from BGP1 sheet!
+    # Row 4 is Ref 1 of Fig 2: BGP1 qty 1, Remarks "UR FOR SILVER"
+    assert ws1.cell(row=4, column=qty_col1).value == "1"
+    assert ws1.cell(row=4, column=rem_col1).value == "UR FOR SILVER"
+    assert ws1.cell(row=4, column=flag_col1).value == "X"
+    # Total data rows in BGP1 sheet is 3
+    assert ws1.max_row == 4
 
-    # Row 5 (Ref 1 of Fig 2): BGP1 qty 1, Remarks "UR FOR SILVER"
-    assert ws1.cell(row=5, column=qty_col1).value == "1"
-    assert ws1.cell(row=5, column=rem_col1).value == "UR FOR SILVER"
-    # Parent row Fig 2: Remark Flag is "X" for BGP1
-    assert ws1.cell(row=5, column=flag_col1).value == "X"
+    # Model code assertions for BGP1:
+    assert ws1.cell(row=2, column=3).value == "CYLINDER"
+    assert ws1.cell(row=2, column=4).value == "YAM_BGP1_CYLINDER"
+    assert ws1.cell(row=2, column=5).value == "YAMAHA BGP1 Series CYLINDER"
+    assert ws1.cell(row=2, column=6).value == "YAM_BGP1_CYLINDER.jpeg"
 
     # --- Test BGP2 Split Excel ---
-    bgp2_buf = generate_excel_workbook(catalogue_rows, model_columns=["BGP2"])
+    bgp2_buf = generate_excel_workbook(catalogue_rows, model_columns=["BGP2"], model_code="BGP2")
     wb2 = openpyxl.load_workbook(bgp2_buf)
     ws2 = wb2.active
 
@@ -923,33 +927,22 @@ def test_split_excel_remarks_by_model_quantity():
     # Row 2 (Ref 1): BGP2 qty 1, Remarks "STD"
     assert ws2.cell(row=2, column=qty_col2).value == "1"
     assert ws2.cell(row=2, column=rem_col2).value == "STD"
-    # Parent row Fig 1: Remark Flag is "X"
     assert ws2.cell(row=2, column=flag_col2).value == "X"
 
-    # Row 3 (Ref 2): BGP2 qty BLANK -> Remarks MUST BE BLANK!
-    assert (ws2.cell(row=3, column=qty_col2).value or "") == ""
-    assert (ws2.cell(row=3, column=rem_col2).value or "") == ""
+    # Ref 2 (BGP2 was blank) is excluded!
+    # Row 3 is Ref 3: BGP2 qty 2, Remarks "UR FOR BLUE"
+    assert ws2.cell(row=3, column=qty_col2).value == "2"
+    assert ws2.cell(row=3, column=rem_col2).value == "UR FOR BLUE"
 
-    # Row 4 (Ref 3): BGP2 qty 2, Remarks "UR FOR BLUE"
-    assert ws2.cell(row=4, column=qty_col2).value == "2"
-    assert ws2.cell(row=4, column=rem_col2).value == "UR FOR BLUE"
+    # Fig 2 Ref 1 (BGP2 was blank) is excluded!
+    # Total data rows in BGP2 sheet is 2
+    assert ws2.max_row == 3
 
-    # Row 5 (Ref 1 of Fig 2): BGP2 qty BLANK -> Remarks MUST BE BLANK!
-    assert (ws2.cell(row=5, column=qty_col2).value or "") == ""
-    assert (ws2.cell(row=5, column=rem_col2).value or "") == ""
-    # Parent row Fig 2: BGP2 has NO remarks in Fig 2 -> Remark Flag MUST BE BLANK!
-    assert (ws2.cell(row=5, column=flag_col2).value or "") == ""
-
-    # --- Verify Parts Name, Catalogue Code, Model Name, and Pic are IDENTICAL in both Excels ---
-    # Column 3: Parts Name
-    assert ws1.cell(row=2, column=3).value == ws2.cell(row=2, column=3).value == "CYLINDER"
-    assert ws1.cell(row=5, column=3).value == ws2.cell(row=5, column=3).value == "CRANKSHAFT"
-    # Column 4: Catalogue Code
-    assert ws1.cell(row=2, column=4).value == ws2.cell(row=2, column=4).value
-    # Column 5: Model Name
-    assert ws1.cell(row=2, column=5).value == ws2.cell(row=2, column=5).value
-    # Column 6: Pic (Images reference)
-    assert ws1.cell(row=2, column=6).value == ws2.cell(row=2, column=6).value
+    # Model code assertions for BGP2: replaced BGP1 with BGP2!
+    assert ws2.cell(row=2, column=3).value == "CYLINDER"
+    assert ws2.cell(row=2, column=4).value == "YAM_BGP2_CYLINDER"
+    assert ws2.cell(row=2, column=5).value == "YAMAHA BGP2 Series CYLINDER"
+    assert ws2.cell(row=2, column=6).value == "YAM_BGP2_CYLINDER.jpeg"
 
 
 

@@ -108,10 +108,10 @@ def test_multi_model_export():
 
 def test_model_split_retains_rows_and_splits_remarks_by_quantity():
     """Verify that when exporting an individual model from a multi-model catalogue:
-    1. All catalogue parts rows are retained so the parts list and figure sequence remain complete.
-    2. If a row has recorded quantity for the model, quantity and remarks are retained.
-    3. If a row has blank/invalid quantity for the model, quantity is blank and remarks is blank.
-    4. Rows having no quantity in ANY model are omitted.
+    1. Rows without valid quantity for that model are excluded. Only rows with valid quantity are retained.
+    2. Remarks are preserved for retained rows.
+    3. Model code in records (Catalogue Code, Model Name, Pic) reflects the exported model.
+    4. In Master export (ALL models), rows having quantity in any model are retained.
     """
     import openpyxl
 
@@ -170,9 +170,11 @@ def test_model_split_retains_rows_and_splits_remarks_by_quantity():
     # Row 1 must be present with quantity & remarks (BGPK has qty 2)
     assert "95022-06010" in all_bgpk_texts
     assert "UR FOR BGPK ONLY" in all_bgpk_texts
+    assert "YAM_BGPK_CYLINDER" in all_bgpk_texts
+    assert "YAM_BGPK_CYLINDER.jpeg" in all_bgpk_texts
 
-    # Row 2 (BGPK is blank) must be present in the sheet, but its remarks MUST be blank
-    assert "90430-06817" in all_bgpk_texts
+    # Row 2 (BGPK is blank) must be EXCLUDED from BGPK sheet
+    assert "90430-06817" not in all_bgpk_texts
     assert "UR FOR BGPL ONLY" not in all_bgpk_texts
 
     # Row 3 (both blank) has no quantity in any model -> omitted
@@ -198,9 +200,13 @@ def test_model_split_retains_rows_and_splits_remarks_by_quantity():
     # Row 2 must be present with quantity & remarks (BGPL has qty 1)
     assert "90430-06817" in all_bgpl_texts
     assert "UR FOR BGPL ONLY" in all_bgpl_texts
+    # In BGPL sheet, model code must be replaced with BGPL!
+    assert "YAM_BGPL_CYLINDER" in all_bgpl_texts
+    assert "YAM_BGPL_CYLINDER.jpeg" in all_bgpl_texts
+    assert "YAM_BGPK_CYLINDER" not in all_bgpl_texts
 
-    # Row 1 (BGPL is "-") must be present in the sheet, but its remarks MUST be blank
-    assert "95022-06010" in all_bgpl_texts
+    # Row 1 (BGPL is "-") must be EXCLUDED from BGPL sheet
+    assert "95022-06010" not in all_bgpl_texts
     assert "UR FOR BGPK ONLY" not in all_bgpl_texts
 
     # 3. Export ALL models

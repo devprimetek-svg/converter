@@ -75,7 +75,7 @@ def detect_brand(val: Any, fallback: str = "YAMAHA") -> str:
     return fallback
 
 
-def extract_raw_model_name(val: Any, model_code: str = "") -> str:
+def extract_raw_model_name(val: Any, model_code: str = "", old_model_code: str = "") -> str:
     """Extract only the vehicle/product model portion from a model name string.
     Strips brand (YAMAHA/YAHAMA), model_code, 'Series', and figure heading.
     Also strips surrounding quotes if present.
@@ -102,13 +102,18 @@ def extract_raw_model_name(val: Any, model_code: str = "") -> str:
     # 2. Strip leading Brand: YAMAHA or YAHAMA
     s = re.sub(r"^(?:YAMAHA|YAHAMA)\s+", "", s, flags=re.IGNORECASE).strip()
 
-    # 3. Strip leading model_code if provided
-    if model_code:
-        mc = re.escape(model_code.strip())
-        s = re.sub(rf"^{mc}(?:\s+|$)", "", s, flags=re.IGNORECASE).strip()
+    # 3. Strip leading model_code or old_model_code if provided
+    for mc_val in (old_model_code, model_code):
+        if mc_val:
+            mc_esc = re.escape(mc_val.strip())
+            s = re.sub(rf"^{mc_esc}(?:\s+|$)", "", s, flags=re.IGNORECASE).strip()
 
-    # Also strip any 4-char alphanumeric code followed by the model name (e.g. if code was different)
-    s = re.sub(r"^[A-Z0-9]{4}\s+(?=[\"A-Za-z0-9])", "", s).strip()
+    # Also strip any 3-6 char alphanumeric code followed by the model name (e.g. if code was different)
+    s = re.sub(r"^[A-Z0-9]{3,6}\s+(?=[\"A-Za-z0-9])", "", s).strip()
+
+    # If what remains is solely an alphanumeric model code itself (e.g. 'BGPK' or 'BGPL')
+    if re.fullmatch(r"[A-Z0-9]{3,6}", s):
+        s = ""
 
     # 4. Strip surrounding quotes if present so user model is clean
     s = s.strip('"\'').strip()
@@ -121,12 +126,13 @@ def format_parent_model_name(
     model_code: str = "MODEL",
     fig_name: str = "PARTS",
     brand: str = "YAMAHA",
+    old_model_code: str = "",
 ) -> str:
     """Format the parent row model name to standard:
     YAMAHA {MODEL_CODE} {USER_MODEL} Series {PARTS_NAME}
     or YAMAHA {MODEL_CODE} Series {PARTS_NAME} if no user model.
     """
-    raw_model = extract_raw_model_name(val, model_code)
+    raw_model = extract_raw_model_name(val, model_code, old_model_code)
     b = detect_brand(val, brand or "YAMAHA").strip().upper()
     mc = (model_code or "MODEL").strip().upper()
     fn = re.sub(r"\s+", " ", (fig_name or "").strip()).upper()
@@ -160,10 +166,8 @@ def generate_excel_workbook(
     """Create an in-memory Excel workbook (.xlsx) from parts rows.
 
     Filtering rule:
-    - If a specific model is being exported (len(model_columns) == 1), all parts rows remain in the
-      Excel workbook to maintain figure sequence. If the model's quantity is recorded, quantity and
-      remarks are retained. If the model's quantity is blank/invalid, quantity is blank and remarks is
-      also blank.
+    - If a specific model is being exported (len(model_columns) == 1), all rows without valid quantity
+      for that model are excluded. Only rows with recorded quantity for that model remain.
     - If multiple models exist, rows where all model quantities are blank are excluded.
 
     Parent cell rule:
@@ -175,13 +179,10 @@ def generate_excel_workbook(
         target_model = model_columns[0]
         processed_rows = []
         for r in rows:
-            r_copy = dict(r)
-            if is_valid_quantity(r_copy.get(target_model)):
+            if is_valid_quantity(r.get(target_model)):
+                r_copy = dict(r)
                 r_copy[target_model] = str(r_copy.get(target_model)).strip()
-            else:
-                r_copy[target_model] = ""
-                r_copy["remarks"] = ""
-            processed_rows.append(r_copy)
+                processed_rows.append(r_copy)
         rows = processed_rows
         if sheet_title == "Parts List":
             sheet_title = f"Parts_{target_model}"[:31]
@@ -299,7 +300,11 @@ def generate_excel_workbook(
         else:
             fig_key = ("page", str(row_data.get("page", "")))
 
-        row_model_code = str(row_data.get("model_code") or "").strip().upper() or active_model_code or "MODEL"
+        orig_row_mc = str(row_data.get("model_code") or "").strip().upper()
+        if len(model_columns) == 1 and active_model_code:
+            row_model_code = active_model_code
+        else:
+            row_model_code = orig_row_mc or active_model_code or "MODEL"
         is_parent_cell = (fig_key != last_fig_key)
         if is_parent_cell:
             last_fig_key = fig_key
@@ -307,12 +312,26 @@ def generate_excel_workbook(
             curr_fig_no = raw_fig_no
             curr_fig_name = raw_fig_name
             existing_cat = str(row_data.get("catalogue_code") or "").strip()
-            curr_cat_code = existing_cat if existing_cat else build_catalogue_code(row_model_code, raw_fig_name, raw_fig_no)
+            if len(model_columns) == 1 and active_model_code:
+                if existing_cat:
+                    curr_cat_code = re.sub(r"^YAM_[A-Za-z0-9]+?_", f"YAM_{active_model_code}_", existing_cat)
+                else:
+                    curr_cat_code = build_catalogue_code(active_model_code, raw_fig_name, raw_fig_no)
+            else:
+                curr_cat_code = existing_cat if existing_cat else build_catalogue_code(row_model_code, raw_fig_name, raw_fig_no)
+
             existing_pic = str(row_data.get("pic") or row_data.get("image") or "").strip()
-            curr_pic = existing_pic if existing_pic else (f"{curr_cat_code}.jpeg" if curr_cat_code else "")
+            if len(model_columns) == 1 and active_model_code:
+                if existing_pic:
+                    curr_pic = re.sub(r"^YAM_[A-Za-z0-9]+?_", f"YAM_{active_model_code}_", existing_pic)
+                else:
+                    curr_pic = f"{curr_cat_code}.jpeg" if curr_cat_code else ""
+            else:
+                curr_pic = existing_pic if existing_pic else (f"{curr_cat_code}.jpeg" if curr_cat_code else "")
+
             # Model name: format parent model name standard record
             raw_mn = str(row_data.get("model_name") or "").strip()
-            curr_model_name = format_parent_model_name(raw_mn, row_model_code, raw_fig_name)
+            curr_model_name = format_parent_model_name(raw_mn, row_model_code, raw_fig_name, old_model_code=orig_row_mc)
             curr_remark_flag = "X" if fig_key in figs_with_remarks else ""
         else:
             # Child cell: page, fig_no, fig_name, catalogue_code, model_name, and pic do NOT repeat — remain blank
