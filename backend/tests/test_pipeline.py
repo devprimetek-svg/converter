@@ -481,7 +481,8 @@ def test_pipeline_multi_model_separate_folders():
     # 2. BGP2 folder checks
     assert any(f.startswith("BGP2/") for f in filenames), f"BGP2/ folder missing in {filenames}"
     assert "BGP2/Synthetic_Multi_Model_BGP2_Parts.xlsx" in filenames
-    assert "BGP2/images/YAM_BGP2_CYLINDER HEAD.jpeg" in filenames
+    # Images are identical in both model folders
+    assert "BGP2/images/YAM_BGP1_CYLINDER HEAD.jpeg" in filenames
 
     # Verify BGP2 Excel content:
     # All catalogue rows are kept. BGP2 has recorded qty on Row 1 & Row 3.

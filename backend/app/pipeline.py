@@ -265,7 +265,7 @@ def run_pipeline_worker(
         # Resolve model code from detected model columns or PDF filename
         pipeline_model_code = ""
         if job.model_columns:
-            pipeline_model_code = "_".join(str(c).strip() for c in job.model_columns if str(c).strip())
+            pipeline_model_code = str(job.model_columns[0]).strip()
         if not pipeline_model_code:
             m = re.search(r"\b([A-Z0-9]{3,6})\b", job.filename.upper())
             if m:
@@ -303,7 +303,7 @@ def run_pipeline_worker(
                     model_columns=[m] if m in job.model_columns else (job.model_columns or [m]),
                     clean_parts=clean_parts,
                     sheet_title=f"Parts_{m}"[:31],
-                    model_code=m,
+                    model_code=pipeline_model_code,
                 )
                 m_excel_bytes = m_excel_buf.getvalue()
                 m_excel_fname = f"{base_name}_{m}_Parts.xlsx"
@@ -375,23 +375,8 @@ def run_pipeline_worker(
                     job.processed_images_dict[img_id] = processed_bytes
                     job.processed_images_dict[fname] = processed_bytes
 
-                # Find which models this diagram applies to
-                img_fig_no = str(img_info.get("fig_no", "")).strip()
-                img_fig_name = str(img_info.get("fig_name", "")).strip().upper()
-                applicable_models = []
-                if is_bike:
-                    applicable_models = model_codes if has_multiple_models else [pipeline_model_code]
-                elif has_multiple_models:
-                    for m in model_codes:
-                        m_rows = model_excel_data[m]["rows"]
-                        m_fig_nos = {str(r.get("fig_no", "")).strip() for r in m_rows if r.get("fig_no") and is_valid_quantity(r.get(m))}
-                        m_fig_names = {str(r.get("fig_name", "")).strip().upper() for r in m_rows if r.get("fig_name") and is_valid_quantity(r.get(m))}
-                        if not m_fig_nos and not m_fig_names:
-                            applicable_models.append(m)
-                        elif img_fig_no in m_fig_nos or img_fig_name in m_fig_names:
-                            applicable_models.append(m)
-                else:
-                    applicable_models = [pipeline_model_code]
+                # Diagrams and images remain identical across all models
+                applicable_models = model_codes if has_multiple_models else [pipeline_model_code]
 
                 all_thumbnails.append({
                     "id": img_id,
@@ -488,53 +473,15 @@ def run_pipeline_worker(
                 for m in model_codes:
                     m_info = model_excel_data[m]
                     m_rows = m_info["rows"]
-                    m_fig_nos = {str(r.get("fig_no", "")).strip() for r in m_rows if r.get("fig_no") and is_valid_quantity(r.get(m))}
-                    m_fig_names = {str(r.get("fig_name", "")).strip().upper() for r in m_rows if r.get("fig_name") and is_valid_quantity(r.get(m))}
-
                     # 1. Add model-specific Excel sheet into its dedicated folder: {m}/
                     zf.writestr(f"{m}/{m_info['excel_filename']}", m_info["excel_bytes"])
 
-                    # 2. Add diagrams specifically named for this model into {m}/images/
-                    m_fig_counter: dict[str, int] = {}
+                    # 2. Add all catalogue diagrams into {m}/images/ (identical across all models)
                     m_image_items: list[tuple[str, bytes]] = []
-                    for _, proc_bytes, img_info in processed_items:
-                        img_fig_no = str(img_info.get("fig_no", "")).strip()
-                        img_fig_name = str(img_info.get("fig_name", "")).strip()
-                        is_bike_img = bool(img_info.get("is_bike_image", False))
-
-                        # Bike photo: include in each model images directory
-                        if is_bike_img:
-                            bike_filename = img_info.get("filename", "")
-                            if bike_filename.startswith("YAM_"):
-                                m_img_name = re.sub(r"^YAM_[A-Za-z0-9]+_", f"YAM_{m}_", bike_filename)
-                            else:
-                                m_img_name = f"YAM_{m}_BIKE"
-                            if not m_img_name.lower().endswith(".jpeg"):
-                                m_img_name = f"{m_img_name}.jpeg"
-                            zf.writestr(f"{m}/images/{m_img_name}", proc_bytes)
-                            m_image_items.append((m_img_name, proc_bytes))
-                            continue
-
-                        # Check applicability
-                        if m_fig_nos or m_fig_names:
-                            if img_fig_no not in m_fig_nos and img_fig_name.upper() not in m_fig_names:
-                                continue
-
-                        clean_part_name = re.sub(r'[\/:*?"<>|\r\n\t]', " ", img_fig_name)
-                        clean_part_name = re.sub(r"\s+", " ", clean_part_name).strip()
-                        if not clean_part_name:
-                            padded_no = img_fig_no.zfill(2) if img_fig_no.isdigit() else img_fig_no
-                            clean_part_name = f"FIG_{padded_no}" if padded_no else f"PAGE_{img_info['page']}"
-
-                        counter_key = f"{img_fig_no}_{clean_part_name}"
-                        count = m_fig_counter.get(counter_key, 0) + 1
-                        m_fig_counter[counter_key] = count
-                        suffix = f"_{count}" if count > 1 else ""
-                        m_img_name = f"YAM_{m}_{clean_part_name}{suffix}.jpeg"
-
-                        # Write to model folder in master zip
-                        zf.writestr(f"{m}/images/{m_img_name}", proc_bytes)
-                        m_image_items.append((m_img_name, proc_bytes))
+                    for fname, proc_bytes, _ in processed_items:
+                        clean_name = fname if fname.lower().endswith(".jpeg") else f"{fname}.jpeg"
+                        zf.writestr(f"{m}/images/{clean_name}", proc_bytes)
+                        m_image_items.append((clean_name, proc_bytes))
 
                     # 3. Create standalone individual ZIP bundle for this model code
                     m_zip_buf = io.BytesIO()

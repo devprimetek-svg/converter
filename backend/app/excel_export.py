@@ -299,7 +299,7 @@ def generate_excel_workbook(
         else:
             fig_key = ("page", str(row_data.get("page", "")))
 
-        row_model_code = active_model_code if active_model_code else (str(row_data.get("model_code") or "").strip().upper() or "MODEL")
+        row_model_code = str(row_data.get("model_code") or "").strip().upper() or active_model_code or "MODEL"
         is_parent_cell = (fig_key != last_fig_key)
         if is_parent_cell:
             last_fig_key = fig_key
@@ -307,15 +307,9 @@ def generate_excel_workbook(
             curr_fig_no = raw_fig_no
             curr_fig_name = raw_fig_name
             existing_cat = str(row_data.get("catalogue_code") or "").strip()
-            if existing_cat and existing_cat.startswith(f"YAM_{row_model_code}_"):
-                curr_cat_code = existing_cat
-            else:
-                curr_cat_code = build_catalogue_code(row_model_code, raw_fig_name, raw_fig_no)
+            curr_cat_code = existing_cat if existing_cat else build_catalogue_code(row_model_code, raw_fig_name, raw_fig_no)
             existing_pic = str(row_data.get("pic") or row_data.get("image") or "").strip()
-            if existing_pic and existing_pic.startswith(f"YAM_{row_model_code}_"):
-                curr_pic = existing_pic
-            else:
-                curr_pic = f"{curr_cat_code}.jpeg" if curr_cat_code else ""
+            curr_pic = existing_pic if existing_pic else (f"{curr_cat_code}.jpeg" if curr_cat_code else "")
             # Model name: format parent model name standard record
             raw_mn = str(row_data.get("model_name") or "").strip()
             curr_model_name = format_parent_model_name(raw_mn, row_model_code, raw_fig_name)

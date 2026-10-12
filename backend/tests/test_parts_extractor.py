@@ -812,6 +812,10 @@ def test_split_excel_remarks_by_model_quantity():
             "fig_name": "CYLINDER",
             "parent_fig_no": "1",
             "parent_fig_name": "CYLINDER",
+            "model_code": "BGP1",
+            "catalogue_code": "YAM_BGP1_CYLINDER",
+            "model_name": "YAMAHA BGP1 Series CYLINDER",
+            "pic": "YAM_BGP1_CYLINDER.jpeg",
             "ref_no": "1",
             "part_no": "BGP-E1102-00",
             "description": "CYLINDER HEAD ASSY",
@@ -855,6 +859,10 @@ def test_split_excel_remarks_by_model_quantity():
             "fig_name": "CRANKSHAFT",
             "parent_fig_no": "2",
             "parent_fig_name": "CRANKSHAFT",
+            "model_code": "BGP1",
+            "catalogue_code": "YAM_BGP1_CRANKSHAFT",
+            "model_name": "YAMAHA BGP1 Series CRANKSHAFT",
+            "pic": "YAM_BGP1_CRANKSHAFT.jpeg",
             "ref_no": "1",
             "part_no": "BGP-E1400-00",
             "description": "CRANKSHAFT ASSY",
@@ -865,7 +873,7 @@ def test_split_excel_remarks_by_model_quantity():
     ]
 
     # --- Test BGP1 Split Excel ---
-    bgp1_buf = generate_excel_workbook(catalogue_rows, model_columns=["BGP1"], model_code="BGP1")
+    bgp1_buf = generate_excel_workbook(catalogue_rows, model_columns=["BGP1"])
     wb1 = openpyxl.load_workbook(bgp1_buf)
     ws1 = wb1.active
 
@@ -899,7 +907,7 @@ def test_split_excel_remarks_by_model_quantity():
     assert ws1.cell(row=5, column=flag_col1).value == "X"
 
     # --- Test BGP2 Split Excel ---
-    bgp2_buf = generate_excel_workbook(catalogue_rows, model_columns=["BGP2"], model_code="BGP2")
+    bgp2_buf = generate_excel_workbook(catalogue_rows, model_columns=["BGP2"])
     wb2 = openpyxl.load_workbook(bgp2_buf)
     ws2 = wb2.active
 
@@ -931,6 +939,17 @@ def test_split_excel_remarks_by_model_quantity():
     assert (ws2.cell(row=5, column=rem_col2).value or "") == ""
     # Parent row Fig 2: BGP2 has NO remarks in Fig 2 -> Remark Flag MUST BE BLANK!
     assert (ws2.cell(row=5, column=flag_col2).value or "") == ""
+
+    # --- Verify Parts Name, Catalogue Code, Model Name, and Pic are IDENTICAL in both Excels ---
+    # Column 3: Parts Name
+    assert ws1.cell(row=2, column=3).value == ws2.cell(row=2, column=3).value == "CYLINDER"
+    assert ws1.cell(row=5, column=3).value == ws2.cell(row=5, column=3).value == "CRANKSHAFT"
+    # Column 4: Catalogue Code
+    assert ws1.cell(row=2, column=4).value == ws2.cell(row=2, column=4).value
+    # Column 5: Model Name
+    assert ws1.cell(row=2, column=5).value == ws2.cell(row=2, column=5).value
+    # Column 6: Pic (Images reference)
+    assert ws1.cell(row=2, column=6).value == ws2.cell(row=2, column=6).value
 
 
 
