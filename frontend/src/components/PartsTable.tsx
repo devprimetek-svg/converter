@@ -434,14 +434,17 @@ export const PartsTable: React.FC<PartsTableProps> = ({
 
                 // Resolve Remark Flag: Parent cell (offset 0) has 'X' by default if figure has remarks,
                 // and offsets 0 to 5 are editable inline if the figure has remarks.
-                const figRowOffset =
-                  typeof (row as any).fig_row_offset === 'number'
+                // Any cell where remark_flag is 'X' is explicitly treated as the Parent 'X' cell (offset 0).
+                const isExplicitX = (row as any).remark_flag === 'X';
+                const figRowOffset = isExplicitX
+                  ? 0
+                  : (typeof (row as any).fig_row_offset === 'number'
                     ? (row as any).fig_row_offset
-                    : (isFirstOfFig ? 0 : 99);
+                    : (isFirstOfFig ? 0 : 99));
                 const cellRemarkKey = `${figKey}__slot_${figRowOffset}`;
                 const isFigureWithRemarks =
                   figsWithRemarks.has(figKey) ||
-                  (row as any).remark_flag === 'X' ||
+                  isExplicitX ||
                   Boolean((row as any).remark_flag);
                 const isRemarkFlagEditable = isFigureWithRemarks && figRowOffset <= 5;
                 const isEditingRemarkFlag = isRemarkFlagEditable && editingRemarkFlagKey === cellRemarkKey;
@@ -726,9 +729,9 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                           </div>
                         ) : currentRemarkFlagVal ? (
                           <div
-                            className={`group inline-flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-md border text-xs font-mono font-extrabold cursor-pointer transition-all ${
+                            className={`group inline-flex items-center justify-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-mono font-extrabold cursor-pointer transition-all ${
                               figRowOffset === 0
-                                ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/25'
+                                ? 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/25 shadow-2xs'
                                 : 'bg-amber-100/80 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 hover:bg-amber-200/80'
                             }`}
                             onClick={() => onRemarkFlagEdit !== undefined && startEditingRemarkFlag(cellRemarkKey, currentRemarkFlagVal)}
@@ -738,10 +741,20 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                                 : currentRemarkFlagVal
                             }
                           >
-                            <span>{currentRemarkFlagVal}</span>
                             {onRemarkFlagEdit && (
-                              <Pencil className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 text-amber-600 dark:text-amber-400 shrink-0 transition-opacity" />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startEditingRemarkFlag(cellRemarkKey, currentRemarkFlagVal);
+                                }}
+                                className="p-0.5 rounded hover:bg-amber-200 dark:hover:bg-amber-800/60 text-amber-700 dark:text-amber-400 transition-colors cursor-pointer shrink-0"
+                                title="Edit Remark Flag"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
                             )}
+                            <span>{currentRemarkFlagVal}</span>
                           </div>
                         ) : onRemarkFlagEdit ? (
                           <button

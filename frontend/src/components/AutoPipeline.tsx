@@ -162,6 +162,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
   const [editedPicPaths, setEditedPicPaths] = useState<Record<string, string>>({});
   const [globalPicPathPrefix, setGlobalPicPathPrefix] = useState<string>('');
   // Remark Flag Editing States: parent cell "X" and the 5 cells directly below it
+  const [globalXCellInput, setGlobalXCellInput] = useState<string>('');
   const [globalRemarkFlagCells, setGlobalRemarkFlagCells] = useState<[string, string, string, string, string]>(['', '', '', '', '']);
   const [editedRemarkFlags, setEditedRemarkFlags] = useState<Record<string, string>>({});
   const [isProceeding, setIsProceeding] = useState<boolean>(false);
@@ -179,6 +180,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
     Object.keys(editedPicPaths).length > 0 ||
     globalPicPathPrefix.trim().length > 0 ||
     Object.keys(editedRemarkFlags).length > 0 ||
+    globalXCellInput.trim().length > 0 ||
     globalRemarkFlagCells.some((c) => c.trim().length > 0);
 
   const rowsWithEdits: PartRow[] = useMemo(() => {
@@ -258,7 +260,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
           if (editedRemarkFlags[cellKey] !== undefined) {
             updatedRemarkFlag = editedRemarkFlags[cellKey];
           } else if (figRowOffset === 0) {
-            updatedRemarkFlag = (row as any).remark_flag || 'X';
+            updatedRemarkFlag = globalXCellInput.trim() || (row as any).remark_flag || 'X';
           } else {
             const batchVal = globalRemarkFlagCells[figRowOffset - 1];
             if (batchVal !== undefined && batchVal !== '') {
@@ -292,6 +294,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
     editedPicPaths,
     globalPicPathPrefix,
     editedRemarkFlags,
+    globalXCellInput,
     globalRemarkFlagCells,
   ]);
 
@@ -369,7 +372,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
   }, []);
 
   const handleApplyGlobalRemarkFlagCells = () => {
-    const hasAnyVal = globalRemarkFlagCells.some((c) => c.trim().length > 0);
+    const hasAnyVal = globalXCellInput.trim().length > 0 || globalRemarkFlagCells.some((c) => c.trim().length > 0);
     if (!hasAnyVal || !status?.rows) return;
 
     // Detect figures with remarks
@@ -395,11 +398,16 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
         currentOffset++;
       }
 
-      if (figsWithRemarks.has(figKey) && currentOffset >= 1 && currentOffset <= 5) {
-        const cellKey = `${figKey}__slot_${currentOffset}`;
-        const val = globalRemarkFlagCells[currentOffset - 1];
-        if (val !== undefined && val !== '') {
-          newEdits[cellKey] = val;
+      if (figsWithRemarks.has(figKey)) {
+        if (currentOffset === 0 && globalXCellInput.trim()) {
+          const cellKey = `${figKey}__slot_0`;
+          newEdits[cellKey] = globalXCellInput.trim();
+        } else if (currentOffset >= 1 && currentOffset <= 5) {
+          const cellKey = `${figKey}__slot_${currentOffset}`;
+          const val = globalRemarkFlagCells[currentOffset - 1];
+          if (val !== undefined && val !== '') {
+            newEdits[cellKey] = val;
+          }
         }
       }
     });
@@ -408,6 +416,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
   };
 
   const handleResetRemarkFlagCells = () => {
+    setGlobalXCellInput('');
     setGlobalRemarkFlagCells(['', '', '', '', '']);
     setEditedRemarkFlags({});
   };
@@ -1432,29 +1441,31 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                 )}
               </div>
 
-              {/* Row 3: Remark Flag Cells Editor (5 cells directly below 'X') */}
-              <div className="flex flex-col gap-2 pt-2.5 border-t border-zinc-200/80 dark:border-zinc-800">
+              {/* Row 3: Remark Flag Cells Editor (X Cell + 5 cells directly below 'X') */}
+              <div className="flex flex-col gap-2.5 pt-2.5 border-t border-zinc-200/80 dark:border-zinc-800">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
                   <span className="text-xs font-bold text-amber-700 dark:text-amber-400 whitespace-nowrap min-w-[80px] flex items-center gap-1.5">
                     <Flag className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                    Remark Flag (5 Cells Below X):
+                    Remark Flag (X &amp; 5 Cells Below):
                   </span>
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={handleApplyGlobalRemarkFlagCells}
-                      disabled={!globalRemarkFlagCells.some((c) => c.trim().length > 0)}
+                      disabled={!globalXCellInput.trim() && !globalRemarkFlagCells.some((c) => c.trim().length > 0)}
                       className="px-4 py-1.5 rounded-xl bg-amber-100 hover:bg-amber-200 dark:bg-amber-950/80 dark:hover:bg-amber-900 text-amber-900 dark:text-amber-200 text-xs font-semibold whitespace-nowrap disabled:opacity-40 transition-colors cursor-pointer"
-                      title="Apply these 5 values to the 5 cells below 'X' in all figures with remarks"
+                      title="Apply these values to the 'X' record cell and the 5 cells below it in all figures with remarks"
                     >
                       Apply to All Figures
                     </button>
-                    {(Object.keys(editedRemarkFlags).length > 0 || globalRemarkFlagCells.some((c) => c.trim().length > 0)) && (
+                    {(Object.keys(editedRemarkFlags).length > 0 ||
+                      globalXCellInput.trim().length > 0 ||
+                      globalRemarkFlagCells.some((c) => c.trim().length > 0)) && (
                       <button
                         type="button"
                         onClick={handleResetRemarkFlagCells}
                         className="px-3 py-1.5 rounded-xl text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer"
-                        title="Reset all 5 cells below X"
+                        title="Reset Remark Flag inputs"
                       >
                         Reset
                       </button>
@@ -1462,8 +1473,23 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                   </div>
                 </div>
 
-                {/* 5 Input text boxes */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {/* 6 Input text boxes: Cell 'X' (Parent) + Cells 1 to 5 below X */}
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                  {/* Cell 'X' input */}
+                  <div className="relative flex items-center col-span-2 sm:col-span-1">
+                    <span className="absolute left-2.5 text-[10px] font-mono font-extrabold text-amber-700 dark:text-amber-400 select-none">
+                      X:
+                    </span>
+                    <input
+                      type="text"
+                      value={globalXCellInput}
+                      onChange={(e) => setGlobalXCellInput(e.target.value)}
+                      placeholder="X (default: X)"
+                      className="w-full pl-7 pr-2 py-1.5 text-xs font-mono font-bold rounded-xl border-2 border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/30 text-amber-950 dark:text-amber-100 placeholder:text-amber-600/50 dark:placeholder:text-amber-400/50 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+
+                  {/* 5 Cells below X */}
                   {[0, 1, 2, 3, 4].map((slotIdx) => (
                     <div key={slotIdx} className="relative flex items-center">
                       <span className="absolute left-2.5 text-[10px] font-mono font-bold text-amber-600/70 dark:text-amber-400/70 select-none">
