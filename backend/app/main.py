@@ -13,6 +13,8 @@ import logging
 import os
 import re
 import httpx
+import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -936,7 +938,161 @@ async def desktop_shutdown():
         time.sleep(0.4)
         os._exit(0)
     threading.Thread(target=_delayed_exit, daemon=True).start()
-    return {"status": "shutting_down"}
+def get_current_app_version() -> str:
+    """Read local version from version.json or fallback to 2.6.0."""
+    candidates = [
+        os.path.join(os.path.dirname(__file__), "version.json"),
+        os.path.join(getattr(sys, "_MEIPASS", ""), "version.json"),
+        os.path.join(os.path.dirname(os.path.abspath(sys.executable)), "version.json")
+        if getattr(sys, "frozen", False)
+        else "",
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "version.json"),
+    ]
+    for p in candidates:
+        if p and os.path.exists(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    return data.get("version", "2.6.0")
+            except Exception:
+                pass
+    return "2.6.0"
+
+
+def parse_version_tuple(v: str) -> tuple[int, ...]:
+    cleaned = re.sub(r"[^\d.]", "", v)
+    parts = [int(p) for p in cleaned.split(".") if p.isdigit()]
+    return tuple(parts) if parts else (0, 0, 0)
+
+
+def is_version_newer(latest: str, current: str) -> bool:
+    try:
+        return parse_version_tuple(latest) > parse_version_tuple(current)
+    except Exception:
+        return False
+
+
+@app.get("/api/app/version")
+async def get_app_version():
+    """Return local app version and execution mode."""
+    return {
+        "version": get_current_app_version(),
+        "is_frozen": getattr(sys, "frozen", False),
+    }
+
+
+@app.get("/api/app/check-update")
+async def check_github_update():
+    """Check GitHub Releases for newer Converter Studio binary."""
+    current_ver = get_current_app_version()
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get(
+                "https://api.github.com/repos/devprimetek-svg/converter/releases/latest",
+                headers={"User-Agent": "ConverterStudio-Updater"},
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                tag = data.get("tag_name", "").lstrip("v")
+                body = data.get("body", "")
+                download_url = None
+                exe_size = 0
+                for asset in data.get("assets", []):
+                    if asset.get("name") == "ConverterStudio.exe":
+                        download_url = asset.get("browser_download_url")
+                        exe_size = asset.get("size", 0)
+                        break
+
+                has_update = is_version_newer(tag, current_ver) and (download_url is not None)
+                return {
+                    "current_version": current_ver,
+                    "latest_version": tag,
+                    "has_update": has_update,
+                    "download_url": download_url,
+                    "download_size": exe_size,
+                    "release_notes": body,
+                }
+    except Exception as e:
+        logger.warning("Failed to check for updates: %s", e)
+
+    return {
+        "current_version": current_ver,
+        "latest_version": current_ver,
+        "has_update": False,
+        "download_url": None,
+        "download_size": 0,
+        "release_notes": "",
+    }
+
+
+@app.post("/api/app/perform-update")
+async def perform_github_update():
+    """Download latest release and hot-swap ConverterStudio.exe, then restart."""
+    current_ver = get_current_app_version()
+
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        resp = await client.get(
+            "https://api.github.com/repos/devprimetek-svg/converter/releases/latest",
+            headers={"User-Agent": "ConverterStudio-Updater"},
+        )
+        if resp.status_code != 200:
+            raise HTTPException(500, "Could not fetch release information from GitHub.")
+
+        data = resp.json()
+        tag = data.get("tag_name", "").lstrip("v")
+        download_url = None
+        for asset in data.get("assets", []):
+            if asset.get("name") == "ConverterStudio.exe":
+                download_url = asset.get("browser_download_url")
+                break
+
+        if not download_url:
+            raise HTTPException(404, "ConverterStudio.exe asset was not found in latest release.")
+
+        if getattr(sys, "frozen", False):
+            exe_path = os.path.abspath(sys.executable)
+            exe_dir = os.path.dirname(exe_path)
+            temp_new_exe = os.path.join(exe_dir, "ConverterStudio_downloading.exe")
+            temp_old_exe = os.path.join(exe_dir, "ConverterStudio_previous.old")
+
+            # Stream download latest .exe
+            async with client.stream("GET", download_url, follow_redirects=True) as stream_resp:
+                if stream_resp.status_code != 200:
+                    raise HTTPException(500, f"Download failed with status {stream_resp.status_code}")
+                with open(temp_new_exe, "wb") as f:
+                    async for chunk in stream_resp.aiter_bytes(chunk_size=65536):
+                        f.write(chunk)
+
+            # Perform atomic hot-swap and restart
+            def _swap_and_restart():
+                time.sleep(1.2)
+                try:
+                    if os.path.exists(temp_old_exe):
+                        try:
+                            os.remove(temp_old_exe)
+                        except Exception:
+                            pass
+                    os.rename(exe_path, temp_old_exe)
+                    os.rename(temp_new_exe, exe_path)
+                    subprocess.Popen([exe_path])
+                    time.sleep(0.5)
+                    os._exit(0)
+                except Exception as ex:
+                    logger.error("Hot-swap update error: %s", ex)
+
+            threading.Thread(target=_swap_and_restart, daemon=True).start()
+            return {"status": "ok", "message": f"Updated to v{tag}. Restarting Converter Studio..."}
+        else:
+            # Running in dev environment - pull latest git changes
+            def _git_pull():
+                time.sleep(1.0)
+                try:
+                    subprocess.run(["git", "pull", "origin", "main"], check=False)
+                except Exception:
+                    pass
+
+            threading.Thread(target=_git_pull, daemon=True).start()
+            return {"status": "ok", "message": "Source repository pulling latest changes from GitHub."}
 
 
 # Mount built frontend static assets if present (prioritize live frontend/dist on disk so .exe auto-updates)

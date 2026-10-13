@@ -9,6 +9,7 @@ import {
   Sparkles,
   Zap,
   RotateCcw,
+  Download,
 } from 'lucide-react';
 
 export type ActiveTab = 'auto-pipeline' | 'catalogue' | 'pdf-images' | 'resizer' | 'watermark';
@@ -28,6 +29,44 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   onReplaySplash,
 }) => {
+  const [updateInfo, setUpdateInfo] = React.useState<{
+    has_update: boolean;
+    latest_version: string;
+  } | null>(null);
+  const [isUpdating, setIsUpdating] = React.useState<boolean>(false);
+  const [updateStatus, setUpdateStatus] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    fetch('/api/app/check-update')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.has_update) {
+          setUpdateInfo(data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleUpdate = async () => {
+    if (isUpdating) return;
+    setIsUpdating(true);
+    setUpdateStatus('Downloading update...');
+    try {
+      const res = await fetch('/api/app/perform-update', { method: 'POST' });
+      const data = await res.json();
+      setUpdateStatus(data.message || 'Restarting...');
+      setTimeout(() => {
+        window.location.reload();
+      }, 5000);
+    } catch {
+      setUpdateStatus('Update failed');
+      setTimeout(() => {
+        setIsUpdating(false);
+        setUpdateStatus(null);
+      }, 3000);
+    }
+  };
+
   const tabs = [
     {
       id: 'auto-pipeline' as ActiveTab,
@@ -115,6 +154,23 @@ export const Navbar: React.FC<NavbarProps> = ({
         </nav>
 
         <div className="flex items-center gap-2 shrink-0">
+          {updateInfo?.has_update && (
+            <button
+              onClick={handleUpdate}
+              disabled={isUpdating}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500 text-[11px] font-mono font-medium shadow-sm transition-all cursor-pointer shrink-0 animate-pulse"
+              title={`New update v${updateInfo.latest_version} available! Click to update.`}
+            >
+              <Download className={`w-3.5 h-3.5 ${isUpdating ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">
+                {isUpdating ? (updateStatus ?? 'Updating...') : `Update v${updateInfo.latest_version}`}
+              </span>
+              <span className="sm:hidden">
+                {isUpdating ? 'Updating...' : `v${updateInfo.latest_version}`}
+              </span>
+            </button>
+          )}
+
           {onReplaySplash && (
             <button
               onClick={onReplaySplash}
