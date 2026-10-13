@@ -929,8 +929,16 @@ def get_pipeline_image_endpoint(job_id: str, image_id: str):
 
 
 
-# Mount built frontend static assets if present (for unified single-container cloud deployment)
-static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
+# Mount built frontend static assets if present (for unified single-container cloud or desktop .exe deployment)
+import sys as _sys
+
+_base_bundle_dir = getattr(_sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+static_dir = os.path.join(_base_bundle_dir, "static")
+if not os.path.exists(static_dir):
+    _alt_dist = os.path.join(os.path.dirname(_base_bundle_dir), "frontend", "dist")
+    if os.path.exists(_alt_dist):
+        static_dir = _alt_dist
+
 if os.path.exists(static_dir):
     logger.info("Serving frontend static assets from %s", static_dir)
 

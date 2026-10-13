@@ -17,17 +17,24 @@ from PIL import Image, ImageDraw, ImageFont, ImageStat
 import pdfplumber
 from pypdf import PdfReader
 
+import sys as _sys
+
 DEFAULT_LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "default_watermark_logo.png")
 
 
 def get_default_logo_bytes() -> Optional[bytes]:
     """Retrieve bundled company logo image bytes if available."""
-    if os.path.exists(DEFAULT_LOGO_PATH):
-        try:
-            with open(DEFAULT_LOGO_PATH, "rb") as f:
-                return f.read()
-        except Exception:
-            pass
+    candidates = [DEFAULT_LOGO_PATH]
+    if hasattr(_sys, "_MEIPASS"):
+        candidates.append(os.path.join(getattr(_sys, "_MEIPASS"), "app", "assets", "default_watermark_logo.png"))
+        candidates.append(os.path.join(getattr(_sys, "_MEIPASS"), "assets", "default_watermark_logo.png"))
+    for path in candidates:
+        if os.path.exists(path):
+            try:
+                with open(path, "rb") as f:
+                    return f.read()
+            except Exception:
+                pass
     return None
 
 
