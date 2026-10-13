@@ -144,6 +144,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
   // Image Selection States (Pause pipeline to select/unselect extracted images)
   const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set());
   const [isProceedingImages, setIsProceedingImages] = useState<boolean>(false);
+  const [isDownloadingImagesZip, setIsDownloadingImagesZip] = useState<boolean>(false);
   const [imageSelectionCategoryFilter, setImageSelectionCategoryFilter] = useState<'ALL' | 'BIKES' | 'PARTS'>('ALL');
   const [imageSelectionModelFilter, setImageSelectionModelFilter] = useState<string>('ALL');
   const [autoProceedToZip, setAutoProceedToZip] = useState<boolean>(false);
@@ -517,6 +518,45 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
     }
   };
 
+  const handleDownloadImagesZip = async () => {
+    if (!status?.job_id) return;
+    setIsDownloadingImagesZip(true);
+    try {
+      const effectiveIds =
+        selectedImageIds.size > 0
+          ? Array.from(selectedImageIds)
+          : undefined;
+
+      const res = await fetch(`/api/pipeline/download-images-zip/${status.job_id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selected_image_ids: effectiveIds,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Failed to download images ZIP archive.');
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const baseName = (status.filename || 'catalogue').replace(/\.pdf$/i, '').replace(/[\\/*?:"<>| ]/g, '_');
+      a.download = `${baseName}_diagrams_images.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err.message || 'Failed to download images ZIP.');
+    } finally {
+      setIsDownloadingImagesZip(false);
+    }
+  };
+
   const filteredImagesToSelect = useMemo(() => {
     let list = status?.extracted_images_to_select || [];
     if (imageSelectionCategoryFilter === 'BIKES') {
@@ -771,6 +811,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
     setIsProceeding(false);
     setSelectedImageIds(new Set());
     setIsProceedingImages(false);
+    setIsDownloadingImagesZip(false);
     setImageSelectionCategoryFilter('ALL');
     setImageSelectionModelFilter('ALL');
   };
@@ -1697,8 +1738,31 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                 )}
               </div>
 
-              {/* Right CTA Button */}
-              <div className="flex items-center gap-3">
+              {/* Right CTA Buttons */}
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  disabled={isDownloadingImagesZip}
+                  onClick={handleDownloadImagesZip}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full bg-white hover:bg-zinc-100 text-zinc-900 border border-zinc-300 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-100 dark:border-zinc-700 text-xs sm:text-sm font-bold uppercase tracking-wider transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                  title="Download selected diagrams as a ZIP archive"
+                >
+                  {isDownloadingImagesZip ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-indigo-600 dark:text-indigo-400" />
+                      <span>Downloading ZIP...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                      <span>
+                        Download Images ZIP{' '}
+                        {selectedImageIds.size > 0 ? `(${selectedImageIds.size})` : ''}
+                      </span>
+                    </>
+                  )}
+                </button>
+
                 <button
                   type="button"
                   disabled={isProceedingImages}
@@ -1881,6 +1945,20 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                 >
                   <FileSpreadsheet className="w-4 h-4 text-zinc-700 dark:text-white" />
                   Excel Only
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadImagesZip}
+                  disabled={isDownloadingImagesZip}
+                  className="inline-flex items-center gap-2 px-4 py-3 rounded-full bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:text-black dark:hover:text-white text-xs sm:text-sm font-semibold border border-zinc-200 dark:border-zinc-800 transition-all font-mono cursor-pointer disabled:opacity-50"
+                  title="Download all processed diagrams and images as a standalone ZIP archive"
+                >
+                  {isDownloadingImagesZip ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-indigo-600 dark:text-indigo-400" />
+                  ) : (
+                    <ImageIcon className="w-4 h-4 text-zinc-700 dark:text-white" />
+                  )}
+                  Images ZIP
                 </button>
                 <button
                   onClick={handleReset}

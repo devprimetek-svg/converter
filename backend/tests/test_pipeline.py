@@ -226,6 +226,25 @@ def test_pipeline_api_flow():
     img_pil = Image.open(io.BytesIO(img_res.content))
     assert img_pil.size == (1000, 1200)
 
+    # 6. Test Download Images ZIP endpoints (POST with selected_image_ids & GET all)
+    img_zip_post = client.post(
+        f"/api/pipeline/download-images-zip/{job_id}",
+        json={"selected_image_ids": [img_id]},
+    )
+    assert img_zip_post.status_code == 200
+    assert img_zip_post.headers["content-type"] == "application/zip"
+    assert "diagrams_images.zip" in img_zip_post.headers.get("content-disposition", "")
+    assert img_zip_post.content[:4] == b"PK\x03\x04"
+    with zipfile.ZipFile(io.BytesIO(img_zip_post.content)) as z:
+        assert len(z.namelist()) == 1
+
+    img_zip_get = client.get(f"/api/pipeline/download-images-zip/{job_id}")
+    assert img_zip_get.status_code == 200
+    assert img_zip_get.headers["content-type"] == "application/zip"
+    assert img_zip_get.content[:4] == b"PK\x03\x04"
+    with zipfile.ZipFile(io.BytesIO(img_zip_get.content)) as z:
+        assert len(z.namelist()) >= 1
+
 
 def test_parts_only_deduplication_and_figure_naming():
     """Verify that:

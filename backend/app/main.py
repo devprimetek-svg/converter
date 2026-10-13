@@ -612,7 +612,7 @@ async def bulk_watermark_endpoint(
 # AUTOMATED ALL-IN-ONE PIPELINE ENDPOINTS
 # ---------------------------------------------------------------------------
 
-from app.pipeline import pipeline_manager, run_pipeline_worker
+from app.pipeline import PipelineJob, pipeline_manager, run_pipeline_worker
 
 
 @app.post("/api/pipeline/start")
@@ -899,6 +899,105 @@ def download_pipeline_excel(job_id: str, model: Optional[str] = None):
             "Access-Control-Expose-Headers": "Content-Disposition",
         },
     )
+
+
+class PipelineDownloadImagesZipRequest(BaseModel):
+    selected_image_ids: Optional[list[str]] = None
+
+
+def _build_pipeline_images_zip_response(job: PipelineJob, selected_ids: Optional[list[str]] = None):
+    with job.lock:
+        sel_set = set(selected_ids) if selected_ids else None
+        image_items: list[tuple[str, bytes]] = []
+
+        if job.extracted_images_to_select:
+            for item in job.extracted_images_to_select:
+                item_id = str(item.get("id"))
+                fname = str(item.get("filename") or f"image_{item_id}")
+                if not fname.lower().endswith((".jpeg", ".jpg", ".png", ".webp")):
+                    fname = f"{fname}.jpeg"
+
+                if sel_set is not None and item_id not in sel_set and fname not in sel_set:
+                    continue
+
+                img_bytes = job.processed_images_dict.get(item_id) or job.processed_images_dict.get(item.get("filename"))
+                if not img_bytes:
+                    for f, b in job.raw_processed_images:
+                        if f == item.get("filename") or f == item_id:
+                            img_bytes = b
+                            break
+
+                if img_bytes:
+                    image_items.append((fname, img_bytes))
+
+        # Fallback to raw_processed_images if extracted_images_to_select was empty or no match
+        if not image_items and job.raw_processed_images:
+            for fname, b in job.raw_processed_images:
+                f_ext = fname if fname.lower().endswith((".jpeg", ".jpg", ".png", ".webp")) else f"{fname}.jpeg"
+                if sel_set is None or fname in sel_set or f_ext in sel_set:
+                    image_items.append((f_ext, b))
+
+        # If user passed selected_ids that didn't match anything, fallback to all processed images
+        if not image_items and job.raw_processed_images:
+            for fname, b in job.raw_processed_images:
+                f_ext = fname if fname.lower().endswith((".jpeg", ".jpg", ".png", ".webp")) else f"{fname}.jpeg"
+                image_items.append((f_ext, b))
+
+    if not image_items:
+        raise HTTPException(status_code=400, detail="No extracted images available to download.")
+
+    # Deduplicate filenames to avoid collision inside the ZIP
+    unique_items: list[tuple[str, bytes]] = []
+    seen_names: set[str] = set()
+    for fname, b in image_items:
+        clean_name = fname
+        if not clean_name.lower().endswith(".jpeg"):
+            clean_name = f"{clean_name}.jpeg"
+        base, ext = os.path.splitext(clean_name)
+        counter = 1
+        final_name = clean_name
+        while final_name.lower() in seen_names:
+            final_name = f"{base}_{counter}{ext}"
+            counter += 1
+        seen_names.add(final_name.lower())
+        unique_items.append((final_name, b))
+
+    zip_buf = create_images_zip(unique_items)
+
+    base_name = re.sub(r"\.pdf$", "", job.filename, flags=re.IGNORECASE)
+    base_name = re.sub(r'[\\/*?:"<>| ]', "_", base_name).strip("_") or "Catalogue"
+    zip_filename = f"{base_name}_diagrams_images.zip"
+
+    return StreamingResponse(
+        zip_buf,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{zip_filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
+
+
+@app.post("/api/pipeline/download-images-zip/{job_id}")
+def download_pipeline_images_zip_post(
+    job_id: str,
+    payload: Optional[PipelineDownloadImagesZipRequest] = None,
+):
+    """Download selected or all extracted diagrams as a ZIP archive (POST with selected IDs)."""
+    job = pipeline_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Pipeline job not found or expired.")
+    selected_ids = payload.selected_image_ids if payload else None
+    return _build_pipeline_images_zip_response(job, selected_ids)
+
+
+@app.get("/api/pipeline/download-images-zip/{job_id}")
+def download_pipeline_images_zip_get(job_id: str):
+    """Download all extracted diagrams as a ZIP archive (GET direct link)."""
+    job = pipeline_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Pipeline job not found or expired.")
+    return _build_pipeline_images_zip_response(job, None)
 
 
 @app.get("/api/pipeline/images/{job_id}/{image_id}")
