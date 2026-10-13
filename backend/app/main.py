@@ -929,6 +929,16 @@ def get_pipeline_image_endpoint(job_id: str, image_id: str):
 
 
 
+@app.post("/api/desktop/shutdown")
+async def desktop_shutdown():
+    """Cleanly exit desktop app process."""
+    def _delayed_exit():
+        time.sleep(0.4)
+        os._exit(0)
+    threading.Thread(target=_delayed_exit, daemon=True).start()
+    return {"status": "shutting_down"}
+
+
 # Mount built frontend static assets if present (prioritize live frontend/dist on disk so .exe auto-updates)
 import sys as _sys
 

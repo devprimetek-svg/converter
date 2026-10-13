@@ -15,6 +15,7 @@ import threading
 import time
 import urllib.request
 import webbrowser
+from typing import Callable, Optional
 
 # Ensure sys.stdout and sys.stderr are valid streams when compiled with PyInstaller --noconsole
 if sys.stdout is None:
@@ -56,8 +57,18 @@ def find_available_port(preferred: int = 8000) -> int:
     return preferred
 
 
-def open_desktop_window(url: str) -> None:
-    """Open URL in Chrome/Edge App Mode (looks like a native desktop app) or default browser."""
+def open_desktop_window(url: str, on_close: Optional[Callable[[], None]] = None) -> None:
+    """Open URL in Chrome/Edge App Mode with isolated profile and auto-shutdown on window close."""
+    profile_dir = os.path.join(
+        os.environ.get("LOCALAPPDATA", os.path.expanduser("~")),
+        "ConverterStudio",
+        "profile",
+    )
+    try:
+        os.makedirs(profile_dir, exist_ok=True)
+    except Exception:
+        pass
+
     browser_candidates = [
         os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
         os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
@@ -65,14 +76,36 @@ def open_desktop_window(url: str) -> None:
         os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
         os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
     ]
+
+    proc = None
     for exe_path in browser_candidates:
         if os.path.exists(exe_path):
             try:
-                subprocess.Popen([exe_path, f"--app={url}", "--start-maximized"])
-                return
+                proc = subprocess.Popen([
+                    exe_path,
+                    f"--user-data-dir={profile_dir}",
+                    f"--app={url}",
+                    "--start-maximized",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                ])
+                break
             except Exception:
                 pass
-    webbrowser.open(url)
+
+    if proc is None:
+        webbrowser.open(url)
+        return
+
+    if on_close:
+        def wait_exit():
+            try:
+                proc.wait()
+            except Exception:
+                pass
+            on_close()
+
+        threading.Thread(target=wait_exit, daemon=True).start()
 
 
 def main() -> None:
@@ -87,21 +120,20 @@ def main() -> None:
     port = find_available_port(8000)
     url = f"http://127.0.0.1:{port}"
 
+    def on_window_closed():
+        # Cleanly terminate backend server when desktop window is closed
+        time.sleep(0.5)
+        os._exit(0)
+
     def wait_and_launch_browser():
         for _ in range(50):
             if is_server_healthy(port):
-                open_desktop_window(url)
+                open_desktop_window(url, on_close=on_window_closed)
                 return
             time.sleep(0.2)
-        open_desktop_window(url)
+        open_desktop_window(url, on_close=on_window_closed)
 
     threading.Thread(target=wait_and_launch_browser, daemon=True).start()
-
-    print(f"============================================================")
-    print(f"  Converter Studio (Local Desktop App)")
-    print(f"  Running locally at: {url}")
-    print(f"  Keep this window open while using the application.")
-    print(f"============================================================")
 
     uvicorn.run(
         app,
