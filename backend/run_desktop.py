@@ -1,4 +1,4 @@
-"""Standalone Windows Desktop Launcher for Venture Automation - Converter Studio.
+"""Standalone Windows Desktop Launcher for Converter Studio.
 
 Starts the FastAPI + React studio locally and opens a native-style Desktop App window.
 Works both via Python directly and when compiled into ConverterStudio.exe via PyInstaller.
@@ -98,7 +98,7 @@ def main() -> None:
     threading.Thread(target=wait_and_launch_browser, daemon=True).start()
 
     print(f"============================================================")
-    print(f"  Venture Automation | Converter Studio (Local Desktop App)")
+    print(f"  Converter Studio (Local Desktop App)")
     print(f"  Running locally at: {url}")
     print(f"  Keep this window open while using the application.")
     print(f"============================================================")

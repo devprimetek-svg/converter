@@ -284,7 +284,7 @@ export function App() {
               <div className="space-y-8">
                 <div className="text-center max-w-2xl mx-auto space-y-3">
                   <span className="inline-block px-3 py-1 rounded-full text-xs font-mono font-medium bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 uppercase tracking-widest">
-                    Venture Intelligence
+                    Converter Studio
                   </span>
                   <h2 className="text-3xl sm:text-4xl font-extrabold text-zinc-900 dark:text-white tracking-tight">
                     Extract Parts Catalogues to Excel
@@ -348,7 +348,7 @@ export function App() {
           <div className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-zinc-900 dark:bg-white" />
             <span className="font-semibold tracking-wider text-zinc-800 dark:text-zinc-300 uppercase">
-              Venture Automation • Extract and Build
+              Converter Studio • Extract and Build
             </span>
           </div>
           <p className="text-zinc-500 dark:text-zinc-400">Document & Image Intelligence Matrix • 100% In-Memory Privacy</p>

@@ -14,7 +14,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
     'SYSTEM INITIALIZING',
     'PARSER ENGINE SYNCHRONIZED',
     'IMAGE & WATERMARK CORES READY',
-    'VENTURE ENGINE ONLINE',
+    'CONVERTER STUDIO ONLINE',
   ];
 
   useEffect(() => {
@@ -71,7 +71,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
       <div className="w-full max-w-4xl flex items-center justify-between text-[11px] font-mono tracking-widest text-zinc-500 uppercase px-2 pt-2">
         <div className="flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-white" />
-          <span className="text-zinc-400 font-semibold">VENTURE // v2.6</span>
+          <span className="text-zinc-400 font-semibold">CONVERTER STUDIO // v2.6</span>
         </div>
         <button
           onClick={triggerExit}
@@ -125,7 +125,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
         {/* Brand Typography */}
         <div className="space-y-2">
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-wider uppercase text-white font-sans">
-            Venture <span className="font-light text-zinc-400">Automation</span>
+            Converter <span className="font-light text-zinc-400">Studio</span>
           </h1>
 
           <div className="flex items-center justify-center gap-3 pt-1">
@@ -166,7 +166,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
 
       {/* Bottom Footer */}
       <div className="w-full max-w-4xl flex items-center justify-between text-[11px] font-mono text-zinc-600 border-t border-zinc-900 pt-4 px-2">
-        <span>VENTURE AUTOMATION</span>
+        <span>CONVERTER STUDIO</span>
         <span>EXTRACT AND BUILD</span>
         <span>2026</span>
       </div>

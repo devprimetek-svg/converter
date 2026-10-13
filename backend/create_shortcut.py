@@ -15,7 +15,7 @@ $Shortcut = $WshShell.CreateShortcut("{shortcut_path}")
 $Shortcut.TargetPath = "{target_exe}"
 $Shortcut.WorkingDirectory = "{os.path.dirname(target_exe)}"
 $Shortcut.IconLocation = "{icon_path},0"
-$Shortcut.Description = "Venture Automation - Converter Studio"
+$Shortcut.Description = "Converter Studio"
 $Shortcut.Save()
 '''
 

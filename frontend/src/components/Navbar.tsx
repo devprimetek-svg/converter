@@ -72,7 +72,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div>
             <div className="flex items-center gap-1.5">
               <h1 className="text-sm sm:text-base font-extrabold tracking-wider text-zinc-900 dark:text-white uppercase font-sans">
-                Venture <span className="font-light text-zinc-500 dark:text-zinc-400">Automation</span>
+                Converter <span className="font-light text-zinc-500 dark:text-zinc-400">Studio</span>
               </h1>
             </div>
             <div className="text-[10px] sm:text-[11px] font-mono tracking-widest text-zinc-500 dark:text-zinc-400 uppercase font-medium">
@@ -119,7 +119,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={onReplaySplash}
               className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-950 hover:bg-zinc-200 dark:hover:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all text-[11px] font-mono font-medium whitespace-nowrap shrink-0 cursor-pointer"
-              title="Replay Venture Automation Startup Screen"
+              title="Replay Converter Studio Startup Screen"
             >
               <RotateCcw className="w-3 h-3 text-zinc-600 dark:text-zinc-300 shrink-0" />
               <span className="hidden sm:inline whitespace-nowrap">Splash</span>
