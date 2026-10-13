@@ -403,7 +403,10 @@ def generate_excel_workbook(
             row_model_code = active_model_code
         else:
             row_model_code = orig_row_mc or active_model_code or "MODEL"
-        is_parent_cell = (fig_key != last_fig_key)
+        if is_custom_section_row(row_data):
+            is_parent_cell = bool(row_data.get("is_parent"))
+        else:
+            is_parent_cell = (fig_key != last_fig_key)
         if is_parent_cell:
             last_fig_key = fig_key
             curr_page = str(row_data.get("page", ""))

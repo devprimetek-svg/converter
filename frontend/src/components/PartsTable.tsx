@@ -79,7 +79,8 @@ export const PartsTable: React.FC<PartsTableProps> = ({
   const [sortField, setSortField] = useState<SortField>('page');
   const [sortDir, setSortDir] = useState<SortDirection>('asc');
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [pageSize, setPageSize] = useState<number>(25);
+  const [pageSize, setPageSize] = useState<number>(-1);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
   /** figKey of the cell currently being edited (null = none) */
   const [editingFigKey, setEditingFigKey] = useState<string | null>(null);
@@ -247,10 +248,51 @@ export const PartsTable: React.FC<PartsTableProps> = ({
     );
   };
 
+  const jumpToCustomSections = () => {
+    setPageSize(-1);
+    setTimeout(() => {
+      const el = document.getElementById('custom-section-part-kits');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else if (tableContainerRef.current) {
+        tableContainerRef.current.scrollTop = tableContainerRef.current.scrollHeight;
+      }
+    }, 50);
+  };
+
+  const jumpToTop = () => {
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden space-y-0">
+      {/* Quick Jump Bar for Custom Sections */}
+      <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <span className="text-slate-600 dark:text-slate-300 font-medium">
+          Showing <strong>{displayedItems.length}</strong> of <strong>{sortedRowsWithIndex.length}</strong> rows (includes <strong>PART KITS &amp; SETS</strong> + 9 blank rows &amp; <strong>REGULAR SERVICE PARTS</strong> + 14 blank rows)
+        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={jumpToTop}
+            className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold cursor-pointer transition-colors"
+          >
+            ↑ Top of Table
+          </button>
+          <button
+            type="button"
+            onClick={jumpToCustomSections}
+            className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold cursor-pointer transition-colors shadow-2xs"
+          >
+            ↓ View PART KITS &amp; SETS / REGULAR SERVICE PARTS
+          </button>
+        </div>
+      </div>
+
       {/* Table Container */}
-      <div className="overflow-x-auto max-h-[620px] scrollbar-thin">
+      <div ref={tableContainerRef} className="overflow-x-auto max-h-[620px] scrollbar-thin">
         <table className="w-full text-left border-collapse text-xs sm:text-sm">
           <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-800/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200">
             <tr>
@@ -501,13 +543,14 @@ export const PartsTable: React.FC<PartsTableProps> = ({
 
                 return (
                   <tr
+                    id={isFirstOfFig && row.fig_name === 'PART KITS & SETS' ? 'custom-section-part-kits' : undefined}
                     key={`${row.page}-${row.fig_no}-${row.ref_no}-${row.part_no}-${idx}`}
-                    className={`hover:bg-blue-50/40 dark:hover:bg-blue-950/30 transition-colors ${
+                    className={`hover:bg-blue-50/40 dark:hover:bg-blue-950/30 transition-colors h-8 ${
                       idx % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/50 dark:bg-slate-900/50'
                     }`}
                   >
                     <td className="px-3 py-2 text-center text-slate-500 dark:text-slate-400">
-                      {isFirstOfFig ? row.page : ''}
+                      {isFirstOfFig ? row.page : isCustomSection ? <span className="inline-block h-4">&nbsp;</span> : ''}
                     </td>
 
                     <td className="px-3 py-2 text-center font-semibold text-slate-700 dark:text-slate-300">
