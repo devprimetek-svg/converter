@@ -405,7 +405,7 @@ def test_parent_cell_blanking_and_catalogue_code_in_excel():
     # Figure 1 - Row 2 (Parent Cell)
     assert ws.cell(row=2, column=1).value == "1"            # Page
     assert ws.cell(row=2, column=2).value == "1"            # Fig No.
-    assert (ws.cell(row=2, column=3).value or "") == ""     # Item Group (BLANK)
+    assert ws.cell(row=2, column=3).value == "BGPK"         # Item Group (Model Code on Parent)
     assert (ws.cell(row=2, column=4).value or "") == ""     # Show in Website (BLANK)
     assert (ws.cell(row=2, column=5).value or "") == ""     # Ranking (BLANK)
     assert ws.cell(row=2, column=6).value == "CYLINDER"     # Parts Name
@@ -417,9 +417,10 @@ def test_parent_cell_blanking_and_catalogue_code_in_excel():
     assert ws.cell(row=2, column=11).value == "1"            # Ref No.
     assert ws.cell(row=2, column=12).value == "BGP-E1111-00" # Part No.
 
-    # Figure 1 - Row 3 (Child 1: page, fig_no, fig_name, catalogue_code, model_name, pic, pic_path must be blank)
+    # Figure 1 - Row 3 (Child 1: page, fig_no, item_group, fig_name, catalogue_code, model_name, pic, pic_path must be blank)
     assert (ws.cell(row=3, column=1).value or "") == ""     # Page (BLANK)
     assert (ws.cell(row=3, column=2).value or "") == ""     # Fig No. (BLANK)
+    assert (ws.cell(row=3, column=3).value or "") == ""     # Item Group (BLANK on child)
     assert (ws.cell(row=3, column=6).value or "") == ""     # Parts Name (BLANK)
     assert (ws.cell(row=3, column=7).value or "") == ""     # Catalogue Code (BLANK)
     assert (ws.cell(row=3, column=8).value or "") == ""     # Model Name (BLANK)
@@ -428,9 +429,10 @@ def test_parent_cell_blanking_and_catalogue_code_in_excel():
     assert ws.cell(row=3, column=11).value == "2"           # Ref No.
     assert ws.cell(row=3, column=12).value == "90105-088D1"
 
-    # Figure 1 - Row 4 (Child 2: page, fig_no, fig_name, catalogue_code, model_name, pic, pic_path must be blank)
+    # Figure 1 - Row 4 (Child 2: page, fig_no, item_group, fig_name, catalogue_code, model_name, pic, pic_path must be blank)
     assert (ws.cell(row=4, column=1).value or "") == ""     # Page (BLANK)
     assert (ws.cell(row=4, column=2).value or "") == ""     # Fig No. (BLANK)
+    assert (ws.cell(row=4, column=3).value or "") == ""     # Item Group (BLANK on child)
     assert (ws.cell(row=4, column=6).value or "") == ""     # Parts Name (BLANK)
     assert (ws.cell(row=4, column=7).value or "") == ""     # Catalogue Code (BLANK)
     assert (ws.cell(row=4, column=8).value or "") == ""     # Model Name (BLANK)
@@ -441,6 +443,7 @@ def test_parent_cell_blanking_and_catalogue_code_in_excel():
     # Figure 2 - Row 5 (Parent Cell for Figure 2)
     assert ws.cell(row=5, column=1).value == "2"            # Page
     assert ws.cell(row=5, column=2).value == "2"            # Fig No.
+    assert ws.cell(row=5, column=3).value == "BGPK"         # Item Group (Model Code on Parent)
     assert ws.cell(row=5, column=6).value == "CYLINDER" if ws.cell(row=5, column=6).value == "CYLINDER" else "CRANKSHAFT"  # Parts Name
     assert "CRANKSHAFT" in ws.cell(row=5, column=7).value  # Catalogue Code
     assert "CRANKSHAFT" in ws.cell(row=5, column=8).value  # Model Name
@@ -448,9 +451,10 @@ def test_parent_cell_blanking_and_catalogue_code_in_excel():
     assert "CRANKSHAFT.jpeg" in ws.cell(row=5, column=10).value  # Pic Path
     assert ws.cell(row=5, column=11).value == "1"           # Ref No.
 
-    # Figure 2 - Row 6 (Child 1: page, fig_no, fig_name, catalogue_code, model_name, pic, pic_path must be blank)
+    # Figure 2 - Row 6 (Child 1: page, fig_no, item_group, fig_name, catalogue_code, model_name, pic, pic_path must be blank)
     assert (ws.cell(row=6, column=1).value or "") == ""     # Page (BLANK)
     assert (ws.cell(row=6, column=2).value or "") == ""     # Fig No. (BLANK)
+    assert (ws.cell(row=6, column=3).value or "") == ""     # Item Group (BLANK on child)
     assert (ws.cell(row=6, column=6).value or "") == ""     # Parts Name (BLANK)
     assert (ws.cell(row=6, column=7).value or "") == ""     # Catalogue Code (BLANK)
     assert (ws.cell(row=6, column=8).value or "") == ""     # Model Name (BLANK)

@@ -250,7 +250,7 @@ def generate_excel_workbook(
             parent_row: dict[str, Any] = {
                 "page": "",
                 "fig_no": "",
-                "item_group": "",
+                "item_group": active_model_code,
                 "show_in_website": "",
                 "ranking": "",
                 "fig_name": section_name,
@@ -409,6 +409,7 @@ def generate_excel_workbook(
             is_parent_cell = (fig_key != last_fig_key)
         if is_parent_cell:
             last_fig_key = fig_key
+            curr_item_group = row_model_code
             curr_page = str(row_data.get("page", ""))
             curr_fig_no = raw_fig_no
             curr_fig_name = raw_fig_name
@@ -445,7 +446,8 @@ def generate_excel_workbook(
             curr_model_name = format_parent_model_name(raw_mn, row_model_code, raw_fig_name, old_model_code=orig_row_mc)
             curr_remark_flag = "X" if fig_key in figs_with_remarks else ""
         else:
-            # Child cell: page, fig_no, fig_name, catalogue_code, model_name, pic, and pic_path do NOT repeat — remain blank
+            # Child cell: page, fig_no, item_group, fig_name, catalogue_code, model_name, pic, and pic_path do NOT repeat — remain blank
+            curr_item_group = ""
             curr_page = ""
             curr_fig_no = ""
             curr_fig_name = ""
@@ -460,6 +462,8 @@ def generate_excel_workbook(
                 val = curr_page
             elif field_key == "fig_no":
                 val = curr_fig_no
+            elif field_key == "item_group":
+                val = curr_item_group
             elif field_key == "fig_name":
                 val = curr_fig_name
             elif field_key == "catalogue_code":

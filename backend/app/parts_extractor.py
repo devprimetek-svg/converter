@@ -746,7 +746,7 @@ def extract_parts_from_pdf(
                 row_dict: dict = {
                     "page": page_num,
                     "fig_no": current_fig_no,
-                    "item_group": "",
+                    "item_group": effective_model_code if is_parent else "",
                     "show_in_website": "",
                     "ranking": "",
                     "fig_name": current_fig_name,
@@ -837,7 +837,7 @@ def extract_parts_from_pdf(
             parent_section_row: dict[str, Any] = {
                 "page": "",
                 "fig_no": "",
-                "item_group": "",
+                "item_group": primary_doc_model,
                 "show_in_website": "",
                 "ranking": "",
                 "fig_name": section_name,

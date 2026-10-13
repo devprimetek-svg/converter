@@ -557,8 +557,8 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                       {isFirstOfFig ? row.fig_no : ''}
                     </td>
 
-                    <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
-                      {(row as any).item_group || ''}
+                    <td className="px-3 py-2 text-slate-700 dark:text-slate-300 font-mono font-medium">
+                      {isFirstOfFig ? ((row as any).item_group || figModelCode || '') : ''}
                     </td>
 
                     <td className="px-3 py-2 text-center text-slate-600 dark:text-slate-400">

@@ -55,7 +55,8 @@ def main() -> None:
     print("=== [2/4] Syncing static assets ===")
     backend_static = os.path.join(root_dir, "backend", "static")
     dist_dir = os.path.join(frontend_dir, "dist")
-    subprocess.run(["cmd.exe", "/c", f'xcopy /E /I /Y "{dist_dir}" "{backend_static}"'], check=True)
+    import shutil
+    shutil.copytree(dist_dir, backend_static, dirs_exist_ok=True)
 
     # 4. Compile Standalone Windowless ConverterStudio.exe
     print("=== [3/4] Compiling ConverterStudio.exe (--noconsole) ===")
