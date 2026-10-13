@@ -133,6 +133,13 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
   // Filter rows (from rowsWithEdits so search sees updated model_name too)
   const filteredRows = useMemo(() => {
     return rowsWithEdits.filter((row) => {
+      if ((row as any).is_custom_section) {
+        if (selectedFigure !== 'ALL') return false;
+        if (!searchTerm) return true;
+        const term = searchTerm.toLowerCase();
+        return row.fig_name.toLowerCase().includes(term);
+      }
+
       if (selectedFigure !== 'ALL' && row.fig_no !== selectedFigure) return false;
 
       if (selectedModel !== 'ALL') {

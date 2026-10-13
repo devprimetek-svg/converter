@@ -287,7 +287,8 @@ def run_pipeline_worker(
         model_excel_data: dict[str, dict[str, Any]] = {}
         if model_codes:
             for m in model_codes:
-                m_rows = [r for r in job.rows if is_valid_quantity(r.get(m))]
+                m_rows = [r for r in job.rows if r.get("is_custom_section") or is_valid_quantity(r.get(m))]
+                m_parts_count = len([r for r in job.rows if not r.get("is_custom_section") and is_valid_quantity(r.get(m))])
 
                 m_excel_buf = generate_excel_workbook(
                     rows=m_rows,
@@ -302,7 +303,7 @@ def run_pipeline_worker(
                     "excel_bytes": m_excel_bytes,
                     "excel_filename": m_excel_fname,
                     "rows": m_rows,
-                    "parts_count": len(m_rows),
+                    "parts_count": m_parts_count,
                 }
 
         with job.lock:

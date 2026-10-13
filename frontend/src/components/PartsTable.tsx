@@ -177,6 +177,12 @@ export const PartsTable: React.FC<PartsTableProps> = ({
   const sortedRowsWithIndex = useMemo(() => {
     const items = localRows.map((row, originalIndex) => ({ row, originalIndex }));
     items.sort((a, b) => {
+      const aCustom = Boolean((a.row as any).is_custom_section);
+      const bCustom = Boolean((b.row as any).is_custom_section);
+      if (aCustom && bCustom) return a.originalIndex - b.originalIndex;
+      if (aCustom) return 1;
+      if (bCustom) return -1;
+
       let valA: any = a.row[sortField];
       let valB: any = b.row[sortField];
 
@@ -423,14 +429,17 @@ export const PartsTable: React.FC<PartsTableProps> = ({
             ) : (
               displayedItems.map(({ row }, idx) => {
                 const displayPartNo = cleanParts ? cleanPartNumber(row.part_no) : row.part_no;
+                const isCustomSection = Boolean((row as any).is_custom_section);
                 const isContinuation =
+                  !isCustomSection &&
                   idx > 0 &&
                   displayedItems[idx - 1].row.ref_no === row.ref_no &&
                   displayedItems[idx - 1].row.fig_no === row.fig_no;
-                const isFirstOfFig =
-                  idx === 0 ||
-                  displayedItems[idx - 1].row.fig_no !== row.fig_no ||
-                  displayedItems[idx - 1].row.fig_name !== row.fig_name;
+                const isFirstOfFig = isCustomSection
+                  ? Boolean((row as any).is_parent)
+                  : idx === 0 ||
+                    displayedItems[idx - 1].row.fig_no !== row.fig_no ||
+                    displayedItems[idx - 1].row.fig_name !== row.fig_name;
                 const primaryModel = modelColumns && modelColumns.length > 0 ? modelColumns[0] : 'MODEL';
                 const figModelCode = (row as any).model_code || primaryModel || 'MODEL';
                 const figNameStr = (row as any).parent_fig_name || row.fig_name || 'PARTS';
@@ -693,15 +702,17 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                     </td>
 
                     <td className="px-3 py-2 text-center">
-                      <span
-                        className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-bold ${
-                          isContinuation
-                            ? 'text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800'
-                            : 'text-slate-900 dark:text-slate-100 bg-slate-200/80 dark:bg-slate-700/80'
-                        }`}
-                      >
-                        {row.ref_no}
-                      </span>
+                      {row.ref_no ? (
+                        <span
+                          className={`inline-block px-1.5 py-0.5 rounded text-[11px] font-bold ${
+                            isContinuation
+                              ? 'text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800'
+                              : 'text-slate-900 dark:text-slate-100 bg-slate-200/80 dark:bg-slate-700/80'
+                          }`}
+                        >
+                          {row.ref_no}
+                        </span>
+                      ) : null}
                     </td>
 
                     <td className="px-3 py-2 font-bold text-blue-900 dark:text-blue-300 tracking-wide select-all">
@@ -722,7 +733,7 @@ export const PartsTable: React.FC<PartsTableProps> = ({
                             <span className="inline-flex items-center justify-center min-w-[22px] h-[22px] px-1.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 text-xs font-semibold">
                               {qty}
                             </span>
-                          ) : (
+                          ) : isCustomSection ? null : (
                             <span className="text-slate-300 dark:text-slate-700">-</span>
                           )}
                         </td>

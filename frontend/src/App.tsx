@@ -198,10 +198,10 @@ export function App() {
       const baseRows = editedRows || status.rows;
       let rowsToExport = baseRows;
       if (targetModel) {
-        rowsToExport = baseRows.filter((r) => isValidQty(r[targetModel]));
+        rowsToExport = baseRows.filter((r) => Boolean((r as any).is_custom_section) || isValidQty(r[targetModel]));
       } else if (status.model_columns && status.model_columns.length >= 2) {
-        rowsToExport = baseRows.filter((r) =>
-          status.model_columns.some((m) => isValidQty(r[m]))
+        rowsToExport = baseRows.filter(
+          (r) => Boolean((r as any).is_custom_section) || status.model_columns.some((m) => isValidQty(r[m]))
         );
       }
 

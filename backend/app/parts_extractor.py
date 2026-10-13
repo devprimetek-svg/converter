@@ -816,6 +816,79 @@ def extract_parts_from_pdf(
         else:
             row["remark_flag"] = ""
 
+    # Append custom sections at the end of Parts Name:
+    # 1. PART KITS & SETS + 9 blank rows below it
+    # 2. REGULAR SERVICE PARTS + 14 blank rows below it
+    if all_rows:
+        primary_doc_model = (
+            document_model_columns[0]
+            if document_model_columns
+            else (pdf_model_code or "MODEL")
+        )
+        custom_sections = [
+            ("PART KITS & SETS", 9),
+            ("REGULAR SERVICE PARTS", 14),
+        ]
+        for section_name, blank_rows_count in custom_sections:
+            cat_code = build_catalogue_code(primary_doc_model, section_name, "")
+            pic_val = f"{cat_code}.jpeg" if cat_code else ""
+            model_name_val = build_model_name_record(primary_doc_model, pdf_model_name, section_name)
+
+            parent_section_row: dict[str, Any] = {
+                "page": "",
+                "fig_no": "",
+                "item_group": "",
+                "show_in_website": "",
+                "ranking": "",
+                "fig_name": section_name,
+                "parent_fig_no": "",
+                "parent_fig_name": section_name,
+                "is_parent": True,
+                "is_custom_section": True,
+                "model_code": primary_doc_model,
+                "catalogue_code": cat_code,
+                "model_name": model_name_val,
+                "pic": pic_val,
+                "image": pic_val,
+                "pic_path": pic_val,
+                "ref_no": "",
+                "part_no": "",
+                "description": "",
+                "remarks": "",
+                "remark_flag": "",
+            }
+            for model in document_model_columns:
+                parent_section_row[model] = ""
+            all_rows.append(parent_section_row)
+
+            for _ in range(blank_rows_count):
+                blank_child_row: dict[str, Any] = {
+                    "page": "",
+                    "fig_no": "",
+                    "item_group": "",
+                    "show_in_website": "",
+                    "ranking": "",
+                    "fig_name": "",
+                    "parent_fig_no": "",
+                    "parent_fig_name": section_name,
+                    "is_parent": False,
+                    "is_custom_section": True,
+                    "model_code": primary_doc_model,
+                    "catalogue_code": "",
+                    "model_name": "",
+                    "pic": "",
+                    "image": "",
+                    "pic_path": "",
+                    "ref_no": "",
+                    "part_no": "",
+                    "description": "",
+                    "remarks": "",
+                    "remark_flag": "",
+                }
+                for model in document_model_columns:
+                    blank_child_row[model] = ""
+                all_rows.append(blank_child_row)
+
     return {
         "rows": all_rows,
         "model_columns": document_model_columns,

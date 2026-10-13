@@ -44,9 +44,9 @@ def test_extract_and_export_flow():
 
     assert status_data is not None
     assert status_data["status"] == "completed"
-    assert status_data["total_rows"] == 3
+    assert status_data["total_rows"] == 28
     assert "BGPK" in status_data["model_columns"]
-    assert len(status_data["rows"]) == 3
+    assert len(status_data["rows"]) == 28
 
     # 4. Test /api/export with clean part numbers
     export_payload = {

@@ -156,6 +156,14 @@ def is_valid_quantity(val: Any) -> bool:
     return True
 
 
+def is_custom_section_row(r: dict[str, Any]) -> bool:
+    """Return True if the row belongs to the trailing PART KITS & SETS or REGULAR SERVICE PARTS sections."""
+    if r.get("is_custom_section"):
+        return True
+    fn = str(r.get("parent_fig_name") or r.get("fig_name") or "").strip().upper()
+    return fn in ("PART KITS & SETS", "REGULAR SERVICE PARTS")
+
+
 def generate_excel_workbook(
     rows: list[dict[str, Any]],
     model_columns: list[str],
@@ -167,8 +175,8 @@ def generate_excel_workbook(
 
     Filtering rule:
     - If a specific model is being exported (len(model_columns) == 1), all rows without valid quantity
-      for that model are excluded. Only rows with recorded quantity for that model remain.
-    - If multiple models exist, rows where all model quantities are blank are excluded.
+      for that model are excluded (except custom section rows). Only rows with recorded quantity for that model remain.
+    - If multiple models exist, rows where all model quantities are blank are excluded (except custom section rows).
 
     Parent cell rule:
     - For the figure number, parts name, and catalogue code, only the parent cell of the figure
@@ -179,7 +187,11 @@ def generate_excel_workbook(
         target_model = model_columns[0]
         processed_rows = []
         for r in rows:
-            if is_valid_quantity(r.get(target_model)):
+            if is_custom_section_row(r):
+                r_copy = dict(r)
+                r_copy[target_model] = ""
+                processed_rows.append(r_copy)
+            elif is_valid_quantity(r.get(target_model)):
                 r_copy = dict(r)
                 r_copy[target_model] = str(r_copy.get(target_model)).strip()
                 processed_rows.append(r_copy)
@@ -187,7 +199,10 @@ def generate_excel_workbook(
         if sheet_title == "Parts List":
             sheet_title = f"Parts_{target_model}"[:31]
     elif len(model_columns) >= 2:
-        rows = [r for r in rows if any(is_valid_quantity(r.get(m)) for m in model_columns)]
+        rows = [
+            r for r in rows
+            if is_custom_section_row(r) or any(is_valid_quantity(r.get(m)) for m in model_columns)
+        ]
 
     # Disambiguate repeated ref_no within each figure (e.g. 1A, 1B, 2A, 2B etc.)
     rows = disambiguate_repeated_ref_numbers(rows)
@@ -207,6 +222,85 @@ def generate_excel_workbook(
                 active_model_code = "_".join(m.strip().upper() for m in model_columns if m.strip())
         else:
             active_model_code = "MODEL"
+
+    # Ensure PART KITS & SETS (with 9 blank rows below) and REGULAR SERVICE PARTS (with 14 blank rows below) exist at the end
+    if rows and not any(is_custom_section_row(r) for r in rows):
+        inferred_raw_model = ""
+        inferred_brand = "YAMAHA"
+        inferred_pic_prefix = ""
+        for r in rows:
+            mn = str(r.get("model_name") or "").strip()
+            if mn:
+                inferred_brand = detect_brand(mn, "YAMAHA")
+                inferred_raw_model = extract_raw_model_name(mn, active_model_code, str(r.get("model_code") or ""))
+                break
+        for r in rows:
+            p_val = str(r.get("pic") or r.get("image") or "").strip()
+            pp_val = str(r.get("pic_path") or "").strip()
+            if p_val and pp_val and pp_val.endswith(p_val) and len(pp_val) > len(p_val):
+                inferred_pic_prefix = pp_val[: len(pp_val) - len(p_val)]
+                break
+
+        for section_name, blank_rows_count in (("PART KITS & SETS", 9), ("REGULAR SERVICE PARTS", 14)):
+            cat_code = build_catalogue_code(active_model_code, section_name, "")
+            pic_val = f"{cat_code}.jpeg" if cat_code else ""
+            pic_path_val = f"{inferred_pic_prefix}{pic_val}" if pic_val else ""
+            model_name_val = build_model_name_record(active_model_code, inferred_raw_model, section_name, brand=inferred_brand)
+
+            parent_row: dict[str, Any] = {
+                "page": "",
+                "fig_no": "",
+                "item_group": "",
+                "show_in_website": "",
+                "ranking": "",
+                "fig_name": section_name,
+                "parent_fig_no": "",
+                "parent_fig_name": section_name,
+                "is_parent": True,
+                "is_custom_section": True,
+                "model_code": active_model_code,
+                "catalogue_code": cat_code,
+                "model_name": model_name_val,
+                "pic": pic_val,
+                "image": pic_val,
+                "pic_path": pic_path_val,
+                "ref_no": "",
+                "part_no": "",
+                "description": "",
+                "remarks": "",
+                "remark_flag": "",
+            }
+            for m in model_columns:
+                parent_row[m] = ""
+            rows.append(parent_row)
+
+            for _ in range(blank_rows_count):
+                child_row: dict[str, Any] = {
+                    "page": "",
+                    "fig_no": "",
+                    "item_group": "",
+                    "show_in_website": "",
+                    "ranking": "",
+                    "fig_name": "",
+                    "parent_fig_no": "",
+                    "parent_fig_name": section_name,
+                    "is_parent": False,
+                    "is_custom_section": True,
+                    "model_code": active_model_code,
+                    "catalogue_code": "",
+                    "model_name": "",
+                    "pic": "",
+                    "image": "",
+                    "pic_path": "",
+                    "ref_no": "",
+                    "part_no": "",
+                    "description": "",
+                    "remarks": "",
+                    "remark_flag": "",
+                }
+                for m in model_columns:
+                    child_row[m] = ""
+                rows.append(child_row)
 
     wb = openpyxl.Workbook()
     ws = wb.active

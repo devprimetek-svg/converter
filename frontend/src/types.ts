@@ -1,5 +1,5 @@
 export interface PartRow {
-  page: number;
+  page: number | string;
   fig_no: string;
   item_group?: string;
   show_in_website?: string;
@@ -11,6 +11,7 @@ export interface PartRow {
   image?: string;
   pic_path?: string;
   is_parent?: boolean;
+  is_custom_section?: boolean;
   parent_fig_name?: string;
   ref_no: string;
   part_no: string;

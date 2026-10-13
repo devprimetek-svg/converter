@@ -261,7 +261,8 @@ def test_end_to_end_extraction():
     assert "BGPK" in result["model_columns"]
 
     rows = result["rows"]
-    assert len(rows) == 3
+    # 3 extracted part rows + 10 (PART KITS & SETS + 9 blank) + 15 (REGULAR SERVICE PARTS + 14 blank) = 28
+    assert len(rows) == 28
 
     # Row 1
     assert rows[0]["fig_no"] == "1"
@@ -311,7 +312,7 @@ def test_end_to_end_extraction_alphanumeric_code_with_digits():
 
     result = extract_parts_from_pdf(buf)
     assert "BGP1" in result["model_columns"]
-    assert len(result["rows"]) == 1
+    assert len(result["rows"]) == 26
     assert result["rows"][0]["BGP1"] == "1"
 
 
@@ -709,7 +710,7 @@ def test_extraction_omits_ur_ab_yb_remarks():
 
     result = extract_parts_from_pdf(buf)
     rows = result["rows"]
-    assert len(rows) == 3
+    assert len(rows) == 28
 
     # Row 1 remarks had 'UR' -> now empty string
     assert rows[0]["remarks"] == ""
@@ -972,8 +973,8 @@ def test_split_excel_remarks_by_model_quantity():
     assert ws1.cell(row=4, column=qty_col1).value == "1"
     assert ws1.cell(row=4, column=rem_col1).value == "UR FOR SILVER"
     assert ws1.cell(row=4, column=flag_col1).value == "X"
-    # Total data rows in BGP1 sheet is 3
-    assert ws1.max_row == 4
+    # Total data rows in BGP1 sheet is 3 parts + 25 custom section rows = 28 (row 1 header + 28 = 29)
+    assert ws1.max_row == 29
 
     # Model code assertions for BGP1:
     assert ws1.cell(row=2, column=6).value == "CYLINDER"
@@ -1006,8 +1007,8 @@ def test_split_excel_remarks_by_model_quantity():
     assert ws2.cell(row=3, column=rem_col2).value == "UR FOR BLUE"
 
     # Fig 2 Ref 1 (BGP2 was blank) is excluded!
-    # Total data rows in BGP2 sheet is 2
-    assert ws2.max_row == 3
+    # Total data rows in BGP2 sheet is 2 parts + 25 custom section rows = 27 (row 1 header + 27 = 28)
+    assert ws2.max_row == 28
 
     # Model code assertions for BGP2: replaced BGP1 with BGP2!
     assert ws2.cell(row=2, column=6).value == "CYLINDER"
@@ -1128,6 +1129,74 @@ def test_custom_remark_flag_cells_below_x():
     assert ws.cell(row=7, column=flag_col).value == "FLAG_CELL_5"
     # Row 8 (Ref 7, slot 6) should be empty/blank
     assert (ws.cell(row=8, column=flag_col).value or "") == ""
+
+
+def test_custom_parts_name_sections_part_kits_and_regular_service_parts():
+    """Verify that after extraction, PART KITS & SETS (with 9 blank rows below it)
+    and REGULAR SERVICE PARTS (with 14 blank rows below it) are appended at the end
+    of the Parts Name column in both extracted rows and the generated Excel sheet."""
+    pdf_buf = _create_synthetic_catalogue_pdf()
+    result = extract_parts_from_pdf(pdf_buf)
+    rows = result["rows"]
+
+    # First 3 rows are actual parts, remaining 25 rows are custom sections
+    assert len(rows) == 28
+    custom_rows = rows[3:]
+    assert len(custom_rows) == 25
+
+    # Section 1: PART KITS & SETS (index 0) + 9 blank rows (indices 1..9)
+    assert custom_rows[0]["fig_name"] == "PART KITS & SETS"
+    assert custom_rows[0]["is_parent"] is True
+    assert custom_rows[0]["is_custom_section"] is True
+    assert custom_rows[0]["catalogue_code"] == "YAM_BGPK_PART KITS & SETS"
+    for i in range(1, 10):
+        assert custom_rows[i]["fig_name"] == ""
+        assert custom_rows[i]["is_parent"] is False
+        assert custom_rows[i]["is_custom_section"] is True
+        assert custom_rows[i]["part_no"] == ""
+
+    # Section 2: REGULAR SERVICE PARTS (index 10) + 14 blank rows (indices 11..24)
+    assert custom_rows[10]["fig_name"] == "REGULAR SERVICE PARTS"
+    assert custom_rows[10]["is_parent"] is True
+    assert custom_rows[10]["is_custom_section"] is True
+    assert custom_rows[10]["catalogue_code"] == "YAM_BGPK_REGULAR SERVICE PARTS"
+    for i in range(11, 25):
+        assert custom_rows[i]["fig_name"] == ""
+        assert custom_rows[i]["is_parent"] is False
+        assert custom_rows[i]["is_custom_section"] is True
+        assert custom_rows[i]["part_no"] == ""
+
+    # Verify in Excel workbook
+    buf = generate_excel_workbook(rows=rows, model_columns=["BGPK"], model_code="BGPK")
+    wb = openpyxl.load_workbook(buf)
+    ws = wb.active
+
+    # Rows 2..4 are the 3 part rows.
+    # Row 5 is PART KITS & SETS parent row.
+    assert ws.cell(row=5, column=6).value == "PART KITS & SETS"
+    assert ws.cell(row=5, column=7).value == "YAM_BGPK_PART KITS & SETS"
+    assert "PART KITS & SETS" in ws.cell(row=5, column=8).value
+    assert ws.cell(row=5, column=9).value == "YAM_BGPK_PART KITS & SETS.jpeg"
+    assert ws.cell(row=5, column=10).value == "YAM_BGPK_PART KITS & SETS.jpeg"
+
+    # Rows 6..14 (9 rows below PART KITS & SETS) must be completely blank across all columns
+    for r_idx in range(6, 15):
+        for c_idx in range(1, ws.max_column + 1):
+            assert (ws.cell(row=r_idx, column=c_idx).value or "") == ""
+
+    # Row 15 is REGULAR SERVICE PARTS parent row.
+    assert ws.cell(row=15, column=6).value == "REGULAR SERVICE PARTS"
+    assert ws.cell(row=15, column=7).value == "YAM_BGPK_REGULAR SERVICE PARTS"
+    assert "REGULAR SERVICE PARTS" in ws.cell(row=15, column=8).value
+    assert ws.cell(row=15, column=9).value == "YAM_BGPK_REGULAR SERVICE PARTS.jpeg"
+    assert ws.cell(row=15, column=10).value == "YAM_BGPK_REGULAR SERVICE PARTS.jpeg"
+
+    # Rows 16..29 (14 rows below REGULAR SERVICE PARTS) must be completely blank across all columns
+    for r_idx in range(16, 30):
+        for c_idx in range(1, ws.max_column + 1):
+            assert (ws.cell(row=r_idx, column=c_idx).value or "") == ""
+    assert ws.max_row == 29
+
 
 
 
