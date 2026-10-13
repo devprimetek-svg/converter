@@ -712,7 +712,7 @@ class PipelineProceedRequest(BaseModel):
 
 @app.post("/api/pipeline/proceed-images/{job_id}")
 def proceed_pipeline_images_endpoint(job_id: str, payload: Optional[PipelineImageProceedRequest] = None):
-    """Submit selected image IDs and resume the automated pipeline to Master ZIP packaging."""
+    """Submit selected image IDs and resume the automated pipeline to Edit Model step."""
     job = pipeline_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found or expired.")
@@ -724,10 +724,10 @@ def proceed_pipeline_images_endpoint(job_id: str, payload: Optional[PipelineImag
             job.selected_image_ids = [item["id"] for item in job.extracted_images_to_select]
 
         job.status = "processing"
-        job.step_index = 6
-        job.step_name = "Packaging Master ZIP Bundle..."
-        job.progress_pct = 85
-        job.details = f"Packaging {len(job.selected_image_ids)} selected images into Master ZIP..."
+        job.step_index = 5
+        job.step_name = "Edit Model Name"
+        job.progress_pct = 80
+        job.details = f"Selected {len(job.selected_image_ids)} images. Preparing Model review..."
         job.image_proceed_event.set()
 
     return {
@@ -751,10 +751,10 @@ def proceed_pipeline_endpoint(job_id: str, payload: Optional[PipelineProceedRequ
             elif job.selected_image_ids is None:
                 job.selected_image_ids = [item["id"] for item in job.extracted_images_to_select]
             job.status = "processing"
-            job.step_index = 6
-            job.step_name = "Packaging Master ZIP Bundle..."
-            job.progress_pct = 85
-            job.details = f"Packaging {len(job.selected_image_ids)} selected images into Master ZIP..."
+            job.step_index = 5
+            job.step_name = "Edit Model Name"
+            job.progress_pct = 80
+            job.details = f"Selected {len(job.selected_image_ids)} images. Preparing Model review..."
             job.image_proceed_event.set()
             return {"status": "resumed", "job_id": job.job_id, "selected_count": len(job.selected_image_ids)}
 
@@ -788,10 +788,10 @@ def proceed_pipeline_endpoint(job_id: str, payload: Optional[PipelineProceedRequ
                     r["model_name"] = ""
 
         job.status = "processing"
-        job.step_index = 3
-        job.step_name = "Generating Excel Workbook..."
-        job.progress_pct = 45
-        job.details = "Model names applied. Generating Excel workbook..."
+        job.step_index = 6
+        job.step_name = "Packaging Master ZIP Bundle..."
+        job.progress_pct = 88
+        job.details = "Model names applied. Generating Excel and compiling Master ZIP bundle..."
         job.proceed_event.set()
 
     return {"status": "resumed", "job_id": job.job_id}

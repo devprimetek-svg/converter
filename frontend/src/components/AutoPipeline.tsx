@@ -1248,10 +1248,10 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-2">
             {[
               { idx: 1, label: 'Parts Extraction', icon: FileSpreadsheet },
-              { idx: 2, label: 'Edit Model Name', icon: Pencil },
-              { idx: 3, label: 'Excel Generation', icon: FileSpreadsheet },
-              { idx: 4, label: 'Watermark & Resize', icon: Droplet },
-              { idx: 5, label: 'Select Images', icon: ImageIcon },
+              { idx: 2, label: 'Image Extraction', icon: ImageIcon },
+              { idx: 3, label: 'Watermark & Resize', icon: Droplet },
+              { idx: 4, label: 'Select Images', icon: ImageIcon },
+              { idx: 5, label: 'Edit Model Name', icon: Pencil },
               { idx: 6, label: 'Master ZIP', icon: FileArchive },
             ].map((s) => {
               const Icon = s.icon;
@@ -1283,7 +1283,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
         </div>
       )}
 
-      {/* State 2.5: Awaiting Model Name Input / Review (Parity with PDF-to-Excel extractor module) */}
+      {/* State 5: Awaiting Model Name Input / Review (Right Before Master ZIP) */}
       {status && status.status === 'awaiting_model_name' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           {/* Stepper & Action Card */}
@@ -1292,13 +1292,13 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
               <div className="space-y-1">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
                   <Pencil className="w-3.5 h-3.5" />
-                  Step 2 of 6: Edit Model
+                  Step 5 of 6: Edit Model (Before Master ZIP)
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">
-                  Review & Enter Model
+                  Review &amp; Enter Model
                 </h3>
                 <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">
-                  Catalogue extracted ({status.total_rows} parts across {status.figures_count || status.figures?.length || 0} figures). Enter your <strong>Model</strong> (e.g. <code>FASCINO 125CC DISK</code>, <code>FZ-S FI</code>) below — format: <strong>BRAND {status.model_columns?.[0] || 'MODEL'} MODEL Series FIG_NAME</strong> applies automatically to all parent figure rows.
+                  Catalogue extracted ({status.total_rows} parts across {status.figures_count || status.figures?.length || 0} figures) and diagrams processed. Enter your <strong>Model</strong> (e.g. <code>FASCINO 125CC DISK</code>, <code>FZ-S FI</code>) below — format: <strong>BRAND {status.model_columns?.[0] || 'MODEL'} MODEL Series FIG_NAME</strong> applies automatically before packaging the Master ZIP.
                 </p>
               </div>
 
@@ -1326,21 +1326,21 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                 <CheckCircle2 className="w-4 h-4 text-zinc-900 dark:text-white shrink-0" />
                 <span className="truncate">1. Extraction</span>
               </div>
-              <div className="p-2.5 rounded-xl border bg-blue-50 dark:bg-blue-950/50 border-blue-400 dark:border-blue-700 text-blue-900 dark:text-blue-200 text-xs font-bold flex items-center gap-2 shadow-xs">
-                <Pencil className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 animate-bounce" />
-                <span className="truncate">2. Edit Model</span>
+              <div className="p-2.5 rounded-xl border bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-zinc-900 dark:text-white shrink-0" />
+                <span className="truncate">2. Image Extraction</span>
               </div>
-              <div className="p-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2">
-                <FileSpreadsheet className="w-4 h-4 text-zinc-400 shrink-0" />
-                <span className="truncate">3. Excel</span>
+              <div className="p-2.5 rounded-xl border bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-zinc-900 dark:text-white shrink-0" />
+                <span className="truncate">3. Watermark &amp; Resize</span>
               </div>
-              <div className="p-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2">
-                <ImageIcon className="w-4 h-4 text-zinc-400 shrink-0" />
+              <div className="p-2.5 rounded-xl border bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-zinc-900 dark:text-white shrink-0" />
                 <span className="truncate">4. Select Images</span>
               </div>
-              <div className="p-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2">
-                <Droplet className="w-4 h-4 text-zinc-400 shrink-0" />
-                <span className="truncate">5. Watermark</span>
+              <div className="p-2.5 rounded-xl border bg-blue-50 dark:bg-blue-950/50 border-blue-400 dark:border-blue-700 text-blue-900 dark:text-blue-200 text-xs font-bold flex items-center gap-2 shadow-xs">
+                <Pencil className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 animate-bounce" />
+                <span className="truncate">5. Edit Model</span>
               </div>
               <div className="p-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2">
                 <FileArchive className="w-4 h-4 text-zinc-400 shrink-0" />
@@ -1383,17 +1383,17 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                     onClick={handleProceedPipeline}
                     disabled={isProceeding}
                     className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs sm:text-sm font-bold shadow-md shadow-blue-600/25 transition-all cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
-                    title="Save model names and proceed with Excel generation and image processing"
+                    title="Save model names and generate Master ZIP"
                   >
                     {isProceeding ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin text-white" />
-                        Proceeding...
+                        Generating Master ZIP...
                       </>
                     ) : (
                       <>
                         <Sparkles className="w-4 h-4 text-white" />
-                        Proceed Auto-Pipeline
+                        Proceed to Master ZIP
                         <ArrowRight className="w-4 h-4 text-white" />
                       </>
                     )}
@@ -1558,13 +1558,13 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
               <div className="space-y-1">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
                   <ImageIcon className="w-3.5 h-3.5" />
-                  Step 5 of 6: Review &amp; Select Diagrams
+                  Step 4 of 6: Review &amp; Select Diagrams
                 </div>
                 <h3 className="text-xl sm:text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">
-                  Review &amp; Select Diagrams for Master ZIP
+                  Review &amp; Select Diagrams
                 </h3>
                 <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">
-                  Extracted &amp; processed <strong>{status.extracted_images_to_select?.length || 0}</strong> diagrams with presets (1000×1200 px, 59–69 KB, IndiaSpare watermark on parts). All diagrams are ready. Uncheck any items you want to exclude from the final Master ZIP package.
+                  Extracted &amp; processed <strong>{status.extracted_images_to_select?.length || 0}</strong> diagrams with presets (1000×1200 px, 59–69 KB, IndiaSpare watermark on parts). All diagrams are ready. Select diagrams to include before proceeding to Model editing.
                 </p>
               </div>
 
@@ -1585,19 +1585,19 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
               </div>
               <div className="p-2.5 rounded-xl border bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs font-medium flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-zinc-900 dark:text-white shrink-0" />
-                <span className="truncate">2. Edit Model</span>
+                <span className="truncate">2. Image Extraction</span>
               </div>
               <div className="p-2.5 rounded-xl border bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs font-medium flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-zinc-900 dark:text-white shrink-0" />
-                <span className="truncate">3. Excel</span>
-              </div>
-              <div className="p-2.5 rounded-xl border bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-white text-xs font-medium flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-zinc-900 dark:text-white shrink-0" />
-                <span className="truncate">4. Watermark &amp; Resize</span>
+                <span className="truncate">3. Watermark &amp; Resize</span>
               </div>
               <div className="p-2.5 rounded-xl border bg-indigo-50 dark:bg-indigo-950/50 border-indigo-400 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 text-xs font-bold flex items-center gap-2 shadow-xs">
                 <ImageIcon className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0 animate-bounce" />
-                <span className="truncate">5. Select Images</span>
+                <span className="truncate">4. Select Images</span>
+              </div>
+              <div className="p-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-zinc-400 shrink-0" />
+                <span className="truncate">5. Edit Model</span>
               </div>
               <div className="p-2.5 rounded-xl border bg-zinc-50 dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800/80 text-zinc-400 dark:text-zinc-500 text-xs font-medium flex items-center gap-2">
                 <FileArchive className="w-4 h-4 text-zinc-400 shrink-0" />
@@ -1708,11 +1708,11 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                   {isProceedingImages ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Continuing Pipeline...
+                      Continuing to Edit Model...
                     </>
                   ) : (
                     <>
-                      <span>Continue Pipeline ({selectedImageIds.size} Selected)</span>
+                      <span>Continue to Edit Model ({selectedImageIds.size} Selected)</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}

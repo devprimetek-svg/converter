@@ -60,6 +60,9 @@ def main() -> None:
 
     # 4. Compile Standalone Windowless ConverterStudio.exe
     print("=== [3/4] Compiling ConverterStudio.exe (--noconsole) ===")
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/F", "/IM", "ConverterStudio.exe"], capture_output=True, check=False)
+
     backend_dir = os.path.join(root_dir, "backend")
     pyinstaller_cmd = [
         sys.executable,

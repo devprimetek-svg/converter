@@ -220,39 +220,8 @@ def run_pipeline_worker(
                     else:
                         r["model_name"] = ""
 
-            job.status = "awaiting_model_name"
-            job.step_index = 1
-            job.step_name = "Edit Model Name"
-            job.progress_pct = 35
-            job.details = "Parts catalogue extracted. Please review and edit the 'Model Name' column to proceed."
-
-        # Wait for user to input/edit model name and trigger proceed
-        logger.info(f"Pipeline job {job.job_id} waiting for model name input...")
-        if not auto_proceed and not job.proceed_event.is_set():
-            proceeded = job.proceed_event.wait(timeout=3600)
-        else:
-            proceeded = True
-
-        if not proceeded or job.status == "error":
-            logger.warning(f"Pipeline job {job.job_id} timed out or cancelled waiting for model name confirmation.")
-            with job.lock:
-                if job.status != "error":
-                    job.status = "error"
-                    job.error = "Pipeline timed out waiting for Model Name input."
-            return
-
-        with job.lock:
-            job.status = "processing"
-            job.step_index = 2
-            job.step_name = "Generating Excel Workbook..."
-            job.progress_pct = 45
-            job.details = f"Building Excel with {job.total_rows} parts..."
-
         # Resolve all applicable model codes
-        # 1. From detected model columns in table headers
         model_codes = [str(c).strip() for c in job.model_columns if str(c).strip()]
-
-        # 2. If no model columns were detected from table headers, check filename
         if not model_codes:
             m_list = re.findall(r"\b([A-Z0-9]{3,6})\b", job.filename.upper())
             generic = {"PARTS", "CATALOGUE", "CATALOG", "YAMAHA", "INDIA", "MODEL"}
@@ -273,48 +242,13 @@ def run_pipeline_worker(
             else:
                 pipeline_model_code = "MODEL"
 
-        # Step 2: Excel workbook generation
-        excel_buf = generate_excel_workbook(
-            rows=job.rows,
-            model_columns=job.model_columns,
-            clean_parts=clean_parts,
-            model_code=pipeline_model_code,
-        )
-        excel_bytes = excel_buf.getvalue()
-        excel_filename = f"{base_name}_Parts.xlsx"
-
-        # Pre-generate individual Excel workbooks for each model code
-        model_excel_data: dict[str, dict[str, Any]] = {}
-        if model_codes:
-            for m in model_codes:
-                m_rows = [r for r in job.rows if r.get("is_custom_section") or is_valid_quantity(r.get(m))]
-                m_parts_count = len([r for r in job.rows if not r.get("is_custom_section") and is_valid_quantity(r.get(m))])
-
-                m_excel_buf = generate_excel_workbook(
-                    rows=m_rows,
-                    model_columns=[m] if m in job.model_columns else (job.model_columns or [m]),
-                    clean_parts=clean_parts,
-                    sheet_title=f"Parts_{m}"[:31],
-                    model_code=m,
-                )
-                m_excel_bytes = m_excel_buf.getvalue()
-                m_excel_fname = f"{base_name}_{m}_Parts.xlsx"
-                model_excel_data[m] = {
-                    "excel_bytes": m_excel_bytes,
-                    "excel_filename": m_excel_fname,
-                    "rows": m_rows,
-                    "parts_count": m_parts_count,
-                }
-
+        # Step 2: Extract PDF images strictly for parts figures with deduplication
         with job.lock:
-            job.excel_bytes = excel_bytes
-            job.excel_filename = excel_filename
-            job.step_index = 3
+            job.step_index = 2
             job.step_name = "Extracting Parts Images (Deduplicated)..."
-            job.progress_pct = 50
+            job.progress_pct = 40
             job.details = "Extracting unique illustrations mapped to parts figures..."
 
-        # Step 3: Extract PDF images strictly for parts figures with deduplication
         raw_images = extract_images_from_pdf(
             pdf_bytes=pdf_bytes,
             figure_pages=page_figure_map if page_figure_map else None,
@@ -326,11 +260,11 @@ def run_pipeline_worker(
         if not raw_images:
             raw_images = extract_images_from_pdf(pdf_bytes, parts_only=False, model_code=pipeline_model_code)
 
-        # Step 4: Watermark & Resize every extracted image immediately with strict presets
+        # Step 3: Watermark & Resize every extracted image immediately with strict presets
         with job.lock:
-            job.step_index = 4
+            job.step_index = 3
             job.step_name = "Applying Watermark & Resizing Diagrams..."
-            job.progress_pct = 55
+            job.progress_pct = 50
             job.details = f"Processing {len(raw_images)} diagrams with presets (1000x1200, 59–69 KB, IndiaSpare watermark)..."
 
         all_processed_items: list[tuple[str, bytes, dict[str, Any]]] = []
@@ -405,9 +339,9 @@ def run_pipeline_worker(
                 if job.selected_image_ids is None:
                     job.selected_image_ids = [item["id"] for item in all_thumbnails]
                 job.status = "awaiting_image_selection"
-                job.step_index = 5
+                job.step_index = 4
                 job.step_name = "Select Images to Include"
-                job.progress_pct = 75
+                job.progress_pct = 70
                 job.details = f"Processed {len(all_thumbnails)} images (1000x1200, 59–69 KB, watermarked). Select/unselect diagrams to include in final bundle."
 
             logger.info(f"Pipeline job {job.job_id} waiting for image selection confirmation...")
@@ -426,11 +360,6 @@ def run_pipeline_worker(
 
         # Determine which images were selected by user
         with job.lock:
-            job.status = "processing"
-            job.step_index = 6
-            job.step_name = "Packaging Master ZIP Bundle..."
-            job.progress_pct = 85
-
             if job.selected_image_ids:
                 selected_set = set(job.selected_image_ids)
                 processed_items = [
@@ -449,14 +378,74 @@ def run_pipeline_worker(
             job.raw_processed_images = [(f, b) for f, b, _ in processed_items]
             job.total_images_found = len(processed_items)
             job.images_processed_count = len(processed_items)
-            job.details = f"Compiling Master ZIP with {len(processed_items)} diagrams..."
+
+            # Step 5: Edit Model Name (Pause right before Master ZIP!)
+            job.status = "awaiting_model_name"
+            job.step_index = 5
+            job.step_name = "Edit Model Name"
+            job.progress_pct = 80
+            job.details = "Parts catalogue and diagrams ready. Please review and enter 'Model Name' before generating Master ZIP."
+
+        logger.info(f"Pipeline job {job.job_id} waiting for model name input before Master ZIP...")
+        if not auto_proceed and not job.proceed_event.is_set():
+            proceeded = job.proceed_event.wait(timeout=3600)
+        else:
+            proceeded = True
+
+        if not proceeded or job.status == "error":
+            logger.warning(f"Pipeline job {job.job_id} timed out or cancelled waiting for model name confirmation.")
+            with job.lock:
+                if job.status != "error":
+                    job.status = "error"
+                    job.error = "Pipeline timed out waiting for Model Name input."
+            return
 
         # Step 6: Create Master ZIP Archive
         with job.lock:
+            job.status = "processing"
             job.step_index = 6
             job.step_name = "Packaging Master ZIP Bundle..."
+            job.progress_pct = 88
+            job.details = "Generating Excel workbooks and compiling Master ZIP bundle..."
+
+        # Generate Excel workbook(s) with user-edited model names
+        excel_buf = generate_excel_workbook(
+            rows=job.rows,
+            model_columns=job.model_columns,
+            clean_parts=clean_parts,
+            model_code=pipeline_model_code,
+        )
+        excel_bytes = excel_buf.getvalue()
+        excel_filename = f"{base_name}_Parts.xlsx"
+
+        # Pre-generate individual Excel workbooks for each model code
+        model_excel_data: dict[str, dict[str, Any]] = {}
+        if model_codes:
+            for m in model_codes:
+                m_rows = [r for r in job.rows if r.get("is_custom_section") or is_valid_quantity(r.get(m))]
+                m_parts_count = len([r for r in job.rows if not r.get("is_custom_section") and is_valid_quantity(r.get(m))])
+
+                m_excel_buf = generate_excel_workbook(
+                    rows=m_rows,
+                    model_columns=[m] if m in job.model_columns else (job.model_columns or [m]),
+                    clean_parts=clean_parts,
+                    sheet_title=f"Parts_{m}"[:31],
+                    model_code=m,
+                )
+                m_excel_bytes = m_excel_buf.getvalue()
+                m_excel_fname = f"{base_name}_{m}_Parts.xlsx"
+                model_excel_data[m] = {
+                    "excel_bytes": m_excel_bytes,
+                    "excel_filename": m_excel_fname,
+                    "rows": m_rows,
+                    "parts_count": m_parts_count,
+                }
+
+        with job.lock:
+            job.excel_bytes = excel_bytes
+            job.excel_filename = excel_filename
             job.progress_pct = 95
-            job.details = "Compiling Excel workbooks and processed images..."
+            job.details = f"Compiling Master ZIP with {len(processed_items)} diagrams and Excel workbooks..."
 
         zip_buf = io.BytesIO()
         with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
