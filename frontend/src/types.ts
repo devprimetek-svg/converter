@@ -1,6 +1,9 @@
 export interface PartRow {
   page: number;
   fig_no: string;
+  item_group?: string;
+  show_in_website?: string;
+  ranking?: string;
   fig_name: string;
   catalogue_code?: string;
   model_name?: string;

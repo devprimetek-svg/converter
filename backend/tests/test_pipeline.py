@@ -214,7 +214,7 @@ def test_pipeline_api_flow():
     assert excel_res.content[:4] == b"PK\x03\x04"
     wb = openpyxl.load_workbook(io.BytesIO(excel_res.content))
     ws = wb.active
-    assert ws.cell(row=2, column=5).value == "YAMAHA BGP1 FZ-S FI Series CYLINDER HEAD"
+    assert ws.cell(row=2, column=8).value == "YAMAHA BGP1 FZ-S FI Series CYLINDER HEAD"
 
     # 5. Test high-res image preview endpoint
     assert len(status_data["processed_thumbnails"]) > 0

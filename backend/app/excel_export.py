@@ -231,10 +231,13 @@ def generate_excel_workbook(
         bottom=thin_border_side,
     )
 
-    # Base columns: Catalogue Code placed after Parts Name, Pic (parent image record) placed before Ref No.
+    # Base columns: Item Group, Show in Website, Ranking placed before Parts Name; Catalogue Code placed after Parts Name.
     headers = [
         ("Page", "page", center_align),
         ("Fig No.", "fig_no", center_align),
+        ("Item Group", "item_group", left_align),
+        ("Show in Website", "show_in_website", center_align),
+        ("Ranking", "ranking", center_align),
         ("Parts Name", "fig_name", left_align),
         ("Catalogue Code", "catalogue_code", left_align),
         ("Model Name", "model_name", left_align),

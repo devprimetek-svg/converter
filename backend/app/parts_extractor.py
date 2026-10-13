@@ -746,6 +746,9 @@ def extract_parts_from_pdf(
                 row_dict: dict = {
                     "page": page_num,
                     "fig_no": current_fig_no,
+                    "item_group": "",
+                    "show_in_website": "",
+                    "ranking": "",
                     "fig_name": current_fig_name,
                     "parent_fig_no": current_fig_no,
                     "parent_fig_name": current_fig_name,

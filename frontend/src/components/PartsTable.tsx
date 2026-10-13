@@ -40,6 +40,9 @@ export interface PartsTableProps {
 type SortField =
   | 'page'
   | 'fig_no'
+  | 'item_group'
+  | 'show_in_website'
+  | 'ranking'
   | 'fig_name'
   | 'catalogue_code'
   | 'model_name'
@@ -266,6 +269,36 @@ export const PartsTable: React.FC<PartsTableProps> = ({
               </th>
 
               <th
+                onClick={() => handleSort('item_group')}
+                className="group px-3 py-3 font-bold cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors whitespace-nowrap min-w-[110px]"
+              >
+                <div className="flex items-center gap-1">
+                  <span>Item Group</span>
+                  {renderSortIcon('item_group')}
+                </div>
+              </th>
+
+              <th
+                onClick={() => handleSort('show_in_website')}
+                className="group px-3 py-3 font-bold cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors whitespace-nowrap text-center min-w-[120px]"
+              >
+                <div className="flex items-center justify-center gap-1">
+                  <span>Show in Website</span>
+                  {renderSortIcon('show_in_website')}
+                </div>
+              </th>
+
+              <th
+                onClick={() => handleSort('ranking')}
+                className="group px-3 py-3 font-bold cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors whitespace-nowrap text-center min-w-[90px]"
+              >
+                <div className="flex items-center justify-center gap-1">
+                  <span>Ranking</span>
+                  {renderSortIcon('ranking')}
+                </div>
+              </th>
+
+              <th
                 onClick={() => handleSort('fig_name')}
                 className="group px-3 py-3 font-bold cursor-pointer hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors whitespace-nowrap min-w-[160px]"
               >
@@ -381,7 +414,7 @@ export const PartsTable: React.FC<PartsTableProps> = ({
             {displayedItems.length === 0 ? (
               <tr>
                 <td
-                  colSpan={12 + modelColumns.length}
+                  colSpan={15 + modelColumns.length}
                   className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 font-sans"
                 >
                   No parts match the current filter or search criteria.
@@ -470,6 +503,18 @@ export const PartsTable: React.FC<PartsTableProps> = ({
 
                     <td className="px-3 py-2 text-center font-semibold text-slate-700 dark:text-slate-300">
                       {isFirstOfFig ? row.fig_no : ''}
+                    </td>
+
+                    <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
+                      {(row as any).item_group || ''}
+                    </td>
+
+                    <td className="px-3 py-2 text-center text-slate-600 dark:text-slate-400">
+                      {(row as any).show_in_website || ''}
+                    </td>
+
+                    <td className="px-3 py-2 text-center text-slate-600 dark:text-slate-400">
+                      {(row as any).ranking || ''}
                     </td>
 
                     <td
