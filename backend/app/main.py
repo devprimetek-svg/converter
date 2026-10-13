@@ -932,14 +932,19 @@ def get_pipeline_image_endpoint(job_id: str, image_id: str):
 # Mount built frontend static assets if present (prioritize live frontend/dist on disk so .exe auto-updates)
 import sys as _sys
 
+_backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _project_root = (
     os.path.dirname(os.path.abspath(_sys.executable))
     if getattr(_sys, "frozen", False)
-    else os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    else os.path.dirname(_backend_dir)
 )
 _candidates = [
     os.path.join(_project_root, "frontend", "dist"),
     os.path.join(_project_root, "backend", "static"),
+    os.path.join(_project_root, "static"),
+    os.path.join(_backend_dir, "static"),
+    os.path.join(os.getcwd(), "static"),
+    os.path.join("/app", "static"),
     os.path.join(getattr(_sys, "_MEIPASS", ""), "static") if hasattr(_sys, "_MEIPASS") else "",
 ]
 static_dir = next((p for p in _candidates if p and os.path.exists(os.path.join(p, "index.html"))), "")

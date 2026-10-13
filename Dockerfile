@@ -27,8 +27,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/app ./app
 COPY sample_yamaha_catalogue.pdf* ./
 
-# Copy built frontend assets into static/ directory
+# Copy built frontend assets into static/ directories
 COPY --from=frontend-builder /app/frontend/dist ./static
+COPY --from=frontend-builder /app/frontend/dist ./backend/static
 
 # Expose default port (Railway automatically injects $PORT)
 EXPOSE 8000
