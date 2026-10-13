@@ -7,9 +7,108 @@ using word-level coordinate clustering (via pdfplumber).
 from __future__ import annotations
 
 import io
+import logging
+import os
 import re
+import shutil
+import subprocess
+import sys
+import tempfile
 from collections import Counter, defaultdict
 from typing import Any, Callable, Optional, TypedDict
+
+from PIL import Image
+
+logger = logging.getLogger("parts_extractor")
+
+
+def find_tesseract_binary() -> Optional[str]:
+    """Locate tesseract executable on Windows or system PATH."""
+    candidates = [
+        os.path.join(getattr(sys, "_MEIPASS", ""), "tesseract", "tesseract.exe") if getattr(sys, "_MEIPASS", None) else "",
+        os.path.join(os.path.dirname(os.path.abspath(sys.executable)), "tesseract", "tesseract.exe") if getattr(sys, "frozen", False) else "",
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Tesseract-OCR\tesseract.exe"),
+        os.path.expandvars(r"%ProgramFiles%\Tesseract-OCR\tesseract.exe"),
+        os.path.expandvars(r"%ProgramFiles(x86)%\Tesseract-OCR\tesseract.exe"),
+    ]
+    for c in candidates:
+        if c and os.path.exists(c):
+            return c
+    return shutil.which("tesseract")
+
+
+def parse_tesseract_tsv(tsv_output: str, scale_factor: float = 1.0) -> list[dict[str, Any]]:
+    """Parse Tesseract TSV output into pdfplumber-compatible word dicts."""
+    words: list[dict[str, Any]] = []
+    lines = tsv_output.strip().splitlines()
+    if len(lines) <= 1:
+        return words
+    header = lines[0].split("\t")
+    scale = scale_factor if scale_factor > 0 else 1.0
+
+    for line in lines[1:]:
+        parts = line.split("\t")
+        if len(parts) != len(header):
+            continue
+        row = dict(zip(header, parts))
+        text = row.get("text", "").strip()
+        try:
+            conf = float(row.get("conf", -1))
+        except Exception:
+            conf = -1.0
+        if text and conf > 20.0:
+            try:
+                left = float(row.get("left", 0)) / scale
+                top = float(row.get("top", 0)) / scale
+                width = float(row.get("width", 0)) / scale
+                height = float(row.get("height", 0)) / scale
+                words.append({
+                    "text": text,
+                    "x0": left,
+                    "top": top,
+                    "x1": left + width,
+                    "bottom": top + height,
+                    "upright": True,
+                })
+            except Exception:
+                pass
+    return words
+
+
+def ocr_page_with_tesseract(page_image: Image.Image, tesseract_cmd: str, scale_factor: float = 1.0) -> list[dict[str, Any]]:
+    """Execute Tesseract OCR on a rendered page image in an isolated subprocess (crash-proof)."""
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+        tmp_path = tmp.name
+    try:
+        page_image.save(tmp_path, format="PNG")
+        startupinfo = None
+        if os.name == "nt":
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = 0  # SW_HIDE
+        cmd = [tesseract_cmd, tmp_path, "stdout", "--psm", "6", "tsv"]
+        proc = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            startupinfo=startupinfo,
+            timeout=30.0,
+            check=False,
+        )
+        if proc.returncode != 0:
+            logger.warning("Tesseract OCR returned code %d", proc.returncode)
+            return []
+        return parse_tesseract_tsv(proc.stdout, scale_factor=scale_factor)
+    except Exception as e:
+        logger.error("OCR execution error: %s", e)
+        return []
+    finally:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
 
 
 class ExtractionError(Exception):
@@ -74,7 +173,7 @@ def build_image_record(model_code: str, fig_name: str, fig_no: str = "") -> str:
     return f"{cat_code}.jpeg" if cat_code else ""
 
 
-def extract_model_info_from_pdf(pdf) -> tuple[str, str]:
+def extract_model_info_from_pdf(pdf, raw_bytes: Optional[bytes] = None) -> tuple[str, str]:
     """Scan the first few pages of an open pdfplumber PDF to detect the model name and primary
     model code printed on the cover / foreword page.
 
@@ -91,32 +190,58 @@ def extract_model_info_from_pdf(pdf) -> tuple[str, str]:
     """
     stop_words = {"PARTS", "CATALOGUE", "CATALOG", "YAMAHA", "GENUINE", "FOREWORD",
                   "CONTENTS", "INDEX", "ACCESSORIES", "INDIA", "SERIES", "SUMMARY"}
-    for page_idx in range(min(4, len(pdf.pages))):
-        try:
-            text = pdf.pages[page_idx].extract_text() or ""
-        except Exception:
-            continue
-        for raw_line in text.split("\n"):
-            line = raw_line.strip()
-            # Match: <ANYTHING> ( CODE1 / CODE2 ) [COUNTRY]
-            m = re.search(
-                r"([A-Za-z0-9](?:[A-Za-z0-9\-\.\+\s]*?[A-Za-z0-9])?)\s*\(\s*([A-Z][A-Za-z0-9]+(?:\s*/\s*[A-Z][A-Za-z0-9]+)*)\s*\)",
-                line,
-            )
-            if not m:
-                continue
-            cand_name = m.group(1).strip()
-            codes_raw = m.group(2)
-            codes = [c.strip().upper() for c in re.split(r"[/,\s]+", codes_raw) if c.strip()]
-            # Reject if candidate name is entirely a stop-word or too short
-            name_clean = re.sub(r"\s+", " ", cand_name).strip().upper()
-            if not name_clean or name_clean in stop_words or len(name_clean) < 2:
-                continue
-            # Reject if name is just the model code itself (4-char alphanum codes)
-            if re.fullmatch(r"[A-Z0-9]{3,8}", name_clean) and codes and name_clean in codes:
-                continue
-            if codes:
-                return cand_name.strip(), codes[0]
+    tess_cmd: Optional[str] = None
+    pdfium_doc = None
+    try:
+        for page_idx in range(min(4, len(pdf.pages))):
+            try:
+                text = pdf.pages[page_idx].extract_text() or ""
+            except Exception:
+                text = ""
+
+            if not text.strip() and raw_bytes:
+                if tess_cmd is None:
+                    tess_cmd = find_tesseract_binary() or ""
+                if tess_cmd:
+                    try:
+                        if pdfium_doc is None:
+                            import pypdfium2
+                            pdfium_doc = pypdfium2.PdfDocument(raw_bytes)
+                        if page_idx < len(pdfium_doc):
+                            img = pdfium_doc[page_idx].render(scale=2.0).to_pil()
+                            ocr_words = ocr_page_with_tesseract(img, tess_cmd, scale_factor=2.0)
+                            if ocr_words:
+                                text = " ".join(w["text"] for w in ocr_words)
+                    except Exception as e:
+                        logger.debug("Cover page OCR failed on page %d: %s", page_idx, e)
+
+            for raw_line in (text.split("\n") if "\n" in text else [text]):
+                line = raw_line.strip()
+                # Match: <ANYTHING> ( CODE1 / CODE2 ) [COUNTRY]
+                m = re.search(
+                    r"([A-Za-z0-9](?:[A-Za-z0-9\-\.\+\s]*?[A-Za-z0-9])?)\s*\(\s*([A-Z][A-Za-z0-9]+(?:\s*/\s*[A-Z][A-Za-z0-9]+)*)\s*\)",
+                    line,
+                )
+                if not m:
+                    continue
+                cand_name = m.group(1).strip()
+                codes_raw = m.group(2)
+                codes = [c.strip().upper() for c in re.split(r"[/,\s]+", codes_raw) if c.strip()]
+                # Reject if candidate name is entirely a stop-word or too short
+                name_clean = re.sub(r"\s+", " ", cand_name).strip().upper()
+                if not name_clean or name_clean in stop_words or len(name_clean) < 2:
+                    continue
+                # Reject if name is just the model code itself (4-char alphanum codes)
+                if re.fullmatch(r"[A-Z0-9]{3,8}", name_clean) and codes and name_clean in codes:
+                    continue
+                if codes:
+                    return cand_name.strip(), codes[0]
+    finally:
+        if pdfium_doc is not None:
+            try:
+                pdfium_doc.close()
+            except Exception:
+                pass
     return "", ""
 
 
@@ -422,9 +547,24 @@ def extract_parts_from_pdf(
     """
     import pdfplumber
 
+    raw_bytes: Optional[bytes] = None
     if isinstance(pdf_source, bytes):
-        stream = io.BytesIO(pdf_source)
+        raw_bytes = pdf_source
+        stream: io.BytesIO | str = io.BytesIO(pdf_source)
     elif isinstance(pdf_source, str):
+        stream = pdf_source
+        try:
+            with open(pdf_source, "rb") as f:
+                raw_bytes = f.read()
+        except Exception:
+            raw_bytes = None
+    elif isinstance(pdf_source, io.BytesIO):
+        try:
+            pos = pdf_source.tell()
+            raw_bytes = pdf_source.getvalue()
+            pdf_source.seek(pos)
+        except Exception:
+            raw_bytes = None
         stream = pdf_source
     else:
         stream = pdf_source
@@ -442,7 +582,7 @@ def extract_parts_from_pdf(
     pdf_model_name: str = ""
     pdf_model_code: str = ""
     try:
-        pdf_model_name, pdf_model_code = extract_model_info_from_pdf(pdf)
+        pdf_model_name, pdf_model_code = extract_model_info_from_pdf(pdf, raw_bytes=raw_bytes)
     except Exception:
         pass  # Non-fatal: fall back to detected model columns later
 
@@ -461,12 +601,39 @@ def extract_parts_from_pdf(
 
     total_words_extracted = 0
 
+    # Lazy-loaded pypdfium2 doc for OCR fallback if needed
+    pdfium_doc = None
+    tess_binary: Optional[str] = None
+    tess_checked: bool = False
+
     try:
         for page_idx, page in enumerate(pdf.pages):
             page_num = page_idx + 1
 
             # Extract words with coordinates
             words = page.extract_words(use_text_flow=True, keep_blank_chars=False)
+
+            # Fallback to OCR if page has no digital words (scanned image page)
+            if not words and raw_bytes:
+                if not tess_checked:
+                    tess_binary = find_tesseract_binary()
+                    tess_checked = True
+
+                if tess_binary:
+                    try:
+                        if pdfium_doc is None:
+                            import pypdfium2
+                            pdfium_doc = pypdfium2.PdfDocument(raw_bytes)
+                        if page_idx < len(pdfium_doc):
+                            render_scale = 2.0
+                            rendered_img = pdfium_doc[page_idx].render(scale=render_scale).to_pil()
+                            ocr_scale = rendered_img.width / float(page.width) if float(page.width) > 0 else render_scale
+                            words = ocr_page_with_tesseract(rendered_img, tess_binary, scale_factor=ocr_scale)
+                            if words:
+                                logger.info("Page %d: OCR fallback successfully extracted %d words via Tesseract", page_num, len(words))
+                    except Exception as ocr_err:
+                        logger.warning("OCR fallback failed on page %d: %s", page_num, ocr_err)
+
             total_words_extracted += len(words)
 
             # Skip empty pages
@@ -773,14 +940,27 @@ def extract_parts_from_pdf(
                 all_rows.append(row_dict)
 
     finally:
+        if pdfium_doc is not None:
+            try:
+                pdfium_doc.close()
+            except Exception:
+                pass
         pdf.close()
 
     # If no words at all were extracted across all pages, text layer is absent
     if total_words_extracted == 0:
-        raise NoTextLayerError(
-            "This PDF has no extractable text layer (it appears to be a scanned image). "
-            "OCR is not supported. Please provide a digital vector PDF catalogue."
-        )
+        tess_installed = bool(find_tesseract_binary())
+        if not tess_installed:
+            raise NoTextLayerError(
+                "This PDF is a scanned image and contains no extractable text layer.\n"
+                "To extract scanned PDFs, please install Tesseract OCR (e.g. winget install UB-Mannheim.TesseractOCR) "
+                "or provide a digital vector PDF catalogue."
+            )
+        else:
+            raise NoTextLayerError(
+                "No readable text or parts data could be recognized from this scanned PDF. "
+                "Please ensure the PDF pages are clear, properly oriented, and readable."
+            )
 
     # Ensure document_model_columns has all models found
     if not document_model_columns and last_known_model_columns:

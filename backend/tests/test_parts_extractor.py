@@ -15,7 +15,10 @@ from app.parts_extractor import (
     cluster_words_into_lines,
     detect_vertical_model_columns,
     extract_parts_from_pdf,
+    find_tesseract_binary,
     normalize_part_number,
+    ocr_page_with_tesseract,
+    parse_tesseract_tsv,
 )
 
 
@@ -1200,6 +1203,47 @@ def test_custom_parts_name_sections_part_kits_and_regular_service_parts():
         for c_idx in range(1, ws.max_column + 1):
             assert (ws.cell(row=r_idx, column=c_idx).value or "") == ""
     assert ws.max_row == 29
+
+
+def test_parse_tesseract_tsv():
+    """Verify parse_tesseract_tsv converts tsv output into pdfplumber-style word dictionaries with scaled coordinates."""
+    sample_tsv = (
+        "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n"
+        "5\t1\t1\t1\t1\t1\t100\t200\t50\t20\t95.5\tCYLINDER\n"
+        "5\t1\t1\t1\t1\t2\t160\t200\t40\t20\t88.0\tHEAD\n"
+        "5\t1\t1\t1\t1\t3\t210\t200\t10\t20\t15.0\tLOWCONF\n"  # conf < 20 should be discarded
+    )
+    words = parse_tesseract_tsv(sample_tsv, scale_factor=2.0)
+    assert len(words) == 2
+    assert words[0]["text"] == "CYLINDER"
+    assert words[0]["x0"] == 50.0
+    assert words[0]["top"] == 100.0
+    assert words[0]["x1"] == 75.0
+    assert words[0]["bottom"] == 110.0
+    assert words[0]["upright"] is True
+
+    assert words[1]["text"] == "HEAD"
+    assert words[1]["x0"] == 80.0
+    assert words[1]["top"] == 100.0
+
+
+def test_find_tesseract_binary_and_ocr_run():
+    """Verify find_tesseract_binary locates Tesseract and ocr_page_with_tesseract successfully runs on a test image."""
+    tess_path = find_tesseract_binary()
+    if not tess_path:
+        pytest.skip("Tesseract is not installed on this test environment.")
+
+    # Create an in-memory image with text using PIL
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (400, 100), color="white")
+    draw = ImageDraw.Draw(img)
+    draw.text((20, 30), "CYLINDER HEAD", fill="black")
+
+    words = ocr_page_with_tesseract(img, tess_path, scale_factor=1.0)
+    assert len(words) >= 1
+    texts = [w["text"].upper() for w in words]
+    assert any("CYLINDER" in t or "HEAD" in t for t in texts)
+
 
 
 
