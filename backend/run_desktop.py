@@ -22,10 +22,17 @@ if sys.stdout is None:
 if sys.stderr is None:
     sys.stderr = io.StringIO()
 
-# Ensure backend directory is on sys.path
+# Prioritize live source code on disk (if ConverterStudio.exe is in the project folder)
+# so any future updates automatically take effect without rebuilding the .exe!
+if getattr(sys, "frozen", False):
+    _exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+    _live_backend = os.path.join(_exe_dir, "backend")
+    if os.path.exists(os.path.join(_live_backend, "app", "main.py")):
+        sys.path.insert(0, _live_backend)
+
 BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
+    sys.path.append(BASE_DIR)
 
 import uvicorn
 from app.main import app
