@@ -99,6 +99,7 @@ def main() -> None:
         "--hidden-import=PIL",
         "--hidden-import=pypdf",
         "--hidden-import=pypdfium2",
+        "--hidden-import=pytesseract",
         "run_desktop.py",
     ]
     run_cmd(pyinstaller_cmd, cwd=backend_dir)

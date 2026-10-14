@@ -13,7 +13,9 @@ from app.parts_extractor import (
     clean_part_number,
     clean_remarks,
     cluster_words_into_lines,
+    detect_scanned_doc_rotation,
     detect_vertical_model_columns,
+    extract_model_info_from_pdf,
     extract_parts_from_pdf,
     find_tesseract_binary,
     normalize_part_number,
@@ -1243,6 +1245,52 @@ def test_find_tesseract_binary_and_ocr_run():
     assert len(words) >= 1
     texts = [w["text"].upper() for w in words]
     assert any("CYLINDER" in t or "HEAD" in t for t in texts)
+
+
+def test_normalize_part_number_strips_trailing_punctuation():
+    """Verify normalize_part_number strips OCR trailing commas, periods, etc."""
+    assert normalize_part_number("90340-12813,") == "90340-12813"
+    assert normalize_part_number("95022-06010.") == "95022-06010"
+    assert normalize_part_number("BK7–E1169–00;") == "BK7-E1169-00"
+
+
+def test_extract_model_info_d2j1_and_split_digits():
+    """Verify model info extractor detects explicit MODEL CODE and handles split OCR digits."""
+    class DummyPage:
+        def __init__(self, text):
+            self._text = text
+        def extract_text(self):
+            return self._text
+
+    class DummyPDF:
+        def __init__(self, pages):
+            self.pages = [DummyPage(t) for t in pages]
+
+    # Test explicit MODEL CODE: D2J1 [EC-06]
+    pdf_d2j1 = DummyPDF([
+        "D2J1 [EC-06]\n1",
+        "| MODEL CODE: D2J1 [EC-06] |\nMODEL NAME: D2J1\nTable 1.1 FENDER FRONT",
+    ])
+    name, code = extract_model_info_from_pdf(pdf_d2j1)
+    assert code == "D2J1"
+    assert name == "EC-06"
+
+    # Test split digits and stop-word prefix e.g. LCX1 25D (DG57)
+    pdf_lcx = DummyPDF([
+        "@ YAMAHA PARTS CATALOGUE LCX1 25D (DG57) INDIA\n",
+    ])
+    name_lcx, code_lcx = extract_model_info_from_pdf(pdf_lcx)
+    assert code_lcx == "DG57"
+    assert name_lcx == "LCX125D"
+
+    # Test MTN1 55-A (BXUB)
+    pdf_mtn = DummyPDF([
+        "YAMAHA PARTS CATALOGUE MTN1 55-A (BXUB) INDIA\n",
+    ])
+    name_mtn, code_mtn = extract_model_info_from_pdf(pdf_mtn)
+    assert code_mtn == "BXUB"
+    assert name_mtn == "MTN155-A"
+
 
 
 
