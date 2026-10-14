@@ -367,25 +367,42 @@ def clean_description(desc: str) -> str:
 
 def clean_part_number(part_no: str) -> str:
     """Clean a Yamaha part number according to catalog rules:
-    - Remove dashes (hyphens, en-dashes, em-dashes) and spaces.
-    - Add '00' only if the cleaned number is exactly 10 characters long.
-    - Leave 12-character (colored/painted) or other length part numbers unchanged.
+    - Remove dashes (hyphens, en-dashes, em-dashes), dots, and spaces.
+    - If exactly 10 characters, add '00' to make it 12 characters.
+    - If exactly 12 characters, leave it as 12 characters.
+    - If more than 12 characters, keep it at 12 characters (truncate to 12).
     """
     if not part_no:
         return ""
-    # Remove hyphens, en-dash (\u2013), em-dash (\u2014), figure dash (\u2012), and spaces
-    cleaned = re.sub(r"[\s\-\u2010\u2011\u2012\u2013\u2014\u2015]", "", part_no)
+    # Remove hyphens, en-dash (\u2013), em-dash (\u2014), figure dash (\u2012), dots, and spaces
+    cleaned = re.sub(r"[\s\-\.\u2010\u2011\u2012\u2013\u2014\u2015]", "", str(part_no))
     if len(cleaned) == 10:
         return cleaned + "00"
+    elif len(cleaned) > 12:
+        return cleaned[:12]
     return cleaned
 
 
 def normalize_part_number(part_no: str) -> str:
-    """Normalize unicode dashes in part number to standard ASCII dash and strip trailing punctuation."""
+    """Normalize unicode dashes in part number to standard ASCII dash and enforce catalog rules:
+    - Dot (.) must never be extracted in part number (remove all dots).
+    - Strip trailing and leading punctuation/spaces.
+    - If part number has 10 characters, add '00' to make it 12 characters.
+    - If part number has 12 characters, keep as 12 characters.
+    - If unhyphenated part number has more than 12 characters, keep at 12 characters (truncate to 12).
+    """
     if not part_no:
         return ""
     cleaned = re.sub(r"[\u2010\u2011\u2012\u2013\u2014\u2015]", "-", str(part_no))
-    return cleaned.strip(" ,.;:-_")
+    # Strip dots (.) completely from part number
+    cleaned = cleaned.replace(".", "")
+    cleaned = cleaned.strip(" ,.;:-_")
+
+    if len(cleaned) == 10:
+        cleaned = cleaned + "00"
+    elif len(cleaned) > 12 and "-" not in cleaned:
+        cleaned = cleaned[:12]
+    return cleaned
 
 
 def clean_remarks(remarks: str) -> str:
@@ -832,7 +849,7 @@ def extract_parts_from_pdf(
 
                 ref_x0 = 590.0
                 x_ref_end = 618.0
-                x_pno_start = 880.0
+                x_pno_start = 905.0
                 x_qty_start = 1010.0
                 x_rem_start = 1050.0
 

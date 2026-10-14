@@ -26,9 +26,10 @@ from app.parts_extractor import (
 
 def test_clean_part_number():
     """Verify Yamaha part number cleaning rule:
-    - remove dashes and spaces
-    - append '00' only if cleaned is 10 chars
-    - leave 12-char painted or other length parts unchanged
+    - remove dashes, dots, and spaces
+    - append '00' if cleaned is 10 chars to make 12 chars
+    - leave 12-char parts unchanged
+    - truncate >12 char parts to 12 chars
     """
     # 10 character parts (with dashes -> cleaned len 10 -> + '00')
     assert clean_part_number("B7J-E1102-00") == "B7JE11020000"
@@ -36,10 +37,23 @@ def test_clean_part_number():
     assert clean_part_number("B7J–E1102–00") == "B7JE11020000"  # unicode en-dash
     assert clean_part_number("90430-06817") == "904300681700"
 
+    # 10 character unhyphenated parts -> append '00' -> 12 chars
+    assert clean_part_number("R1SF121739") == "R1SF12173900"
+    assert clean_part_number("R1MHBL1319") == "R1MHBL131900"
+
     # 12 character parts (painted / special -> cleaned len 12 -> left unchanged)
     assert clean_part_number("B7J-XF151-20-PC") == "B7JXF15120PC"
     assert clean_part_number("2N4-24110-00-X5") == "2N42411000X5"
     assert clean_part_number("BGP-E4711-00-00") == "BGPE47110000"
+
+    # Dot removal
+    assert clean_part_number("8.8D2J-RA135-00") == "88D2JRA13500"
+    assert clean_part_number("95022-06010.") == "950220601000"
+    assert clean_part_number("90105.06027") == "901050602700"
+
+    # Greater than 12 characters -> truncated/kept at 12 characters
+    assert clean_part_number("1PXD2JRA14400") == "1PXD2JRA1440"
+    assert len(clean_part_number("1PXD2JRA14400")) == 12
 
     # Empty or unusual
     assert clean_part_number("") == ""
@@ -49,6 +63,10 @@ def test_normalize_part_number():
     assert normalize_part_number("B7J–E1102–00") == "B7J-E1102-00"
     assert normalize_part_number("95022—06010") == "95022-06010"
     assert normalize_part_number("B7J-E1102-00") == "B7J-E1102-00"
+    assert normalize_part_number("90340-12813,") == "90340-12813"
+    assert normalize_part_number("95022-06010.") == "95022-06010"
+    assert normalize_part_number("8.8D2J-RA135-00") == "88D2J-RA135-00"
+    assert normalize_part_number("R1SF121739") == "R1SF12173900"
 
 
 def test_cluster_words_into_lines():
