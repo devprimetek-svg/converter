@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import io
 import logging
+import os
 import re
 import threading
 import time
@@ -72,6 +73,7 @@ class PipelineJob:
         self.model_data: dict[str, dict[str, Any]] = {}
 
         # ZIP bundle
+        self.pdf_bytes: Optional[bytes] = None
         self.zip_bytes: Optional[bytes] = None
         self.zip_filename: str = ""
         self.bundle_size_bytes = 0
@@ -180,6 +182,7 @@ def run_pipeline_worker(
 
     try:
         with job.lock:
+            job.pdf_bytes = pdf_bytes
             job.status = "processing"
             job.step_index = 1
             job.step_name = "Extracting Parts Catalogue..."
@@ -447,8 +450,16 @@ def run_pipeline_worker(
             job.progress_pct = 95
             job.details = f"Compiling Master ZIP with {len(processed_items)} diagrams and Excel workbooks..."
 
+        pdf_filename = os.path.basename(job.filename) if job.filename else f"{base_name}.pdf"
+        if not pdf_filename.lower().endswith(".pdf"):
+            pdf_filename = f"{pdf_filename}.pdf"
+
         zip_buf = io.BytesIO()
         with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            # 1. Include original uploaded PDF in root of Master ZIP
+            if pdf_bytes:
+                zf.writestr(pdf_filename, pdf_bytes)
+
             if has_multiple_models:
                 summary_models_lines = []
                 for m in model_codes:
@@ -456,6 +467,10 @@ def run_pipeline_worker(
                     m_rows = m_info["rows"]
                     # 1. Add model-specific Excel sheet into its dedicated folder: {m}/
                     zf.writestr(f"{m}/{m_info['excel_filename']}", m_info["excel_bytes"])
+
+                    # 1b. Add original PDF into model-specific folder: {m}/
+                    if pdf_bytes:
+                        zf.writestr(f"{m}/{pdf_filename}", pdf_bytes)
 
                     # 2. Add all catalogue diagrams into {m}/images/ (model code renamed to match m)
                     m_image_items: list[tuple[str, bytes]] = []
@@ -468,6 +483,8 @@ def run_pipeline_worker(
                     # 3. Create standalone individual ZIP bundle for this model code
                     m_zip_buf = io.BytesIO()
                     with zipfile.ZipFile(m_zip_buf, "w", zipfile.ZIP_DEFLATED) as m_zf:
+                        if pdf_bytes:
+                            m_zf.writestr(pdf_filename, pdf_bytes)
                         m_zf.writestr(m_info["excel_filename"], m_info["excel_bytes"])
                         for m_img_name, m_bytes in m_image_items:
                             m_zf.writestr(f"images/{m_img_name}", m_bytes)
@@ -475,6 +492,7 @@ def run_pipeline_worker(
                             "README.txt",
                             f"Model: {m}\n"
                             f"Catalogue: {job.filename}\n"
+                            f"Original PDF: {pdf_filename}\n"
                             f"Total Parts: {len(m_rows)}\n"
                             f"Total Diagrams: {len(m_image_items)}\n"
                             f"Generated At: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n"
@@ -506,6 +524,7 @@ def run_pipeline_worker(
                     f"Document & Image Studio - Automated Processing Summary\n"
                     f"====================================================\n"
                     f"Original File: {job.filename}\n"
+                    f"Original PDF Bundled: {pdf_filename}\n"
                     f"Generated At: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n"
                     f"Detected Model Codes ({len(model_codes)}): {', '.join(model_codes)}\n\n"
                     f"INDIVIDUAL MODEL FOLDERS IN ARCHIVE:\n"
@@ -535,6 +554,8 @@ def run_pipeline_worker(
                 if m_single and m_single in model_excel_data:
                     m_info = model_excel_data[m_single]
                     zf.writestr(f"{m_single}/{m_info['excel_filename']}", m_info["excel_bytes"])
+                    if pdf_bytes:
+                        zf.writestr(f"{m_single}/{pdf_filename}", pdf_bytes)
 
                     m_image_items: list[tuple[str, bytes]] = []
                     for fname, proc_bytes, _ in processed_items:
@@ -545,6 +566,8 @@ def run_pipeline_worker(
                     # Standalone individual ZIP bundle for this model code
                     m_zip_buf = io.BytesIO()
                     with zipfile.ZipFile(m_zip_buf, "w", zipfile.ZIP_DEFLATED) as m_zf:
+                        if pdf_bytes:
+                            m_zf.writestr(pdf_filename, pdf_bytes)
                         m_zf.writestr(m_info["excel_filename"], m_info["excel_bytes"])
                         for m_img_name, m_bytes in m_image_items:
                             m_zf.writestr(f"images/{m_img_name}", m_bytes)
@@ -552,6 +575,7 @@ def run_pipeline_worker(
                             "README.txt",
                             f"Model: {m_single}\n"
                             f"Catalogue: {job.filename}\n"
+                            f"Original PDF: {pdf_filename}\n"
                             f"Total Parts: {len(m_info['rows'])}\n"
                             f"Total Diagrams: {len(m_image_items)}\n"
                             f"Generated At: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n"
@@ -571,6 +595,7 @@ def run_pipeline_worker(
                     f"Document & Image Studio - Automated Processing Summary\n"
                     f"====================================================\n"
                     f"Original File: {job.filename}\n"
+                    f"Original PDF Bundled: {pdf_filename}\n"
                     f"Generated At: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}\n\n"
                     f"1. Excel Parts Catalogue:\n"
                     f"   - File: {excel_filename}\n"

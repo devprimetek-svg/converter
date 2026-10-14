@@ -1921,7 +1921,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                   {status.zip_filename}
                 </h3>
                 <p className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 max-w-xl font-normal">
-                  Autonomous pipeline finished: Clean Yamaha parts Excel database and all watermarked & resized 1000x1200 JPEG diagrams bundled.
+                  Autonomous pipeline finished: Original PDF, clean Yamaha parts Excel database, and all watermarked &amp; resized 1000×1200 JPEG diagrams bundled together.
                 </p>
               </div>
 
@@ -1931,8 +1931,8 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                   onClick={downloadMasterZip}
                   title={
                     status.model_columns && status.model_columns.length >= 1
-                      ? `Master ZIP contains folder(s): ${status.model_columns.join(', ')}`
-                      : 'Download Master ZIP'
+                      ? `Master ZIP contains: original PDF, Excel workbook, and model folder(s): ${status.model_columns.join(', ')}`
+                      : 'Download Master ZIP (includes original PDF, Excel, and diagrams)'
                   }
                   className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-full bg-black hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-zinc-200 dark:text-black font-bold text-sm uppercase tracking-wider transition-all shadow-sm active:scale-95 cursor-pointer"
                 >

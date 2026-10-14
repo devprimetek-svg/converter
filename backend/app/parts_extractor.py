@@ -89,6 +89,7 @@ def ocr_page_with_tesseract(page_image: Image.Image, tesseract_cmd: str, scale_f
         cmd = [tesseract_cmd, tmp_path, "stdout", "--psm", "6", "tsv"]
         proc = subprocess.run(
             cmd,
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

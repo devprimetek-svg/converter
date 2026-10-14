@@ -663,7 +663,7 @@ def create_images_zip(image_items: list[tuple[str, bytes]]) -> io.BytesIO:
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for fname, data in image_items:
             clean_name = fname
-            if not clean_name.lower().endswith(".jpeg"):
+            if not clean_name.lower().endswith((".jpeg", ".jpg", ".png", ".webp", ".pdf", ".xlsx", ".txt")):
                 clean_name = f"{clean_name}.jpeg"
             zip_file.writestr(clean_name, data)
     buf.seek(0)

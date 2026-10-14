@@ -200,12 +200,15 @@ def test_pipeline_api_flow():
     assert status_data["excel_ready"] is True
     assert status_data["zip_ready"] is True
 
-    # 3. Test Master ZIP download
+    # 3. Test Master ZIP download (must include original PDF)
     dl_res = client.get(f"/api/pipeline/download/{job_id}")
     assert dl_res.status_code == 200
     assert dl_res.headers["content-type"] == "application/zip"
     assert "attachment; filename=" in dl_res.headers.get("content-disposition", "")
     assert dl_res.content[:4] == b"PK\x03\x04"
+    with zipfile.ZipFile(io.BytesIO(dl_res.content)) as z:
+        pdf_entries = [n for n in z.namelist() if n.lower().endswith(".pdf")]
+        assert len(pdf_entries) >= 1, f"Expected PDF inside Master ZIP, got: {z.namelist()}"
 
     # 4. Test Excel-only download and verify composed model name
     excel_res = client.get(f"/api/pipeline/download-excel/{job_id}")
@@ -226,7 +229,7 @@ def test_pipeline_api_flow():
     img_pil = Image.open(io.BytesIO(img_res.content))
     assert img_pil.size == (1000, 1200)
 
-    # 6. Test Download Images ZIP endpoints (POST with selected_image_ids & GET all)
+    # 6. Test Download Images ZIP endpoints (must include original PDF alongside diagrams)
     img_zip_post = client.post(
         f"/api/pipeline/download-images-zip/{job_id}",
         json={"selected_image_ids": [img_id]},
@@ -236,14 +239,17 @@ def test_pipeline_api_flow():
     assert "diagrams_images.zip" in img_zip_post.headers.get("content-disposition", "")
     assert img_zip_post.content[:4] == b"PK\x03\x04"
     with zipfile.ZipFile(io.BytesIO(img_zip_post.content)) as z:
-        assert len(z.namelist()) == 1
+        names = z.namelist()
+        assert any(n.lower().endswith(".pdf") for n in names), f"PDF missing in {names}"
+        assert any(n.lower().endswith(".jpeg") for n in names), f"Diagram missing in {names}"
 
     img_zip_get = client.get(f"/api/pipeline/download-images-zip/{job_id}")
     assert img_zip_get.status_code == 200
     assert img_zip_get.headers["content-type"] == "application/zip"
     assert img_zip_get.content[:4] == b"PK\x03\x04"
     with zipfile.ZipFile(io.BytesIO(img_zip_get.content)) as z:
-        assert len(z.namelist()) >= 1
+        names = z.namelist()
+        assert any(n.lower().endswith(".pdf") for n in names)
 
 
 def test_parts_only_deduplication_and_figure_naming():

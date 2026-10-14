@@ -1,6 +1,7 @@
 """Tests for PDF image extraction, image resizing, watermarking, and ZIP utilities."""
 
 import io
+import zipfile
 from PIL import Image, ImageDraw
 from reportlab.pdfgen import canvas
 from fastapi.testclient import TestClient
@@ -127,10 +128,14 @@ def test_pdf_extract_images_api():
     img_res = client.get(f"/api/pdf/images/{session_id}/{image_id}")
     assert img_res.status_code == 200
 
-    # Test download ZIP
+    # Test download ZIP (must include both images and original PDF)
     zip_res = client.post("/api/pdf/download-images-zip", json={"session_id": session_id})
     assert zip_res.status_code == 200
     assert zip_res.content[:4] == b"PK\x03\x04"
+    with zipfile.ZipFile(io.BytesIO(zip_res.content)) as z:
+        names = z.namelist()
+        assert any(n.lower().endswith(".pdf") for n in names), f"PDF missing in {names}"
+        assert any(n.lower().endswith(".jpeg") for n in names), f"Diagram missing in {names}"
 
 
 def test_logo_watermark_visibility_on_white_background():

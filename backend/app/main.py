@@ -351,10 +351,11 @@ from fastapi import Form, Response
 
 
 class PdfImageSession:
-    def __init__(self, session_id: str, filename: str, images: list[dict[str, Any]]):
+    def __init__(self, session_id: str, filename: str, images: list[dict[str, Any]], pdf_bytes: Optional[bytes] = None):
         self.session_id = session_id
         self.filename = filename
         self.images = images
+        self.pdf_bytes = pdf_bytes
         self.created_at = time.time()
 
 
@@ -399,7 +400,7 @@ async def extract_pdf_images_endpoint(file: UploadFile = File(...)):
 
     session_id = str(uuid.uuid4())
     with pdf_sessions_lock:
-        pdf_sessions[session_id] = PdfImageSession(session_id, file.filename, images)
+        pdf_sessions[session_id] = PdfImageSession(session_id, file.filename, images, pdf_bytes=content)
 
     # Return metadata without heavy raw_bytes
     metadata_list = [
@@ -478,10 +479,17 @@ def download_pdf_images_zip(req: DownloadZipRequest):
         )
         for img in targets
     ]
-    zip_buf = create_images_zip(image_items)
 
     base_name = re.sub(r"\.pdf$", "", session.filename, flags=re.IGNORECASE)
     base_name = re.sub(r'[\\/*?:"<>| ]', "_", base_name).strip("_")
+
+    if getattr(session, "pdf_bytes", None):
+        clean_pdf_name = os.path.basename(session.filename) if session.filename else f"{base_name}.pdf"
+        if not clean_pdf_name.lower().endswith(".pdf"):
+            clean_pdf_name = f"{clean_pdf_name}.pdf"
+        image_items.append((clean_pdf_name, session.pdf_bytes))
+
+    zip_buf = create_images_zip(image_items)
     zip_filename = f"{base_name}_extracted_images.zip"
 
     return StreamingResponse(
@@ -951,7 +959,7 @@ def _build_pipeline_images_zip_response(job: PipelineJob, selected_ids: Optional
     seen_names: set[str] = set()
     for fname, b in image_items:
         clean_name = fname
-        if not clean_name.lower().endswith(".jpeg"):
+        if not clean_name.lower().endswith((".jpeg", ".jpg", ".png", ".webp", ".pdf", ".xlsx", ".txt")):
             clean_name = f"{clean_name}.jpeg"
         base, ext = os.path.splitext(clean_name)
         counter = 1
@@ -962,10 +970,17 @@ def _build_pipeline_images_zip_response(job: PipelineJob, selected_ids: Optional
         seen_names.add(final_name.lower())
         unique_items.append((final_name, b))
 
-    zip_buf = create_images_zip(unique_items)
-
     base_name = re.sub(r"\.pdf$", "", job.filename, flags=re.IGNORECASE)
     base_name = re.sub(r'[\\/*?:"<>| ]', "_", base_name).strip("_") or "Catalogue"
+
+    # Include original PDF in the images ZIP archive as well
+    if job.pdf_bytes:
+        pdf_filename = os.path.basename(job.filename) if job.filename else f"{base_name}.pdf"
+        if not pdf_filename.lower().endswith(".pdf"):
+            pdf_filename = f"{pdf_filename}.pdf"
+        unique_items.append((pdf_filename, job.pdf_bytes))
+
+    zip_buf = create_images_zip(unique_items)
     zip_filename = f"{base_name}_diagrams_images.zip"
 
     return StreamingResponse(
