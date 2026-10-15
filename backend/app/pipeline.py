@@ -201,7 +201,11 @@ def run_pipeline_worker(
                 else:
                     job.details = f"Processing page {current} of {total}..."
 
-        parts_result = extract_parts_from_pdf(pdf_bytes, progress_callback=on_page_progress)
+        parts_result = extract_parts_from_pdf(
+            pdf_bytes,
+            progress_callback=on_page_progress,
+            hint_filename=job.filename,
+        )
 
         page_figure_map = parts_result.get("page_figure_map", {})
 
@@ -238,11 +242,11 @@ def run_pipeline_worker(
         pipeline_model_code = ""
         if job.model_columns:
             pipeline_model_code = str(job.model_columns[0]).strip()
-        if not pipeline_model_code:
-            m = re.search(r"\b([A-Z0-9]{3,6})\b", job.filename.upper())
-            if m:
+        if not pipeline_model_code or len(pipeline_model_code) < 4:
+            m = re.search(r"\b([A-Z0-9]{4})\b", job.filename.upper())
+            if m and m.group(1) not in {"PART", "PAGE", "BOOK", "EDIT", "FILE"}:
                 pipeline_model_code = m.group(1)
-            else:
+            elif not pipeline_model_code:
                 pipeline_model_code = "MODEL"
 
         # Step 2: Extract PDF images strictly for parts figures with deduplication

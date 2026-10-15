@@ -1317,6 +1317,69 @@ def test_extract_model_info_d2j1_and_split_digits():
     assert code_mtn == "BXUB"
     assert name_mtn == "MTN155-A"
 
+    # Test rejecting 2-char color code like (BK) in favor of 4-char model code (BKXJ)
+    pdf_bkxj = DummyPDF([
+        "YAMAHA PARTS CATALOGUE\nMatte Black (BK)\nRAY ZR 125 (BKXJ) INDIA\n",
+    ])
+    name_bkxj, code_bkxj = extract_model_info_from_pdf(pdf_bkxj)
+    assert code_bkxj == "BKXJ"
+    assert name_bkxj == "RAY ZR 125"
+
+
+def test_detect_vertical_model_columns_tall_stack_and_split_words():
+    """Verify that vertical stacks spanning > 40pt above header_top or split into words
+    resolve strictly to full 4-character model codes."""
+    from app.parts_extractor import detect_vertical_model_columns
+
+    # 1. Split into two 2-char words: JX and KB (top-to-bottom JX, KB -> reversed -> BKXJ)
+    words_split = [
+        {"text": "JX", "top": 35.0, "bottom": 50.0, "x0": 350.0, "x1": 357.0},
+        {"text": "KB", "top": 55.0, "bottom": 70.0, "x0": 350.1, "x1": 357.1},
+    ]
+    cols_split = detect_vertical_model_columns(
+        words=words_split,
+        header_top=85.0,
+        header_bottom=95.0,
+        desc_x1=300.0,
+        remarks_x0=450.0,
+    )
+    assert len(cols_split) == 1
+    assert cols_split[0]["name"] == "BKXJ"
+
+    # 2. Tall 4-character stack spanning 55pt above header_top
+    words_tall = [
+        {"text": "1", "top": 25.0, "bottom": 32.0, "x0": 360.0, "x1": 367.0},
+        {"text": "P", "top": 40.0, "bottom": 47.0, "x0": 360.1, "x1": 367.1},
+        {"text": "G", "top": 55.0, "bottom": 62.0, "x0": 359.9, "x1": 366.9},
+        {"text": "B", "top": 70.0, "bottom": 77.0, "x0": 360.0, "x1": 367.0},
+    ]
+    cols_tall = detect_vertical_model_columns(
+        words=words_tall,
+        header_top=85.0,
+        header_bottom=95.0,
+        desc_x1=300.0,
+        remarks_x0=450.0,
+    )
+    assert len(cols_tall) == 1
+    assert cols_tall[0]["name"] == "BGP1"
+
+    # 3. Partial 2-character stack KB resolved to BKXJ using known_model_code
+    words_partial = [
+        {"text": "K", "top": 60.0, "bottom": 67.0, "x0": 350.0, "x1": 357.0},
+        {"text": "B", "top": 72.0, "bottom": 79.0, "x0": 350.1, "x1": 357.1},
+    ]
+    cols_partial = detect_vertical_model_columns(
+        words=words_partial,
+        header_top=85.0,
+        header_bottom=95.0,
+        desc_x1=300.0,
+        remarks_x0=450.0,
+        known_model_code="BKXJ",
+    )
+    assert len(cols_partial) == 1
+    assert cols_partial[0]["name"] == "BKXJ"
+
+
 
 
 

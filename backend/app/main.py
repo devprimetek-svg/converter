@@ -138,7 +138,11 @@ def _run_extraction_job(job: JobData, pdf_bytes: bytes):
             job.current_fig_name = fig_name
             job.updated_at = time.time()
 
-        result = extract_parts_from_pdf(io.BytesIO(pdf_bytes), progress_callback=on_progress)
+        result = extract_parts_from_pdf(
+            io.BytesIO(pdf_bytes),
+            progress_callback=on_progress,
+            hint_filename=job.filename,
+        )
 
         job.rows = result["rows"]
         job.model_columns = result["model_columns"]

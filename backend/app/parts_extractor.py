@@ -315,8 +315,20 @@ def extract_model_info_from_pdf(pdf, raw_bytes: Optional[bytes] = None) -> tuple
             # Reject if name is just the model code itself (4-char alphanum codes)
             if re.fullmatch(r"[A-Z0-9]{3,8}", name_clean) and codes and name_clean in codes:
                 continue
-            if codes:
-                return cand_name.strip(), codes[0]
+            # Filter for genuine 4-character model codes (reject 2-char / 3-char color codes like BK, SMX, MB)
+            valid_codes = [c for c in codes if len(c) == 4 and c.isalnum()]
+            if valid_codes:
+                return cand_name.strip(), valid_codes[0]
+
+        # 3. Third pass: scan lines for standalone 4-character model codes if not found yet
+        # e.g. DH71, BXUB, BKXJ on cover or edition page
+        for raw_line in combined_cover_text.splitlines():
+            line = raw_line.strip()
+            for token_m in re.finditer(r"\b([A-Z0-9]{4})\b", line.upper()):
+                token = token_m.group(1)
+                if token not in stop_words and not token.isdigit():
+                    if token not in {"YEAR", "PAGE", "PART", "JULY", "JUNE", "EDIT", "BOOK", "CORP", "INSP", "UNIT", "NOTE", "DATA", "INFO", "DATE", "COPY", "MAIN", "VIEW", "TYPE", "NAME", "CODE", "LIST", "FORM", "SHOW", "ZONE", "TOOL", "AUTO", "POST", "CALL", "FREE", "COST", "ROAD", "HIGH", "WEST", "EAST"}:
+                        return token, token
     finally:
         if pdfium_doc is not None:
             try:
@@ -561,17 +573,18 @@ def detect_vertical_model_columns(
     tolerance: float = 6.0,
     padding: float = 4.0,
     first_data_row_top: Optional[float] = None,
+    known_model_code: Optional[str] = None,
 ) -> list[ModelColumn]:
     """Detect vertical model-code header(s):
     Single uppercase-letter or digit words positioned between the DESCRIPTION column
-    and the REMARKS column, all with 'top' close to the header row.
+    and the REMARKS column, with 'top' in the vertical model header zone.
     Group these characters by x-position proximity into vertical stacks.
     Sort each stack's characters by 'top' ascending and concatenate, then REVERSE
     the resulting string (e.g. read top-to-bottom as 1, P, G, B -> 1PGB -> reversed -> BGP1).
-    Also supports multi-character alphanumeric words (e.g. BGP1, 1WD1) already assembled in the header model zone.
+    Also supports multi-character alphanumeric words and resolves partial stacks to known 4-char codes.
     """
-    # Vertical search band: strictly around and above the header row (never below into data rows)
-    y_min = max(0.0, header_top - 30.0)
+    # Vertical search band: expanded to capture tall 4-character vertical stacks
+    y_min = max(0.0, header_top - 70.0)
     if first_data_row_top is not None:
         y_max = min(header_bottom + 4.0, first_data_row_top - 1.0)
     else:
@@ -593,59 +606,36 @@ def detect_vertical_model_columns(
     if not header_words:
         return []
 
-    # Single alphanumeric characters (vertical rotated model codes like BGPK, BGP1, 1WD1, 54B1)
-    # Includes uppercase letters A-Z and digits 0-9 (do not omit/leave out digits)
-    single_chars = [
+    valid_words = [
         w for w in header_words
-        if len(w["text"]) == 1 and w["text"].isalnum() and (w["text"] == w["text"].upper())
+        if w["text"].isalnum() and (w["text"] == w["text"].upper()) and len(w["text"]) <= 6
+        and w["text"].upper() not in {"QTY", "NO", "REF", "PART"}
     ]
-    multi_char_words = [
-        w for w in header_words
-        if len(w["text"]) > 1 and w["text"].isalnum() and (w["text"] == w["text"].upper()) and len(w["text"]) <= 6
-    ]
+    if not valid_words:
+        return []
+
+    # Group words by x-position proximity into vertical stacks
+    valid_words.sort(key=lambda w: (w["x0"] + w["x1"]) / 2.0)
+    stacks: list[list[dict]] = []
+    current_stack: list[dict] = [valid_words[0]]
+    current_x = (valid_words[0]["x0"] + valid_words[0]["x1"]) / 2.0
+
+    for w in valid_words[1:]:
+        mid_x = (w["x0"] + w["x1"]) / 2.0
+        if abs(mid_x - current_x) <= tolerance:
+            current_stack.append(w)
+        else:
+            stacks.append(current_stack)
+            current_stack = [w]
+            current_x = mid_x
+    if current_stack:
+        stacks.append(current_stack)
 
     model_columns: list[ModelColumn] = []
-
-    # Handle vertical stacks of single alphanumeric characters
-    if single_chars:
-        # Group by x-position proximity
-        single_chars.sort(key=lambda w: (w["x0"] + w["x1"]) / 2.0)
-        stacks: list[list[dict]] = []
-        current_stack: list[dict] = [single_chars[0]]
-        current_x = (single_chars[0]["x0"] + single_chars[0]["x1"]) / 2.0
-
-        for w in single_chars[1:]:
-            mid_x = (w["x0"] + w["x1"]) / 2.0
-            if abs(mid_x - current_x) <= tolerance:
-                current_stack.append(w)
-            else:
-                stacks.append(current_stack)
-                current_stack = [w]
-                current_x = mid_x
-
-        if current_stack:
-            stacks.append(current_stack)
-
-        for stack in stacks:
-            # Sort stack by top ascending (top-to-bottom in PDF)
-            stack.sort(key=lambda w: w["top"])
-            top_to_bottom_str = "".join(w["text"].upper() for w in stack)
-            # Rule: REVERSE the resulting string to get the real alphanumeric model code
-            real_model_code = top_to_bottom_str[::-1]
-            min_x0 = min(w["x0"] for w in stack) - padding
-            max_x1 = max(w["x1"] for w in stack) + padding
-            model_columns.append({
-                "name": real_model_code,
-                "x0": min_x0,
-                "x1": max_x1,
-            })
-
-    # Handle any multi-character alphanumeric words (if pdfplumber already merged vertical characters or regular word)
-    for mw in multi_char_words:
-        # Check if already covered by an existing stack
-        mid_x = (mw["x0"] + mw["x1"]) / 2.0
-        already_covered = any(col["x0"] <= mid_x <= col["x1"] for col in model_columns)
-        if not already_covered:
+    for stack in stacks:
+        stack.sort(key=lambda w: w["top"])
+        if len(stack) == 1:
+            mw = stack[0]
             raw_text = mw["text"].upper()
             w_h = mw["bottom"] - mw["top"]
             w_w = mw["x1"] - mw["x0"]
@@ -654,11 +644,22 @@ def detect_vertical_model_columns(
                 name = raw_text[::-1]
             else:
                 name = raw_text
-            model_columns.append({
-                "name": name,
-                "x0": mw["x0"] - padding,
-                "x1": mw["x1"] + padding,
-            })
+        else:
+            top_to_bottom_str = "".join(w["text"].upper() for w in stack)
+            name = top_to_bottom_str[::-1]
+
+        # If name is a truncated 2 or 3-char code, resolve to known 4-char model code if matching
+        if len(name) in (2, 3) and known_model_code and len(known_model_code) == 4:
+            if known_model_code.startswith(name) or name in known_model_code or known_model_code.endswith(name):
+                name = known_model_code
+
+        min_x0 = min(w["x0"] for w in stack) - padding
+        max_x1 = max(w["x1"] for w in stack) + padding
+        model_columns.append({
+            "name": name,
+            "x0": min_x0,
+            "x1": max_x1,
+        })
 
     # Filter out invalid model column names (e.g. a stray single digit like "1", which is never a valid model code)
     model_columns = [
@@ -674,6 +675,7 @@ def detect_vertical_model_columns(
 def extract_parts_from_pdf(
     pdf_source: io.BytesIO | bytes | str,
     progress_callback: Optional[Callable[[int, int, str, str], None]] = None,
+    hint_filename: Optional[str] = None,
 ) -> ExtractionResult:
     """Parse a Yamaha-style PDF Parts Catalogue and extract all parts rows.
 
@@ -681,6 +683,7 @@ def extract_parts_from_pdf(
     ----------
     pdf_source: io.BytesIO, bytes, or str file path
     progress_callback: Optional callable (current_page, total_pages, fig_no, fig_name)
+    hint_filename: Optional original filename for model code and catalog hints
     """
     import pdfplumber
 
@@ -715,6 +718,15 @@ def extract_parts_from_pdf(
     if total_pages == 0:
         raise ExtractionError("PDF document contains no pages.")
 
+    # Candidate 4-character model code from filename (e.g. BKXJ, DH71, BKXR, DM43)
+    fn_model_code: str = ""
+    target_name = hint_filename or (pdf_source if isinstance(pdf_source, str) else "")
+    if target_name:
+        base_fn = os.path.basename(str(target_name)).upper()
+        m_fn = re.search(r"\b([A-Z0-9]{4})\b", base_fn)
+        if m_fn and m_fn.group(1) not in {"PART", "PAGE", "BOOK", "EDIT", "FILE", "LIST", "TEMP"}:
+            fn_model_code = m_fn.group(1)
+
     # Detect model name and primary model code from cover/foreword pages
     pdf_model_name: str = ""
     pdf_model_code: str = ""
@@ -722,6 +734,11 @@ def extract_parts_from_pdf(
         pdf_model_name, pdf_model_code = extract_model_info_from_pdf(pdf, raw_bytes=raw_bytes)
     except Exception:
         pass  # Non-fatal: fall back to detected model columns later
+
+    if (not pdf_model_code or len(pdf_model_code) < 4) and fn_model_code:
+        pdf_model_code = fn_model_code
+    if not pdf_model_name and pdf_model_code:
+        pdf_model_name = pdf_model_code
 
     all_rows: list[dict] = []
     document_model_columns: list[str] = []
@@ -1059,13 +1076,20 @@ def extract_parts_from_pdf(
                 desc_x1=desc_x1,
                 remarks_x0=remarks_x0,
                 first_data_row_top=first_data_row_top,
+                known_model_code=pdf_model_code or fn_model_code,
             )
 
             if model_columns:
                 last_known_model_columns = model_columns
                 for col in model_columns:
-                    if col["name"] not in document_model_columns:
-                        document_model_columns.append(col["name"])
+                    col_name = col["name"]
+                    target_4char = pdf_model_code or fn_model_code
+                    if len(col_name) in (2, 3) and target_4char and len(target_4char) == 4:
+                        if target_4char.startswith(col_name) or col_name in target_4char or target_4char.endswith(col_name):
+                            col["name"] = target_4char
+                            col_name = target_4char
+                    if col_name not in document_model_columns:
+                        document_model_columns.append(col_name)
             elif last_known_model_columns:
                 # Reuse model columns from previous figure/page if header didn't have new ones
                 model_columns = last_known_model_columns
@@ -1191,8 +1215,15 @@ def extract_parts_from_pdf(
                     if model_columns
                     else (document_model_columns[0] if document_model_columns else "MODEL")
                 )
+                target_4char = pdf_model_code or fn_model_code
+                effective_model_code = primary_model
+                if len(effective_model_code) < 4 and target_4char and len(target_4char) == 4:
+                    effective_model_code = target_4char
+                elif effective_model_code == "MODEL" and target_4char:
+                    effective_model_code = target_4char
+
                 cat_code = (
-                    build_catalogue_code(primary_model, current_fig_name, current_fig_no)
+                    build_catalogue_code(effective_model_code, current_fig_name, current_fig_no)
                     if is_parent
                     else ""
                 )
@@ -1202,9 +1233,6 @@ def extract_parts_from_pdf(
                     else ""
                 )
 
-                # Determine effective model code for this row
-                # Prefer detected model column code; fall back to pdf_model_code from cover page
-                effective_model_code = primary_model if primary_model != "MODEL" else (pdf_model_code or primary_model)
                 model_name_val = (
                     build_model_name_record(effective_model_code, pdf_model_name, current_fig_name)
                     if is_parent
@@ -1267,6 +1295,46 @@ def extract_parts_from_pdf(
     # Ensure document_model_columns has all models found
     if not document_model_columns and last_known_model_columns:
         document_model_columns = [col["name"] for col in last_known_model_columns]
+
+    # Ensure any 2-character partial model codes (e.g. 'BK' or '55') in document_model_columns
+    # and all_rows are upgraded to the authoritative 4-character model code
+    authoritative_4char = pdf_model_code or fn_model_code
+    if authoritative_4char and len(authoritative_4char) == 4:
+        col_rename_map: dict[str, str] = {}
+        for idx, col in enumerate(document_model_columns):
+            if len(col) in (2, 3) and (authoritative_4char.startswith(col) or col in authoritative_4char or authoritative_4char.endswith(col)):
+                col_rename_map[col] = authoritative_4char
+                document_model_columns[idx] = authoritative_4char
+
+        seen_cols = set()
+        deduped_cols = []
+        for c in document_model_columns:
+            if c not in seen_cols:
+                seen_cols.add(c)
+                deduped_cols.append(c)
+        document_model_columns = deduped_cols
+
+        if not document_model_columns:
+            document_model_columns = [authoritative_4char]
+
+        if col_rename_map:
+            for row in all_rows:
+                old_m = row.get("model_code", "")
+                if old_m in col_rename_map:
+                    new_m = col_rename_map[old_m]
+                    row["model_code"] = new_m
+                    if row.get("item_group") == old_m:
+                        row["item_group"] = new_m
+                    if old_m in row:
+                        row[new_m] = row.pop(old_m)
+                    if row.get("model_name"):
+                        row["model_name"] = re.sub(rf"\b{re.escape(old_m)}\b", new_m, row["model_name"], count=1)
+                    if row.get("catalogue_code"):
+                        row["catalogue_code"] = re.sub(rf"^YAM_{re.escape(old_m)}_", f"YAM_{new_m}_", row["catalogue_code"])
+                    if row.get("pic"):
+                        row["pic"] = re.sub(rf"^YAM_{re.escape(old_m)}_", f"YAM_{new_m}_", row["pic"])
+                    if row.get("pic_path"):
+                        row["pic_path"] = re.sub(rf"^YAM_{re.escape(old_m)}_", f"YAM_{new_m}_", row["pic_path"])
 
     # Fill default empty string for any model columns missing in earlier rows
     for row in all_rows:
