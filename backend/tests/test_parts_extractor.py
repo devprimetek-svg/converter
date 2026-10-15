@@ -1325,6 +1325,16 @@ def test_extract_model_info_d2j1_and_split_digits():
     assert code_bkxj == "BKXJ"
     assert name_bkxj == "RAY ZR 125"
 
+    # Test multiline cover page where model name and code in brackets are on separate lines (e.g. LCX125 and BGPK)
+    # and subsequent page has color codes (e.g. Vivid Red (VRC1))
+    pdf_bgpk = DummyPDF([
+        "LCX125\n(BGPK)\nINDIA\n31BGP-470E5\nApr' 2026\nParts & Accessories",
+        "Vivid Red (VRC1)\nBGPK\nMetallic White (BWC1) Metallic Black (SMX)\nBGPK\nLCX125\nPARTS CATALOGUE",
+    ])
+    name_bgpk, code_bgpk = extract_model_info_from_pdf(pdf_bgpk)
+    assert code_bgpk == "BGPK"
+    assert name_bgpk == "LCX125"
+
 
 def test_detect_vertical_model_columns_tall_stack_and_split_words():
     """Verify that vertical stacks spanning > 40pt above header_top or split into words

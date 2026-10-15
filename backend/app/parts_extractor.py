@@ -238,14 +238,73 @@ def extract_model_info_from_pdf(pdf, raw_bytes: Optional[bytes] = None) -> tuple
         D2J1 [EC-06]
         MODEL CODE: D2J1 [EC-06]
     """
-    stop_words = {"PARTS", "CATALOGUE", "CATALOG", "YAMAHA", "GENUINE", "FOREWORD",
-                  "CONTENTS", "INDEX", "ACCESSORIES", "INDIA", "SERIES", "SUMMARY"}
+def extract_model_info_from_pdf(
+    pdf,
+    raw_bytes: Optional[bytes] = None,
+    hint_filename: Optional[str] = None,
+) -> tuple[str, str]:
+    """Scan the cover / foreword pages of an open pdfplumber PDF to detect the model name and primary
+    model code printed on the cover page.
+
+    Prioritizes Page 0 (cover page) and matches patterns like:
+        LCX125 (BGPK) INDIA
+        LCX125 \n (BGPK) \n INDIA
+        LCX125 (BGPJ / BGPL) INDIA
+        RAY ZR 125 (BKXJ) INDIA
+        MTN155-A (BXUB) INDIA
+        D2J1 [EC-06]
+        MODEL CODE: D2J1 [EC-06]
+
+    Rejects color codes (e.g. Vivid Red (VRC1), Metallic White (BWC1)).
+    """
+    stop_words = {
+        "PARTS", "CATALOGUE", "CATALOG", "YAMAHA", "GENUINE", "FOREWORD",
+        "CONTENTS", "INDEX", "ACCESSORIES", "INDIA", "SERIES", "SUMMARY"
+    }
+    color_words = {
+        "METALLIC", "MATTE", "VIVID", "COLOUR", "COLOR", "WHITE", "BLACK",
+        "BLUE", "RED", "GREY", "GRAY", "SILVER", "GREEN", "YELLOW", "ORANGE",
+        "CYAN", "PURPLE", "GOLD", "DARK", "LIGHT", "SPL", "COCKTAIL"
+    }
+    invalid_codes = {
+        "YEAR", "PAGE", "PART", "JULY", "JUNE", "EDIT", "BOOK", "CORP",
+        "INSP", "UNIT", "NOTE", "DATA", "INFO", "DATE", "COPY", "MAIN",
+        "VIEW", "TYPE", "NAME", "CODE", "LIST", "FORM", "SHOW", "ZONE",
+        "TOOL", "AUTO", "POST", "CALL", "FREE", "COST", "ROAD", "HIGH",
+        "WEST", "EAST", "NEWS"
+    }
+
+    def clean_cand_name(cand: str) -> str:
+        # Strip leading stop words & symbols (e.g. "@ YAMAHA PARTS CATALOGUE LCX1 25D" -> "LCX1 25D")
+        cand = re.sub(
+            r"^(?:[@\|\:\s\-_]*(?:YAMAHA|PARTS|CATALOGUE|CATALOG|GENUINE|INDIA)\b\s*)+",
+            "",
+            cand,
+            flags=re.IGNORECASE,
+        ).strip()
+        # Strip trailing country / corporate words
+        cand = re.sub(
+            r"(?:\s*\b(?:INDIA|LTD|PVT|INC|CORP)\b\s*)+$",
+            "",
+            cand,
+            flags=re.IGNORECASE,
+        ).strip()
+        # Merge split digits from OCR spacing (e.g. "LCX1 25D" -> "LCX125D", "MTN1 55-A" -> "MTN155-A")
+        cand = re.sub(r"(\d)\s+(\d)", r"\1\2", cand)
+        return cand.strip()
+
+    def is_color_name(cand: str) -> bool:
+        words = [w.upper() for w in re.findall(r"[A-Za-z]+", cand)]
+        return len(words) > 0 and all(w in color_words for w in words)
+
     tess_cmd: Optional[str] = None
     pdfium_doc = None
     detected_rot: int = 0
-    all_pages_text: list[str] = []
+    pages_text: list[str] = []
+
     try:
-        for page_idx in range(min(4, len(pdf.pages))):
+        max_scan_pages = min(4, len(pdf.pages))
+        for page_idx in range(max_scan_pages):
             try:
                 text = pdf.pages[page_idx].extract_text() or ""
             except Exception:
@@ -270,65 +329,87 @@ def extract_model_info_from_pdf(pdf, raw_bytes: Optional[bytes] = None) -> tuple
                     except Exception as e:
                         logger.debug("Cover page OCR failed on page %d: %s", page_idx, e)
 
-            all_pages_text.append(text)
+            pages_text.append(text)
 
-        combined_cover_text = "\n".join(all_pages_text)
+        # Process page by page, strictly prioritizing Page 0 (Cover page)
+        for page_idx, raw_text in enumerate(pages_text):
+            if not raw_text.strip():
+                continue
 
-        # 1. First pass: explicit MODEL CODE and MODEL NAME check (e.g. D2J1 on page 1)
-        m_exp_code = re.search(r"MODEL\s+CODE\s*:\s*([A-Za-z0-9\-]+)(?:\s*\[([^\]]+)\]|\s*\(([^\)]+)\))?", combined_cover_text, re.IGNORECASE)
-        m_exp_name = re.search(r"MODEL\s+NAME\s*:\s*([A-Za-z0-9\-\s]+)", combined_cover_text, re.IGNORECASE)
-        if m_exp_code:
-            c_code = m_exp_code.group(1).strip().upper()
-            c_bracket = (m_exp_code.group(2) or m_exp_code.group(3) or "").strip()
-            c_name = m_exp_name.group(1).strip() if m_exp_name else ""
-            res_name = c_bracket if c_bracket else (c_name or c_code)
-            return res_name, c_code
-
-        # 2. Second pass: scan lines for <NAME> [ <CODE> ] or <NAME> ( <CODE> )
-        for raw_line in combined_cover_text.splitlines():
-            line = raw_line.strip()
-            m_br = re.search(
-                r"([A-Za-z0-9](?:[A-Za-z0-9\-\.\+\s]*?[A-Za-z0-9])?)\s*\[\s*([A-Z0-9][A-Za-z0-9\-]+(?:\s*[/,\s]\s*[A-Z0-9][A-Za-z0-9\-]+)*)\s*\]",
-                line,
+            # 1. Explicit MODEL CODE and MODEL NAME check (e.g. D2J1 on cover page)
+            m_exp_code = re.search(
+                r"MODEL\s+CODE\s*:\s*([A-Za-z0-9\-]+)(?:\s*\[([^\]]+)\]|\s*\(([^\)]+)\))?",
+                raw_text,
+                re.IGNORECASE,
             )
-            m_pr = re.search(
-                r"([A-Za-z0-9](?:[A-Za-z0-9\-\.\+\s]*?[A-Za-z0-9])?)\s*\(\s*([A-Z0-9][A-Za-z0-9\-]+(?:\s*[/,\s]\s*[A-Z0-9][A-Za-z0-9\-]+)*)\s*\)",
-                line,
+            m_exp_name = re.search(
+                r"MODEL\s+NAME\s*:\s*([A-Za-z0-9\-\s]+)",
+                raw_text,
+                re.IGNORECASE,
             )
-            m = m_br or m_pr
-            if not m:
-                continue
-            cand_name = m.group(1).strip()
-            codes_raw = m.group(2)
-            codes = [c.strip().upper() for c in re.split(r"[/,\s]+", codes_raw) if c.strip()]
+            if m_exp_code:
+                c_code = m_exp_code.group(1).strip().upper()
+                c_bracket = (m_exp_code.group(2) or m_exp_code.group(3) or "").strip()
+                c_name = m_exp_name.group(1).strip() if m_exp_name else ""
+                res_name = c_bracket if c_bracket else (c_name or c_code)
+                return clean_cand_name(res_name), c_code
 
-            # Strip leading stop words & symbols (e.g. "@ YAMAHA PARTS CATALOGUE LCX1 25D" -> "LCX1 25D")
-            cand_name = re.sub(r"^(?:[@\|\:\s\-_]*(?:YAMAHA|PARTS|CATALOGUE|CATALOG|GENUINE)\b\s*)+", "", cand_name, flags=re.IGNORECASE).strip()
+            # 2. Normalized text scan: allows matching model name and code even when split across lines
+            # e.g. "LCX125\n(BGPK)\nINDIA" -> "LCX125 (BGPK) INDIA"
+            norm = re.sub(r"[\r\n]+", " ", raw_text)
+            norm = re.sub(r"(\d)\s+(\d)", r"\1\2", norm)
+            norm = re.sub(r"\s+", " ", norm).strip()
 
-            # Merge split digits from OCR spacing (e.g. "LCX1 25D" -> "LCX125D", "MTN1 55-A" -> "MTN155-A")
-            cand_name = re.sub(r"(\d)\s+(\d)", r"\1\2", cand_name)
+            matches = re.finditer(
+                r"(?:^|[\s@|;:]+)([A-Za-z0-9][A-Za-z0-9\-\.\+\s]*?[A-Za-z0-9])\s*[\(\[]\s*([A-Za-z0-9]{4}(?:\s*[/,\s]\s*[A-Za-z0-9]{4})*)\s*[\)\]]",
+                norm,
+            )
+            for m in matches:
+                cand_raw = m.group(1).strip()
+                codes_raw = m.group(2)
+                codes = [c.strip().upper() for c in re.split(r"[/,\s]+", codes_raw) if c.strip()]
+                cand = clean_cand_name(cand_raw)
+                if not cand or is_color_name(cand):
+                    continue
 
-            # Reject if candidate name is entirely a stop-word or too short
-            name_clean = re.sub(r"\s+", " ", cand_name).strip().upper()
-            if not name_clean or name_clean in stop_words or len(name_clean) < 2:
-                continue
-            # Reject if name is just the model code itself (4-char alphanum codes)
-            if re.fullmatch(r"[A-Z0-9]{3,8}", name_clean) and codes and name_clean in codes:
-                continue
-            # Filter for genuine 4-character model codes (reject 2-char / 3-char color codes like BK, SMX, MB)
-            valid_codes = [c for c in codes if len(c) == 4 and c.isalnum()]
-            if valid_codes:
-                return cand_name.strip(), valid_codes[0]
+                name_clean = cand.upper()
+                if name_clean in stop_words or len(name_clean) < 2:
+                    continue
+                if re.fullmatch(r"[A-Z0-9]{3,8}", name_clean) and codes and name_clean in codes:
+                    continue
 
-        # 3. Third pass: scan lines for standalone 4-character model codes if not found yet
+                valid_codes = [
+                    c for c in codes
+                    if len(c) == 4 and c.isalnum() and c not in invalid_codes and not c.isdigit()
+                ]
+                if valid_codes:
+                    return cand, valid_codes[0]
+
+            # 3. On Page 0 specifically, check standalone bracketed 4-character codes e.g. (BGPK) or [BGPK]
+            if page_idx == 0:
+                br_codes = re.findall(r"[\(\[]\s*([A-Za-z0-9]{4})\s*[\)\]]", norm)
+                for c in br_codes:
+                    cu = c.upper()
+                    if cu.isalnum() and cu not in invalid_codes and not cu.isdigit():
+                        return cu, cu
+
+        # 4. Third pass: scan lines for standalone 4-character model codes if not found yet
         # e.g. DH71, BXUB, BKXJ on cover or edition page
-        for raw_line in combined_cover_text.splitlines():
-            line = raw_line.strip()
-            for token_m in re.finditer(r"\b([A-Z0-9]{4})\b", line.upper()):
-                token = token_m.group(1)
-                if token not in stop_words and not token.isdigit():
-                    if token not in {"YEAR", "PAGE", "PART", "JULY", "JUNE", "EDIT", "BOOK", "CORP", "INSP", "UNIT", "NOTE", "DATA", "INFO", "DATE", "COPY", "MAIN", "VIEW", "TYPE", "NAME", "CODE", "LIST", "FORM", "SHOW", "ZONE", "TOOL", "AUTO", "POST", "CALL", "FREE", "COST", "ROAD", "HIGH", "WEST", "EAST"}:
+        for raw_text in pages_text:
+            for raw_line in raw_text.splitlines():
+                line = raw_line.strip()
+                for token_m in re.finditer(r"\b([A-Z0-9]{4})\b", line.upper()):
+                    token = token_m.group(1)
+                    if token not in stop_words and not token.isdigit() and token not in invalid_codes:
                         return token, token
+
+        # 5. Check hint_filename if provided
+        if hint_filename:
+            base_fn = os.path.basename(hint_filename).upper()
+            m_fn = re.search(r"\b([A-Z0-9]{4})\b", base_fn)
+            if m_fn and m_fn.group(1) not in invalid_codes and not m_fn.group(1).isdigit():
+                return m_fn.group(1), m_fn.group(1)
+
     finally:
         if pdfium_doc is not None:
             try:
@@ -731,7 +812,11 @@ def extract_parts_from_pdf(
     pdf_model_name: str = ""
     pdf_model_code: str = ""
     try:
-        pdf_model_name, pdf_model_code = extract_model_info_from_pdf(pdf, raw_bytes=raw_bytes)
+        pdf_model_name, pdf_model_code = extract_model_info_from_pdf(
+            pdf,
+            raw_bytes=raw_bytes,
+            hint_filename=target_name,
+        )
     except Exception:
         pass  # Non-fatal: fall back to detected model columns later
 
@@ -1302,7 +1387,23 @@ def extract_parts_from_pdf(
     if authoritative_4char and len(authoritative_4char) == 4:
         col_rename_map: dict[str, str] = {}
         for idx, col in enumerate(document_model_columns):
-            if len(col) in (2, 3) and (authoritative_4char.startswith(col) or col in authoritative_4char or authoritative_4char.endswith(col)):
+            if col == authoritative_4char:
+                continue
+            is_partial = (
+                len(col) in (2, 3)
+                and (
+                    authoritative_4char.startswith(col)
+                    or col in authoritative_4char
+                    or authoritative_4char.endswith(col)
+                    or all(ch in authoritative_4char for ch in col)
+                )
+            )
+            is_reversed_or_anagram = (
+                len(col) == 4
+                and (col == authoritative_4char[::-1] or sorted(col) == sorted(authoritative_4char))
+            )
+            is_fallback = col == "MODEL"
+            if is_partial or is_reversed_or_anagram or is_fallback:
                 col_rename_map[col] = authoritative_4char
                 document_model_columns[idx] = authoritative_4char
 
