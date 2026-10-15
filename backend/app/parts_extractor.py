@@ -448,37 +448,74 @@ def get_letter_suffix(idx: int) -> str:
 
 
 def disambiguate_repeated_ref_numbers(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """If a ref_no is repeated within the same figure, append A, B, C, D...
+    """If a ref_no is repeated within a PARTICULAR PARENT's child records, append A, B, C, D...
 
     Examples:
-    - If Ref 1 appears 3 times in Fig 14: becomes '1A', '1B', '1C'.
-    - If Ref 2 appears 2 times: becomes '2A', '2B'.
-    - If Ref 3 appears once: remains '3'.
+    - If Ref 1 appears 3 times under Parent 'CYLINDER HEAD': becomes '1A', '1B', '1C'.
+    - If Ref 2 appears 2 times under Parent 'CYLINDER HEAD': becomes '2A', '2B'.
+    - If Ref 3 appears once under Parent 'CYLINDER HEAD': remains '3'.
+    - Under the next Parent 'VALVE', Ref 1 appears once: remains '1' (does NOT become '1B' or '1D').
 
-    Scoped by figure (fig_no, or page if fig_no is not available).
-    Idempotent: if a row already has a suffix like '1A' and is unique, it is preserved.
+    Strictly scoped per parent block. Never across different parents or the entire PDF.
     """
-    fig_groups: dict[str, list[int]] = defaultdict(list)
-    for i, r in enumerate(rows):
-        fig_key = str(r.get("fig_no", "")).strip()
-        if not fig_key:
-            fig_key = f"page_{r.get('page', 0)}"
-        fig_groups[fig_key].append(i)
+    if not rows:
+        return rows
 
-    for indices in fig_groups.values():
+    # Partition rows into sequential parent blocks
+    blocks: list[list[int]] = []
+    current_block: list[int] = []
+    last_fig_key = None
+
+    for i, r in enumerate(rows):
+        raw_fig_no = str(r.get("parent_fig_no") or r.get("fig_no") or "").strip()
+        raw_fig_name = str(r.get("parent_fig_name") or r.get("fig_name") or "").strip()
+        if raw_fig_no or raw_fig_name:
+            fig_key = (raw_fig_no, raw_fig_name)
+        else:
+            fig_key = ("page", str(r.get("page", "")))
+
+        is_new_parent = False
+        if r.get("is_custom_section"):
+            if r.get("is_parent"):
+                is_new_parent = True
+        elif r.get("is_parent"):
+            is_new_parent = True
+        elif last_fig_key is not None and fig_key != last_fig_key:
+            is_new_parent = True
+
+        if is_new_parent and current_block:
+            blocks.append(current_block)
+            current_block = []
+
+        current_block.append(i)
+        last_fig_key = fig_key
+
+    if current_block:
+        blocks.append(current_block)
+
+    for block_indices in blocks:
+        # First count how many times each base ref_no appears in THIS parent block
         ref_counts: Counter[str] = Counter()
-        for idx in indices:
+        for idx in block_indices:
             ref = str(rows[idx].get("ref_no", "")).strip()
             if ref:
-                ref_counts[ref] += 1
+                m = re.match(r"^(\d+)[A-Za-z]$", ref)
+                base_ref = m.group(1) if m else ref
+                ref_counts[base_ref] += 1
 
+        # Apply suffix ONLY if repeated within THIS parent block
         seen_counts: dict[str, int] = defaultdict(int)
-        for idx in indices:
+        for idx in block_indices:
             ref = str(rows[idx].get("ref_no", "")).strip()
-            if ref and ref_counts[ref] > 1:
-                occ_idx = seen_counts[ref]
-                seen_counts[ref] += 1
-                rows[idx]["ref_no"] = f"{ref}{get_letter_suffix(occ_idx)}"
+            if ref:
+                m = re.match(r"^(\d+)[A-Za-z]$", ref)
+                base_ref = m.group(1) if m else ref
+                if ref_counts[base_ref] > 1:
+                    occ_idx = seen_counts[base_ref]
+                    seen_counts[base_ref] += 1
+                    rows[idx]["ref_no"] = f"{base_ref}{get_letter_suffix(occ_idx)}"
+                else:
+                    rows[idx]["ref_no"] = base_ref
 
     return rows
 
@@ -776,25 +813,27 @@ def extract_parts_from_pdf(
 
             for idx, line in enumerate(lines[:8]):
                 line_text = " ".join(w["text"] for w in line).strip()
-                m = re.match(r"^(?:FIG\.?|FIGURE)\s*(\d+[A-Za-z]?)\s+[:\-]?\s*(.*)$", line_text, re.IGNORECASE)
+                m = re.match(r"^(?:FIG\.?|FIGURE)\s*([0-9\.\:\-]+)\s+[:\-]?\s*(.*)$", line_text, re.IGNORECASE)
                 if not m:
-                    m = re.match(r"^TABLE\s*(\d+(?:\.\d+)?)\s*[:\-]?\s*(.*)$", line_text, re.IGNORECASE)
+                    m = re.match(r"^TABLE\s*([0-9\.\:\-]+)\s*[:\-]?\s*(.*)$", line_text, re.IGNORECASE)
                 if m:
                     page_fig_no = m.group(1).strip()
                     page_fig_name = m.group(2).strip()
                     fig_line_idx = idx
                     break
 
-            # Also check for FUNCTION N : <NAME> ASSY heading fallback (used on D2J1 and service catalogs)
-            if not page_fig_no or "SERVICE" in (page_fig_name or "").upper():
-                page_all_text = " ".join(w["text"] for w in words)
-                m_func = re.search(r"FUNCTION\s*(\d*)\s*[:\-]\s*([A-Za-z0-9\s&]+?)(?:\s+Page|\s+\d+|$|\n)", page_all_text, re.IGNORECASE)
-                if m_func:
-                    f_no = m_func.group(1).strip() or (page_fig_no or "1")
-                    f_name = m_func.group(2).strip()
-                    if f_name:
-                        page_fig_no = f_no
-                        page_fig_name = f_name
+            # Also check for Table or Function pattern (used on D2J1 and service catalogs)
+            if not page_fig_no or not page_fig_name or "SERVICE" in (page_fig_name or "").upper():
+                page_all_text = " ".join(w["text"] for w in words[:60])
+                m_tbl = re.search(r"Table\s*([0-9\.\:\-]+)\s*[:\-]?\s*([A-Za-z0-9\s&]+?)(?:\s+SERVICE|\s+Ref|$|\n)", page_all_text, re.IGNORECASE)
+                if m_tbl and m_tbl.group(2).strip() and not any(h in m_tbl.group(2).upper() for h in ("ROLLING", "CHASSIS")):
+                    page_fig_no = m_tbl.group(1).strip()
+                    page_fig_name = m_tbl.group(2).strip()
+                else:
+                    m_func = re.search(r"FUNCTION\s*(\d*)\s*[:\-]\s*([A-Za-z0-9\s&]+?)(?:\s+Page|\s+\d+|$|\n)", page_all_text, re.IGNORECASE)
+                    if m_func and m_func.group(2).strip():
+                        page_fig_no = m_func.group(1).strip() or (page_fig_no or "1")
+                        page_fig_name = m_func.group(2).strip()
 
             if page_fig_name:
                 page_fig_name = re.sub(r"\s+SERVICE\s*$", "", page_fig_name, flags=re.IGNORECASE).strip()
@@ -848,7 +887,7 @@ def extract_parts_from_pdf(
                     document_model_columns.append(eff_model)
 
                 ref_x0 = 590.0
-                x_ref_end = 618.0
+                x_ref_end = 630.0
                 x_pno_start = 905.0
                 x_qty_start = 1010.0
                 x_rem_start = 1050.0

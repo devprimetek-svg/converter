@@ -354,18 +354,24 @@ def test_scanned_pdf_error():
 
 
 def test_disambiguate_repeated_ref_numbers():
-    """Verify that repeated ref_no within a figure gets A, B, C, D... while non-repeated ref_no is preserved."""
+    """Verify that repeated ref_no within a parent's child records gets A, B, C, D...
+    while non-repeated ref_no is preserved and never crosses parent boundaries."""
     from app.parts_extractor import disambiguate_repeated_ref_numbers
 
     rows = [
-        {"fig_no": "14", "ref_no": "1", "part_no": "P1"},
-        {"fig_no": "14", "ref_no": "1", "part_no": "P2"},
-        {"fig_no": "14", "ref_no": "1", "part_no": "P3"},
-        {"fig_no": "14", "ref_no": "2", "part_no": "P4"},
-        {"fig_no": "14", "ref_no": "3", "part_no": "P5"},
-        {"fig_no": "14", "ref_no": "3", "part_no": "P6"},
-        {"fig_no": "15", "ref_no": "1", "part_no": "P7"},  # Different figure: ref 1 is unique
-        {"fig_no": "15", "ref_no": "2", "part_no": "P8"},
+        # Parent 1: FIG 14 CYLINDER HEAD
+        {"is_parent": True, "fig_no": "14", "fig_name": "CYLINDER HEAD", "ref_no": "1", "part_no": "P1"},
+        {"is_parent": False, "fig_no": "14", "fig_name": "CYLINDER HEAD", "ref_no": "1", "part_no": "P2"},
+        {"is_parent": False, "fig_no": "14", "fig_name": "CYLINDER HEAD", "ref_no": "1", "part_no": "P3"},
+        {"is_parent": False, "fig_no": "14", "fig_name": "CYLINDER HEAD", "ref_no": "2", "part_no": "P4"},
+        {"is_parent": False, "fig_no": "14", "fig_name": "CYLINDER HEAD", "ref_no": "3", "part_no": "P5"},
+        {"is_parent": False, "fig_no": "14", "fig_name": "CYLINDER HEAD", "ref_no": "3", "part_no": "P6"},
+        # Parent 2: FIG 15 CRANKSHAFT (Ref 1 is unique, Ref 2 is unique)
+        {"is_parent": True, "fig_no": "15", "fig_name": "CRANKSHAFT", "ref_no": "1", "part_no": "P7"},
+        {"is_parent": False, "fig_no": "15", "fig_name": "CRANKSHAFT", "ref_no": "2", "part_no": "P8"},
+        # Parent 3: Another figure also numbered FIG 14 but different section/parent (Ref 1 appears once)
+        {"is_parent": True, "fig_no": "14", "fig_name": "ELECTRICAL", "ref_no": "1", "part_no": "P9"},
+        {"is_parent": False, "fig_no": "14", "fig_name": "ELECTRICAL", "ref_no": "2", "part_no": "P10"},
     ]
 
     out = disambiguate_repeated_ref_numbers(rows)
@@ -377,11 +383,13 @@ def test_disambiguate_repeated_ref_numbers():
     assert out[4]["ref_no"] == "3A"
     assert out[5]["ref_no"] == "3B"
     assert out[6]["ref_no"] == "1"    # fig 15 ref 1 is single -> unchanged
-    assert out[7]["ref_no"] == "2"
+    assert out[7]["ref_no"] == "2"    # fig 15 ref 2 is single -> unchanged
+    assert out[8]["ref_no"] == "1"    # fig 14 (ELECTRICAL) ref 1 is single -> unchanged, does NOT become 1D!
+    assert out[9]["ref_no"] == "2"
 
     # Idempotency check: running again must not change anything
     out2 = disambiguate_repeated_ref_numbers(out)
-    assert [r["ref_no"] for r in out2] == ["1A", "1B", "1C", "2", "3A", "3B", "1", "2"]
+    assert [r["ref_no"] for r in out2] == ["1A", "1B", "1C", "2", "3A", "3B", "1", "2", "1", "2"]
 
 
 def test_parent_cell_blanking_and_catalogue_code_in_excel():
