@@ -57,18 +57,8 @@ def find_available_port(preferred: int = 8000) -> int:
     return preferred
 
 
-def open_desktop_window(url: str, on_close: Optional[Callable[[], None]] = None) -> None:
-    """Open URL in Chrome/Edge App Mode with isolated profile and auto-shutdown on window close."""
-    profile_dir = os.path.join(
-        os.environ.get("LOCALAPPDATA", os.path.expanduser("~")),
-        "ConverterStudio",
-        "profile",
-    )
-    try:
-        os.makedirs(profile_dir, exist_ok=True)
-    except Exception:
-        pass
-
+def open_desktop_window(url: str) -> None:
+    """Open URL in Chrome/Edge App Mode (looks like a native desktop app) or default browser."""
     browser_candidates = [
         os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
         os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
@@ -77,49 +67,19 @@ def open_desktop_window(url: str, on_close: Optional[Callable[[], None]] = None)
         os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
     ]
 
-    # If a stale lockfile exists from a previous crash/forced kill, attempt to clean it up
-    lock_file = os.path.join(profile_dir, "lockfile")
-    if os.path.exists(lock_file):
-        try:
-            os.remove(lock_file)
-        except Exception:
-            pass
-
-    proc = None
     for exe_path in browser_candidates:
         if os.path.exists(exe_path):
             try:
-                proc = subprocess.Popen([
+                subprocess.Popen([
                     exe_path,
-                    f"--user-data-dir={profile_dir}",
                     f"--app={url}",
                     "--start-maximized",
-                    "--no-first-run",
-                    "--no-default-browser-check",
                 ])
-                break
+                return
             except Exception:
                 pass
 
-    if proc is None:
-        webbrowser.open(url)
-        return
-
-    if on_close:
-        def wait_exit():
-            start_time = time.time()
-            try:
-                ret = proc.wait()
-            except Exception:
-                ret = None
-            # If the process exited almost immediately (< 3s) with an error code (e.g. 21 / singleton conflict),
-            # the window failed to start in app mode. Fall back to default browser and keep server alive.
-            if (time.time() - start_time) < 3.0 and ret not in (0, None):
-                webbrowser.open(url)
-                return
-            on_close()
-
-        threading.Thread(target=wait_exit, daemon=True).start()
+    webbrowser.open(url)
 
 
 def main() -> None:
@@ -134,18 +94,13 @@ def main() -> None:
     port = find_available_port(8000)
     url = f"http://127.0.0.1:{port}"
 
-    def on_window_closed():
-        # Cleanly terminate backend server when desktop window is closed
-        time.sleep(0.5)
-        os._exit(0)
-
     def wait_and_launch_browser():
         for _ in range(50):
             if is_server_healthy(port):
-                open_desktop_window(url, on_close=on_window_closed)
+                open_desktop_window(url)
                 return
             time.sleep(0.2)
-        open_desktop_window(url, on_close=on_window_closed)
+        open_desktop_window(url)
 
     threading.Thread(target=wait_and_launch_browser, daemon=True).start()
 
