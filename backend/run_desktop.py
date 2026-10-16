@@ -77,6 +77,14 @@ def open_desktop_window(url: str, on_close: Optional[Callable[[], None]] = None)
         os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
     ]
 
+    # If a stale lockfile exists from a previous crash/forced kill, attempt to clean it up
+    lock_file = os.path.join(profile_dir, "lockfile")
+    if os.path.exists(lock_file):
+        try:
+            os.remove(lock_file)
+        except Exception:
+            pass
+
     proc = None
     for exe_path in browser_candidates:
         if os.path.exists(exe_path):
@@ -99,10 +107,16 @@ def open_desktop_window(url: str, on_close: Optional[Callable[[], None]] = None)
 
     if on_close:
         def wait_exit():
+            start_time = time.time()
             try:
-                proc.wait()
+                ret = proc.wait()
             except Exception:
-                pass
+                ret = None
+            # If the process exited almost immediately (< 3s) with an error code (e.g. 21 / singleton conflict),
+            # the window failed to start in app mode. Fall back to default browser and keep server alive.
+            if (time.time() - start_time) < 3.0 and ret not in (0, None):
+                webbrowser.open(url)
+                return
             on_close()
 
         threading.Thread(target=wait_exit, daemon=True).start()
