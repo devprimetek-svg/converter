@@ -58,28 +58,42 @@ def find_available_port(preferred: int = 8000) -> int:
 
 
 def open_desktop_window(url: str) -> None:
-    """Open URL in Chrome/Edge App Mode (looks like a native desktop app) or default browser."""
+    """Open URL in user's browser reliably across all Windows environments."""
+    # 1. System default browser launch via ShellExecute (handles multi-user RDS seamlessly)
+    try:
+        if webbrowser.open(url, new=1, autoraise=True):
+            return
+    except Exception:
+        pass
+
+    try:
+        os.startfile(url)
+        return
+    except Exception:
+        pass
+
+    try:
+        subprocess.Popen(f'start "" "{url}"', shell=True)
+        return
+    except Exception:
+        pass
+
+    # Fallback to direct browser executables
     browser_candidates = [
+        os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
+        os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
         os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
         os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
         os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
-        os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
-        os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
     ]
 
     for exe_path in browser_candidates:
         if os.path.exists(exe_path):
             try:
-                subprocess.Popen([
-                    exe_path,
-                    f"--app={url}",
-                    "--start-maximized",
-                ])
+                subprocess.Popen([exe_path, url])
                 return
             except Exception:
                 pass
-
-    webbrowser.open(url)
 
 
 def main() -> None:
