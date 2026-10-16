@@ -11,6 +11,7 @@ import os
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.request
@@ -57,28 +58,32 @@ def find_available_port(preferred: int = 8000) -> int:
     return preferred
 
 
-def open_desktop_window(url: str) -> None:
-    """Open URL in user's browser reliably across all Windows environments."""
-    # 1. System default browser launch via ShellExecute (handles multi-user RDS seamlessly)
-    try:
-        if webbrowser.open(url, new=1, autoraise=True):
-            return
-    except Exception:
-        pass
+def get_app_profile_dir() -> str:
+    """Return an isolated profile directory for Converter Studio App Window."""
+    base_dir = os.path.join(
+        os.environ.get("LOCALAPPDATA", os.path.expanduser("~")),
+        "ConverterStudio",
+        "app_profile",
+    )
+    lock_file = os.path.join(base_dir, "lockfile")
+    if os.path.exists(lock_file):
+        try:
+            os.remove(lock_file)
+        except Exception:
+            # Fallback to a per-PID profile if currently held by another active window
+            fallback = os.path.join(tempfile.gettempdir(), f"ConverterStudio_Profile_{os.getpid()}")
+            os.makedirs(fallback, exist_ok=True)
+            return fallback
 
-    try:
-        os.startfile(url)
-        return
-    except Exception:
-        pass
+    os.makedirs(base_dir, exist_ok=True)
+    return base_dir
 
-    try:
-        subprocess.Popen(f'start "" "{url}"', shell=True)
-        return
-    except Exception:
-        pass
 
-    # Fallback to direct browser executables
+def open_desktop_window(url: str, on_close: Optional[Callable[[], None]] = None) -> None:
+    """Open URL in dedicated App Mode (native-style desktop window)."""
+    profile_dir = get_app_profile_dir()
+
+    # Prioritize Microsoft Edge (default on this Windows server), then Google Chrome
     browser_candidates = [
         os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
         os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
@@ -87,13 +92,35 @@ def open_desktop_window(url: str) -> None:
         os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
     ]
 
+    proc = None
     for exe_path in browser_candidates:
         if os.path.exists(exe_path):
             try:
-                subprocess.Popen([exe_path, url])
-                return
+                proc = subprocess.Popen([
+                    exe_path,
+                    f"--user-data-dir={profile_dir}",
+                    f"--app={url}",
+                    "--start-maximized",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                ])
+                break
             except Exception:
                 pass
+
+    if proc is None:
+        webbrowser.open(url)
+        return
+
+    if on_close:
+        def wait_exit():
+            try:
+                proc.wait()
+            except Exception:
+                pass
+            on_close()
+
+        threading.Thread(target=wait_exit, daemon=True).start()
 
 
 def main() -> None:
@@ -108,13 +135,18 @@ def main() -> None:
     port = find_available_port(8000)
     url = f"http://127.0.0.1:{port}"
 
+    def on_window_closed():
+        # Cleanly terminate backend server when desktop window is closed
+        time.sleep(0.5)
+        os._exit(0)
+
     def wait_and_launch_browser():
         for _ in range(50):
             if is_server_healthy(port):
-                open_desktop_window(url)
+                open_desktop_window(url, on_close=on_window_closed)
                 return
             time.sleep(0.2)
-        open_desktop_window(url)
+        open_desktop_window(url, on_close=on_window_closed)
 
     threading.Thread(target=wait_and_launch_browser, daemon=True).start()
 
