@@ -656,4 +656,56 @@ def test_pipeline_fast_auto_proceed_runs_end_to_end():
     assert thumb["height"] == 1200
 
 
+def test_batch_consolidate_and_download_zip():
+    """Verify batch consolidation and batch master zip download endpoints."""
+    # Create two synthetic jobs
+    pdf_bytes = _create_synthetic_pdf_with_image().getvalue()
+
+    res1 = client.post(
+        "/api/pipeline/start",
+        files={"file": ("Yamaha_ModelA.pdf", pdf_bytes, "application/pdf")},
+        data={"auto_proceed": "true"},
+    )
+    assert res1.status_code == 200
+    job1_id = res1.json()["job_id"]
+
+    res2 = client.post(
+        "/api/pipeline/start",
+        files={"file": ("Yamaha_ModelB.pdf", pdf_bytes, "application/pdf")},
+        data={"auto_proceed": "true"},
+    )
+    assert res2.status_code == 200
+    job2_id = res2.json()["job_id"]
+
+    # Wait for both jobs to finish
+    for jid in [job1_id, job2_id]:
+        start_time = time.time()
+        while time.time() - start_time < 20:
+            st = client.get(f"/api/pipeline/status/{jid}").json()
+            if st["status"] in ("completed", "error"):
+                break
+            time.sleep(0.2)
+        assert st["status"] == "completed"
+
+    # Test batch-consolidate
+    bc_res = client.post("/api/pipeline/batch-consolidate", json={"job_ids": [job1_id, job2_id], "clean_parts": True})
+    assert bc_res.status_code == 200
+    assert "application/vnd.openxmlformats" in bc_res.headers["content-type"]
+    wb = openpyxl.load_workbook(io.BytesIO(bc_res.content))
+    assert "Consolidated_Master" in wb.sheetnames
+    # Check that sheets exist
+    assert len(wb.sheetnames) >= 2
+
+    # Test batch-download-zip
+    bz_res = client.post("/api/pipeline/batch-download-zip", json={"job_ids": [job1_id, job2_id]})
+    assert bz_res.status_code == 200
+    assert "application/zip" in bz_res.headers["content-type"]
+    zf = zipfile.ZipFile(io.BytesIO(bz_res.content))
+    namelist = zf.namelist()
+    assert "Consolidated_Master_Parts_Catalogue.xlsx" in namelist
+    # Check individual folders or files exist
+    assert any("Parts.xlsx" in n for n in namelist)
+
+
+
 

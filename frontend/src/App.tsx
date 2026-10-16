@@ -9,6 +9,7 @@ import { PdfImageExtractor } from './components/PdfImageExtractor';
 import { BulkImageResizer } from './components/BulkImageResizer';
 import { WatermarkTool } from './components/WatermarkTool';
 import { AutoPipeline } from './components/AutoPipeline';
+import { BatchQueue } from './components/BatchQueue';
 import type { ExtractionStatus } from './types';
 
 export function App() {
@@ -266,6 +267,13 @@ export function App() {
         {activeTab === 'auto-pipeline' && (
           <div className="animate-in fade-in duration-200">
             <AutoPipeline />
+          </div>
+        )}
+
+        {/* Tab 0.5: Multi-PDF Bulk Batch Processing Queue */}
+        {activeTab === 'batch-queue' && (
+          <div className="animate-in fade-in duration-200">
+            <BatchQueue />
           </div>
         )}
 

@@ -10,9 +10,10 @@ import {
   Zap,
   RotateCcw,
   Download,
+  Layers,
 } from 'lucide-react';
 
-export type ActiveTab = 'auto-pipeline' | 'catalogue' | 'pdf-images' | 'resizer' | 'watermark';
+export type ActiveTab = 'auto-pipeline' | 'batch-queue' | 'catalogue' | 'pdf-images' | 'resizer' | 'watermark';
 
 interface NavbarProps {
   darkMode: boolean;
@@ -73,6 +74,12 @@ export const Navbar: React.FC<NavbarProps> = ({
       label: 'Auto Pipeline',
       icon: Sparkles,
       badge: 'All-in-1',
+    },
+    {
+      id: 'batch-queue' as ActiveTab,
+      label: 'Batch Queue',
+      icon: Layers,
+      badge: 'Bulk PDF',
     },
     {
       id: 'catalogue' as ActiveTab,

@@ -18,6 +18,7 @@ import sys
 import threading
 import time
 import uuid
+import zipfile
 from typing import Any, Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -28,6 +29,7 @@ from pydantic import BaseModel, Field
 
 from app.excel_export import (
     generate_excel_workbook,
+    generate_consolidated_master_excel,
     is_valid_quantity,
     format_parent_model_name,
     extract_raw_model_name,
@@ -908,6 +910,100 @@ def download_pipeline_excel(job_id: str, model: Optional[str] = None):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
             "Content-Disposition": f'attachment; filename="{job.excel_filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
+
+
+class BatchConsolidateRequest(BaseModel):
+    job_ids: list[str]
+    clean_parts: bool = True
+
+
+@app.post("/api/pipeline/batch-consolidate")
+def batch_consolidate_endpoint(payload: BatchConsolidateRequest):
+    """Generate a multi-sheet Consolidated Master Excel combining multiple completed jobs."""
+    if not payload.job_ids:
+        raise HTTPException(status_code=400, detail="No job IDs provided.")
+
+    batch_items = []
+    for jid in payload.job_ids:
+        job = pipeline_manager.get_job(jid)
+        if job and job.rows:
+            m_code = (job.model_columns[0] if job.model_columns else "MODEL")
+            if job.default_model_name:
+                m_code = job.default_model_name
+            batch_items.append({
+                "model_code": m_code,
+                "model_columns": job.model_columns,
+                "rows": job.rows,
+                "filename": job.filename,
+            })
+
+    if not batch_items:
+        raise HTTPException(status_code=404, detail="No completed job data found for the provided IDs.")
+
+    stream = generate_consolidated_master_excel(batch_items, clean_parts=payload.clean_parts)
+    return StreamingResponse(
+        stream,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": 'attachment; filename="Consolidated_Master_Parts_Catalogue.xlsx"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
+
+
+class BatchDownloadZipRequest(BaseModel):
+    job_ids: list[str]
+
+
+@app.post("/api/pipeline/batch-download-zip")
+def batch_download_zip_endpoint(payload: BatchDownloadZipRequest):
+    """Bundle all Excels, Images ZIPs, and Consolidated Master Excel from all completed jobs into a single ZIP."""
+    if not payload.job_ids:
+        raise HTTPException(status_code=400, detail="No job IDs provided.")
+
+    master_buf = io.BytesIO()
+    with zipfile.ZipFile(master_buf, "w", zipfile.ZIP_DEFLATED) as master_zf:
+        batch_items = []
+        for jid in payload.job_ids:
+            job = pipeline_manager.get_job(jid)
+            if not job:
+                continue
+
+            m_code = (job.model_columns[0] if job.model_columns else "MODEL")
+            if job.default_model_name:
+                m_code = job.default_model_name
+
+            base_folder = f"{m_code}_{re.sub(r'[^A-Za-z0-9_]+', '', job.filename.replace('.pdf', ''))}".strip("_")
+
+            # Add individual excel
+            if job.excel_bytes:
+                master_zf.writestr(f"{base_folder}/{job.excel_filename or f'{m_code}_Parts.xlsx'}", job.excel_bytes)
+
+            # Add individual zip or images
+            if job.zip_bytes:
+                master_zf.writestr(f"{base_folder}/{job.zip_filename or f'{m_code}_Bundle.zip'}", job.zip_bytes)
+
+            if job.rows:
+                batch_items.append({
+                    "model_code": m_code,
+                    "model_columns": job.model_columns,
+                    "rows": job.rows,
+                    "filename": job.filename,
+                })
+
+        if batch_items:
+            cons_stream = generate_consolidated_master_excel(batch_items, clean_parts=True)
+            master_zf.writestr("Consolidated_Master_Parts_Catalogue.xlsx", cons_stream.getvalue())
+
+    master_buf.seek(0)
+    return StreamingResponse(
+        master_buf,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": 'attachment; filename="ConverterStudio_Batch_Master_Bundle.zip"',
             "Access-Control-Expose-Headers": "Content-Disposition",
         },
     )

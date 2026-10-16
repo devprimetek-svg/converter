@@ -306,6 +306,27 @@ def generate_excel_workbook(
     ws = wb.active
     ws.title = sheet_title[:31]
 
+    write_parts_worksheet(
+        ws,
+        rows=rows,
+        model_columns=model_columns,
+        clean_parts=clean_parts,
+        active_model_code=active_model_code,
+    )
+
+    output_stream = io.BytesIO()
+    wb.save(output_stream)
+    output_stream.seek(0)
+    return output_stream
+
+
+def write_parts_worksheet(
+    ws: Any,
+    rows: list[dict[str, Any]],
+    model_columns: list[str],
+    clean_parts: bool = False,
+    active_model_code: str = "",
+) -> None:
     # Header styling
     header_fill = PatternFill(start_color="1B365D", end_color="1B365D", fill_type="solid")  # Yamaha Navy Blue
     header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
@@ -545,7 +566,73 @@ def generate_excel_workbook(
         col_width = min(col_width, 48)  # max width cap
         ws.column_dimensions[col_letter].width = col_width
 
-    # Save to memory buffer
+
+def generate_consolidated_master_excel(
+    batch_jobs: list[dict[str, Any]],
+    clean_parts: bool = True,
+) -> io.BytesIO:
+    """Generate a multi-sheet Consolidated Master Excel workbook combining multiple catalogue models.
+
+    - Sheet 1: 'All_Models_Consolidated' (all parts across all models with Model Code column)
+    - Sheet 2..N: Individual sheet for each model
+    """
+    wb = openpyxl.Workbook()
+    ws_master = wb.active
+    ws_master.title = "Consolidated_Master"
+
+    all_combined_rows: list[dict[str, Any]] = []
+    all_model_cols: list[str] = []
+
+    for item in batch_jobs:
+        m_cols = item.get("model_columns") or []
+        for m in m_cols:
+            if m and m not in all_model_cols:
+                all_model_cols.append(m)
+
+        raw_rows = item.get("rows") or []
+        m_code = item.get("model_code") or (m_cols[0] if m_cols else "MODEL")
+        for r in raw_rows:
+            r_copy = dict(r)
+            if not r_copy.get("model_code"):
+                r_copy["model_code"] = m_code
+            all_combined_rows.append(r_copy)
+
+    # Disambiguate repeated ref_no within parent groups
+    all_combined_rows = disambiguate_repeated_ref_numbers(all_combined_rows)
+
+    # Write Master Sheet
+    write_parts_worksheet(
+        ws_master,
+        rows=all_combined_rows,
+        model_columns=all_model_cols,
+        clean_parts=clean_parts,
+    )
+
+    # Write individual model sheets
+    seen_sheet_names: set[str] = {"Consolidated_Master"}
+    for item in batch_jobs:
+        raw_rows = item.get("rows") or []
+        m_cols = item.get("model_columns") or []
+        m_code = item.get("model_code") or (m_cols[0] if m_cols else "MODEL")
+
+        base_title = f"Parts_{m_code}"[:31]
+        sheet_title = base_title
+        counter = 1
+        while sheet_title in seen_sheet_names:
+            sheet_title = f"{base_title[:28]}_{counter}"[:31]
+            counter += 1
+        seen_sheet_names.add(sheet_title)
+
+        ws_model = wb.create_sheet(title=sheet_title)
+        model_rows = disambiguate_repeated_ref_numbers(list(raw_rows))
+        write_parts_worksheet(
+            ws_model,
+            rows=model_rows,
+            model_columns=m_cols,
+            clean_parts=clean_parts,
+            active_model_code=m_code,
+        )
+
     output_stream = io.BytesIO()
     wb.save(output_stream)
     output_stream.seek(0)

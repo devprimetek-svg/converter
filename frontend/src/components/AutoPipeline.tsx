@@ -175,6 +175,12 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
     imageUrl?: string;
   } | null>(null);
 
+  const [customRows, setCustomRows] = useState<PartRow[] | null>(null);
+
+  const handleRowsUpdate = useCallback((updated: PartRow[]) => {
+    setCustomRows(updated);
+  }, []);
+
   const hasEdits =
     Object.keys(editedModelNames).length > 0 ||
     globalModelInput.trim().length > 0 ||
@@ -299,7 +305,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
     globalRemarkFlagCells,
   ]);
 
-  const effectiveRows: PartRow[] = rowsWithEdits;
+  const effectiveRows: PartRow[] = customRows || rowsWithEdits;
 
   const openHotspotForFigNo = useCallback(
     (figNo?: string) => {
@@ -606,6 +612,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
     setIsProcessing(true);
     setErrorMessage(null);
     setStatus(null);
+    setCustomRows(null);
     setSelectedImageIds(new Set());
     setIsProceedingImages(false);
 
@@ -802,6 +809,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
     if (pollingRef.current) clearInterval(pollingRef.current);
     setStatus(null);
     setFile(null);
+    setCustomRows(null);
     setIsProcessing(false);
     setErrorMessage(null);
     setEditedModelNames({});
@@ -1584,6 +1592,7 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
               onPicPathEdit={handlePicPathEdit}
               editedRemarkFlags={editedRemarkFlags}
               onRemarkFlagEdit={handleRemarkFlagEdit}
+              onRowsUpdate={handleRowsUpdate}
               onOpenHotspotDiagram={(figNo) => openHotspotForFigNo(figNo)}
             />
           </div>
@@ -2225,6 +2234,10 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
                 onModelNameEdit={handleModelNameEdit}
                 editedPicPaths={editedPicPaths}
                 onPicPathEdit={handlePicPathEdit}
+                editedRemarkFlags={editedRemarkFlags}
+                onRemarkFlagEdit={handleRemarkFlagEdit}
+                onRowsUpdate={handleRowsUpdate}
+                onOpenHotspotDiagram={(figNo) => openHotspotForFigNo(figNo)}
               />
             </div>
           )}
