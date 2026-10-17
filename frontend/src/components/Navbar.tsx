@@ -43,9 +43,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       .then((data) => {
         if (data && data.has_update) {
           setUpdateInfo(data);
+        } else {
+          setUpdateInfo(null);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        setUpdateInfo(null);
+      });
   }, []);
 
   const handleUpdate = async () => {
@@ -56,6 +60,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       const res = await fetch('/api/app/perform-update', { method: 'POST' });
       const data = await res.json();
       setUpdateStatus(data.message || 'Restarting...');
+      setUpdateInfo(null);
       setTimeout(() => {
         window.location.reload();
       }, 5000);

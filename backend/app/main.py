@@ -1153,24 +1153,30 @@ async def desktop_shutdown():
         os._exit(0)
     threading.Thread(target=_delayed_exit, daemon=True).start()
 def get_current_app_version() -> str:
-    """Read local version from version.json or fallback to 2.6.0."""
+    """Read local version across all candidate paths and return the highest version found."""
     candidates = [
-        os.path.join(os.path.dirname(__file__), "version.json"),
-        os.path.join(getattr(sys, "_MEIPASS", ""), "version.json"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "version.json"),
         os.path.join(os.path.dirname(os.path.abspath(sys.executable)), "version.json")
         if getattr(sys, "frozen", False)
         else "",
-        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "version.json"),
+        os.path.join(getattr(sys, "_MEIPASS", ""), "version.json"),
+        os.path.join(os.path.dirname(__file__), "version.json"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "version.json"),
     ]
+    found_versions: list[str] = []
     for p in candidates:
         if p and os.path.exists(p):
             try:
                 with open(p, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    return data.get("version", "2.6.0")
+                    ver = data.get("version")
+                    if ver:
+                        found_versions.append(str(ver).strip())
             except Exception:
                 pass
-    return "2.6.0"
+    if found_versions:
+        return max(found_versions, key=parse_version_tuple)
+    return "2.6.12"
 
 
 def parse_version_tuple(v: str) -> tuple[int, ...]:
@@ -1277,6 +1283,21 @@ async def perform_github_update():
                     async for chunk in stream_resp.aiter_bytes(chunk_size=65536):
                         f.write(chunk)
 
+            # Persist the new version tag across local version.json files
+            ver_payload = {"version": tag, "name": "Converter Studio"}
+            for vp in [
+                os.path.join(exe_dir, "version.json"),
+                os.path.join(exe_dir, "backend", "app", "version.json"),
+                os.path.join(os.path.dirname(__file__), "version.json"),
+                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "version.json"),
+            ]:
+                try:
+                    if os.path.exists(os.path.dirname(vp)):
+                        with open(vp, "w", encoding="utf-8") as vf:
+                            json.dump(ver_payload, vf, indent=2)
+                except Exception:
+                    pass
+
             # Perform atomic hot-swap and restart
             def _swap_and_restart():
                 time.sleep(1.2)
@@ -1297,7 +1318,19 @@ async def perform_github_update():
             threading.Thread(target=_swap_and_restart, daemon=True).start()
             return {"status": "ok", "message": f"Updated to v{tag}. Restarting Converter Studio..."}
         else:
-            # Running in dev environment - pull latest git changes
+            # Running in dev environment - update version.json and pull latest git changes
+            ver_payload = {"version": tag, "name": "Converter Studio"}
+            for vp in [
+                os.path.join(os.path.dirname(__file__), "version.json"),
+                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "version.json"),
+            ]:
+                try:
+                    if os.path.exists(os.path.dirname(vp)):
+                        with open(vp, "w", encoding="utf-8") as vf:
+                            json.dump(ver_payload, vf, indent=2)
+                except Exception:
+                    pass
+
             def _git_pull():
                 time.sleep(1.0)
                 try:
