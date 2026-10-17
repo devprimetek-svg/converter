@@ -1,4 +1,4 @@
-# Multi-stage Docker build: Builds React frontend and packages into FastAPI backend
+# Multi-stage Docker build: Builds React frontend and packages into FastAPI backend for Render / Cloud deployment
 
 # Stage 1: Build the React frontend
 FROM node:20-alpine AS frontend-builder
@@ -14,25 +14,29 @@ RUN npm run build
 FROM python:3.11-slim
 WORKDIR /app
 
-# Install build dependencies
+# Install system dependencies including Tesseract OCR for scanned parts catalogues
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    tesseract-ocr \
+    tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python requirements
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend application source
+# Copy backend application source and version info
 COPY backend/app ./app
+COPY version.json ./
+COPY version.json ./app/
 COPY sample_yamaha_catalogue.pdf* ./
 
 # Copy built frontend assets into static/ directories
 COPY --from=frontend-builder /app/frontend/dist ./static
 COPY --from=frontend-builder /app/frontend/dist ./backend/static
 
-# Expose default port (Railway automatically injects $PORT)
+# Expose default port (Render automatically injects $PORT)
 EXPOSE 8000
 
-# Start Uvicorn bound to Railway's dynamic PORT
+# Start Uvicorn bound to dynamic PORT
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

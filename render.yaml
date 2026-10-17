@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: converter-studio
+    runtime: docker
+    dockerfilePath: Dockerfile
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: PYTHONUNBUFFERED
+        value: "1"

@@ -1,0 +1,4 @@
+{
+  "web_app_url": "",
+  "description": "Enter your Render.com web app URL here (e.g. https://converter-studio.onrender.com). When configured, ConverterStudio.exe will connect directly to the central cloud web app so updates happen simultaneously in both browser and .exe! Leave empty to run in local offline mode."
+}

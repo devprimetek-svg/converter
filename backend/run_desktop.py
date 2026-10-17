@@ -36,8 +36,62 @@ BASE_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
 
+import json
 import uvicorn
 from app.main import app
+
+
+def get_remote_web_url() -> Optional[str]:
+    """Check if a remote central web app URL is configured via environment or app_config.json."""
+    env_url = os.environ.get("CONVERTER_STUDIO_URL")
+    if env_url:
+        return env_url.strip().rstrip("/")
+
+    exe_dir = (
+        os.path.dirname(os.path.abspath(sys.executable))
+        if getattr(sys, "frozen", False)
+        else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
+
+    candidates = [
+        os.path.join(exe_dir, "app_config.json"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "app_config.json"),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app_config.json"),
+        os.path.join(getattr(sys, "_MEIPASS", ""), "app_config.json"),
+    ]
+
+    for c in candidates:
+        if c and os.path.exists(c):
+            try:
+                with open(c, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+                    val = cfg.get("web_app_url") or cfg.get("server_url")
+                    if val and isinstance(val, str) and val.strip().startswith("http"):
+                        return val.strip().rstrip("/")
+            except Exception:
+                pass
+    return None
+
+
+def is_remote_healthy(remote_url: str) -> bool:
+    """Check if the remote central web app is reachable within 2.5 seconds."""
+    try:
+        req = urllib.request.Request(
+            f"{remote_url}/api/health",
+            headers={"User-Agent": "ConverterStudio-Desktop"},
+        )
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            return resp.status in (200, 204)
+    except Exception:
+        try:
+            req = urllib.request.Request(
+                remote_url,
+                headers={"User-Agent": "ConverterStudio-Desktop"},
+            )
+            with urllib.request.urlopen(req, timeout=2.5) as resp:
+                return resp.status in (200, 204, 301, 302)
+        except Exception:
+            return False
 
 
 def is_server_healthy(port: int) -> bool:
@@ -124,6 +178,22 @@ def open_desktop_window(url: str, on_close: Optional[Callable[[], None]] = None)
 
 
 def main() -> None:
+    # 1. Dual-Mode: Check if a remote Cloud Web App is configured (e.g. Render.com URL)
+    remote_url = get_remote_web_url()
+    if remote_url:
+        if is_remote_healthy(remote_url):
+            # Remote cloud web app is healthy & reachable!
+            # Any updates deployed on Render will instantly reflect here without downloading a new .exe!
+            open_desktop_window(remote_url, on_close=lambda: os._exit(0))
+            try:
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                pass
+            return
+        # If remote is offline or unreachable, fall back smoothly to local offline server below
+
+    # 2. Local Mode / Offline Fallback
     port = 8000
     url = f"http://127.0.0.1:{port}"
 
