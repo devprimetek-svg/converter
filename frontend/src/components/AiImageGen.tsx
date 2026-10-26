@@ -85,7 +85,7 @@ export const AiImageGen: React.FC = () => {
     const seed = Math.floor(Math.random() * 999999) + 1;
 
     let imageUrl: string | null = null;
-    let engineName = 'FLUX / SANA Neural Engine';
+    let engineName = 'FLUX.1 Schnell (Black Forest Labs)';
 
     // Step 1: Attempt backend generation
     try {
@@ -111,17 +111,17 @@ export const AiImageGen: React.FC = () => {
       // Backend error - will seamlessly fallback to direct client stream below
     }
 
-    // Step 2: Fallback to direct client-side residential stream if backend didn't return data URL
+    // Step 2: Fallback to direct client-side stream if backend didn't return data URL
     if (!imageUrl) {
       const encoded = encodeURIComponent(cleanPrompt);
-      const directUrl = `https://image.pollinations.ai/prompt/${encoded}?model=sana&width=${activeRatio.width}&height=${activeRatio.height}&seed=${seed}`;
+      const directUrl = `https://image.pollinations.ai/prompt/${encoded}?model=flux-realism&width=${activeRatio.width}&height=${activeRatio.height}&seed=${seed}&nologo=true`;
 
       try {
         await new Promise((resolve, reject) => {
           const img = new Image();
           img.onload = () => resolve(img);
           img.onerror = () => {
-            const fallbackUrl = `https://image.pollinations.ai/prompt/${encoded}?model=flux&width=${activeRatio.width}&height=${activeRatio.height}&seed=${seed}`;
+            const fallbackUrl = `https://image.pollinations.ai/prompt/${encoded}?model=flux&width=${activeRatio.width}&height=${activeRatio.height}&seed=${seed}&nologo=true`;
             const fb = new Image();
             fb.onload = () => {
               imageUrl = fallbackUrl;
@@ -199,7 +199,7 @@ export const AiImageGen: React.FC = () => {
               <h2 className="text-lg sm:text-xl font-bold tracking-tight font-sans">AI Image Generator</h2>
               <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30 flex items-center gap-1">
                 <Zap className="w-3 h-3 text-emerald-400" />
-                100% Free AI Engine
+                FLUX.1 Schnell Engine • 100% Free
               </span>
             </div>
             <p className="text-xs sm:text-sm text-zinc-400 mt-0.5">
