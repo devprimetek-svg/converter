@@ -1,7 +1,7 @@
 """AI Image Generation Module for Converter Studio.
 
-Supports text-to-image and image-to-image generation using Google Gemini / Imagen 3
-with high-speed neural fallback.
+Supports text-to-image and image-to-image generation using Google Gemini Image Models
+with high-speed Flux neural engine fallback.
 """
 
 from __future__ import annotations
@@ -36,7 +36,6 @@ def get_active_api_key(override_key: Optional[str] = None) -> str:
     if env_key:
         return env_key
 
-    # Check app_config.json
     for path in [
         os.path.join(os.getcwd(), "app_config.json"),
         os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "app_config.json"),
@@ -65,11 +64,11 @@ STYLE_PRESETS: dict[str, str] = {
 }
 
 ASPECT_RATIO_DIMENSIONS: dict[str, tuple[int, int]] = {
-    "1:1": (1024, 1024),
-    "16:9": (1280, 720),
-    "9:16": (720, 1280),
-    "4:3": (1024, 768),
-    "3:4": (768, 1024),
+    "1:1": (768, 768),
+    "16:9": (1024, 576),
+    "9:16": (576, 1024),
+    "4:3": (896, 672),
+    "3:4": (672, 896),
 }
 
 
@@ -83,20 +82,28 @@ async def verify_gemini_key(api_key: Optional[str] = None) -> dict[str, Any]:
     # Test 1: List models
     url = f"https://generativelanguage.googleapis.com/v1beta/models?key={key}"
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "ConverterStudio/1.0"})
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            },
+        )
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             models = [m.get("name", "") for m in data.get("models", [])]
 
-        # Test 2: Check if free tier / billing is active
-        test_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={key}"
-        test_body = json.dumps({"contents": [{"parts": [{"text": "ping"}]}]}).encode("utf-8")
+        # Test 2: Check image generation quota on gemini-2.5-flash-image
+        test_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key={key}"
+        test_body = json.dumps({
+            "contents": [{"parts": [{"text": "ping"}]}],
+            "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
+        }).encode("utf-8")
         test_req = urllib.request.Request(
             test_url, data=test_body, headers={"Content-Type": "application/json"}
         )
         billing_active = False
         try:
-            with urllib.request.urlopen(test_req, timeout=8) as test_resp:
+            with urllib.request.urlopen(test_req, timeout=10) as test_resp:
                 billing_active = True
         except Exception as e:
             billing_active = False
@@ -107,9 +114,9 @@ async def verify_gemini_key(api_key: Optional[str] = None) -> dict[str, Any]:
             "models_count": len(models),
             "billing_active": billing_active,
             "message": (
-                "Google AI Studio Key is valid and active!"
+                "Google AI Studio Key is valid and active with direct image generation!"
                 if billing_active
-                else "Key is valid and authenticated with Google Cloud! (Note: Free tier requires billing upgrade at aistudio.google.com/billing for direct Gemini compute)."
+                else "Key is authentic & valid! (Note: Free tier has limit: 0 for image models until billing is linked at aistudio.google.com/billing. High-Speed Flux Engine is active)."
             ),
         }
     except Exception as e:
@@ -123,55 +130,59 @@ async def verify_gemini_key(api_key: Optional[str] = None) -> dict[str, Any]:
         return {"valid": False, "message": err_msg}
 
 
-def _generate_via_google_imagen(
+def _generate_via_gemini_multimodal(
     prompt: str,
-    aspect_ratio: str,
     api_key: str,
 ) -> Optional[dict[str, Any]]:
-    """Attempt generation via Google Imagen 3 Predict endpoint."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key={api_key}"
-    # Map aspect ratio to Imagen format
-    ar_map = {"1:1": "1:1", "16:9": "16:9", "9:16": "9:16", "4:3": "4:3", "3:4": "3:4"}
-    req_body = json.dumps({
-        "instances": [{"prompt": prompt}],
-        "parameters": {
-            "sampleCount": 1,
-            "aspectRatio": ar_map.get(aspect_ratio, "1:1"),
-        },
-    }).encode("utf-8")
+    """Attempt image generation via Google Gemini Multimodal Image endpoint."""
+    for model_name in ["gemini-2.5-flash-image", "gemini-3.1-flash-image", "gemini-3-pro-image"]:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        req_body = json.dumps({
+            "contents": [{"parts": [{"text": f"Generate a high quality visual image: {prompt}"}]}],
+            "generationConfig": {
+                "responseModalities": ["TEXT", "IMAGE"],
+            },
+        }).encode("utf-8")
 
-    try:
-        req = urllib.request.Request(url, data=req_body, headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            predictions = data.get("predictions", [])
-            if predictions and "bytesBase64Encoded" in predictions[0]:
-                b64 = predictions[0]["bytesBase64Encoded"]
-                mime = predictions[0].get("mimeType", "image/png")
-                return {
-                    "image_url": f"data:{mime};base64,{b64}",
-                    "engine": "Google Imagen 3",
-                    "status": "success",
-                }
-    except Exception as e:
-        logger.info("Google Imagen predict skipped or error: %s", e)
+        try:
+            req = urllib.request.Request(url, data=req_body, headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=35) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                for cand in data.get("candidates", []):
+                    for part in cand.get("content", {}).get("parts", []):
+                        if "inlineData" in part:
+                            mime = part["inlineData"].get("mimeType", "image/png")
+                            b64 = part["inlineData"].get("data", "")
+                            if b64:
+                                return {
+                                    "image_url": f"data:{mime};base64,{b64}",
+                                    "engine": f"Google Gemini ({model_name})",
+                                    "status": "success",
+                                }
+        except Exception as e:
+            logger.info("Gemini image model %s skipped: %s", model_name, e)
     return None
 
 
-def _generate_via_neural_engine(
+def _generate_via_flux_engine(
     prompt: str,
     aspect_ratio: str,
     seed: Optional[int] = None,
 ) -> dict[str, Any]:
-    """Generate image via ultra high-speed neural engine."""
-    width, height = ASPECT_RATIO_DIMENSIONS.get(aspect_ratio, (1024, 1024))
+    """Generate image via high-speed Flux neural engine."""
+    width, height = ASPECT_RATIO_DIMENSIONS.get(aspect_ratio, (768, 768))
     if seed is None or seed <= 0:
         seed = random.randint(1, 999999)
 
     encoded_prompt = urllib.parse.quote(prompt)
-    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true&seed={seed}&enhance=true"
+    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&width={width}&height={height}&seed={seed}"
 
-    req = urllib.request.Request(url, headers={"User-Agent": "ConverterStudio/2.0"})
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        },
+    )
     with urllib.request.urlopen(req, timeout=40) as resp:
         img_bytes = resp.read()
         content_type = resp.headers.get("Content-Type", "image/jpeg")
@@ -179,7 +190,7 @@ def _generate_via_neural_engine(
 
     return {
         "image_url": f"data:{content_type};base64,{b64}",
-        "engine": "High-Speed Neural Engine",
+        "engine": "Flux Neural Engine",
         "width": width,
         "height": height,
         "seed": seed,
@@ -187,19 +198,21 @@ def _generate_via_neural_engine(
     }
 
 
-def _analyze_reference_image_with_gemini(
+def _analyze_reference_image(
     image_bytes: bytes,
     mime_type: str,
     user_prompt: str,
     api_key: str,
 ) -> Optional[str]:
-    """Use Gemini Vision to synthesize reference image with user's prompt."""
+    """Analyze reference image and synthesize with user's prompt."""
+    if not api_key:
+        return None
+
     b64_img = base64.b64encode(image_bytes).decode("utf-8")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={api_key}"
     system_instruction = (
-        "You are an expert visual artist and CAD engineer. Analyze this uploaded reference image and the user's prompt. "
-        "Describe in 2 detailed sentences the new image to generate that incorporates the reference image's subject and style "
-        "with the user's prompt modifications. Focus strictly on visual elements, geometry, lighting, materials and background."
+        "Analyze this reference image and the user prompt. Describe the new image to create in 2 detailed sentences. "
+        "Focus on visual shapes, colors, materials, and composition."
     )
     req_body = json.dumps({
         "contents": [{
@@ -220,7 +233,7 @@ def _analyze_reference_image_with_gemini(
                 if text:
                     return text.strip()
     except Exception as e:
-        logger.info("Gemini vision analysis skipped: %s", e)
+        logger.info("Vision analysis skipped: %s", e)
     return None
 
 
@@ -249,31 +262,28 @@ async def generate_image(
     if negative_prompt and negative_prompt.strip():
         effective_prompt += f" (avoid: {negative_prompt.strip()})"
 
-    # 2. If a reference image is provided, analyze it
-    ref_analysis = None
+    # 2. If reference image is provided, blend it
     if reference_image and reference_image.filename:
         try:
             img_bytes = await reference_image.read()
             mime_type = reference_image.content_type or "image/jpeg"
             if len(img_bytes) > 0:
-                ref_analysis = _analyze_reference_image_with_gemini(
-                    img_bytes, mime_type, clean_prompt, key
-                )
-                if ref_analysis:
-                    effective_prompt = f"{ref_analysis}, {style_suffix}".strip().rstrip(",")
+                analysis = _analyze_reference_image(img_bytes, mime_type, clean_prompt, key)
+                if analysis:
+                    effective_prompt = f"{analysis}, {style_suffix}".strip().rstrip(",")
                 else:
-                    effective_prompt = f"Based on reference image: {clean_prompt}, {style_suffix}".strip().rstrip(",")
+                    effective_prompt = f"In the style and composition of reference image: {clean_prompt}, {style_suffix}".strip().rstrip(",")
         except Exception as e:
             logger.warning("Could not read reference image: %s", e)
 
-    # 3. Execution strategy: Google Imagen first if requested/auto, fallback to neural engine
+    # 3. Strategy: Try Google Gemini if requested/auto, fallback to high-speed Flux engine
     result = None
     if engine in ("gemini", "auto") and key:
-        result = _generate_via_google_imagen(effective_prompt, aspect_ratio, key)
+        result = _generate_via_gemini_multimodal(effective_prompt, key)
 
     if result is None:
         try:
-            result = _generate_via_neural_engine(effective_prompt, aspect_ratio, seed)
+            result = _generate_via_flux_engine(effective_prompt, aspect_ratio, seed)
         except Exception as e:
             logger.exception("Image generation failed: %s", e)
             raise HTTPException(
