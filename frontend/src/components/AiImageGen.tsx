@@ -9,61 +9,31 @@ import {
   Copy,
   Maximize2,
   RefreshCw,
-  Sliders,
   CheckCircle2,
   AlertCircle,
-  Key,
-  Layers,
-  ChevronDown,
-  ChevronUp,
+  Zap,
 } from 'lucide-react';
 
 interface GenerationHistoryItem {
   id: string;
   url: string;
   prompt: string;
-  style: string;
   aspectRatio: string;
   engine: string;
   seed?: number;
   timestamp: number;
 }
 
-const STYLE_PRESETS = [
-  { id: 'photorealistic', label: 'Photorealistic', icon: '📸', desc: 'Studio lighting, 8K DSLR' },
-  { id: 'technical-blueprint', label: 'CAD Blueprint', icon: '📐', desc: 'Engineering line drawing' },
-  { id: '3d-render', label: '3D Render', icon: '🎨', desc: 'Octane raytraced metallic' },
-  { id: 'line-art', label: 'Line Art', icon: '✏️', desc: 'Crisp vector catalog diagram' },
-  { id: 'cinematic', label: 'Cinematic', icon: '🌌', desc: 'Dramatic lighting & depth' },
-  { id: 'vintage-catalog', label: 'Vintage Catalog', icon: '🏷️', desc: '1980s retro lithograph' },
-  { id: 'none', label: 'Raw / Custom', icon: '✨', desc: 'No added style suffix' },
-];
-
 const ASPECT_RATIOS = [
-  { id: '1:1', label: '1:1 Square', sub: '1024×1024' },
-  { id: '16:9', label: '16:9 Landscape', sub: '1280×720' },
-  { id: '9:16', label: '9:16 Portrait', sub: '720×1280' },
-  { id: '4:3', label: '4:3 Standard', sub: '1024×768' },
-];
-
-const EXAMPLE_PROMPTS = [
-  'Yamaha motorcycle carburetor 3D studio cutaway, metallic titanium finish',
-  'Automotive disc brake caliper assembly, exploded isometric CAD blueprint',
-  'Motorcycle spark plug with ceramic insulator, hyper-detailed product photo',
-  'High performance aluminum engine piston with rings, clean white background',
-  'Vintage 1980s motorcycle transmission gears schematic manual illustration',
+  { id: '1:1', label: '1:1 Square', sub: '768×768' },
+  { id: '16:9', label: '16:9 Landscape', sub: '1024×576' },
+  { id: '9:16', label: '9:16 Portrait', sub: '576×1024' },
+  { id: '4:3', label: '4:3 Standard', sub: '896×672' },
 ];
 
 export const AiImageGen: React.FC = () => {
   const [prompt, setPrompt] = useState('');
-  const [negativePrompt, setNegativePrompt] = useState('');
-  const [style, setStyle] = useState('photorealistic');
   const [aspectRatio, setAspectRatio] = useState('1:1');
-  const [engine, setEngine] = useState('auto');
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [customApiKey, setCustomApiKey] = useState('');
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
-  const [apiKeyStatus, setApiKeyStatus] = useState<string | null>(null);
 
   // Reference image for Image + Prompt
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
@@ -101,22 +71,6 @@ export const AiImageGen: React.FC = () => {
     }
   };
 
-  const handleVerifyKey = async () => {
-    setApiKeyStatus('Verifying with Google AI Studio...');
-    try {
-      const q = customApiKey ? `?api_key=${encodeURIComponent(customApiKey)}` : '';
-      const res = await fetch(`/api/ai/verify-key${q}`);
-      const data = await res.json();
-      if (data.valid) {
-        setApiKeyStatus(`✅ Verified: ${data.message}`);
-      } else {
-        setApiKeyStatus(`⚠️ ${data.message}`);
-      }
-    } catch {
-      setApiKeyStatus('❌ Failed to reach verification endpoint.');
-    }
-  };
-
   const handleGenerate = async () => {
     if (!prompt.trim()) {
       setErrorMsg('Please enter a prompt describing the image you want to generate.');
@@ -128,11 +82,7 @@ export const AiImageGen: React.FC = () => {
 
     const formData = new FormData();
     formData.append('prompt', prompt.trim());
-    if (negativePrompt.trim()) formData.append('negative_prompt', negativePrompt.trim());
-    formData.append('style', style);
     formData.append('aspect_ratio', aspectRatio);
-    formData.append('engine', engine);
-    if (customApiKey.trim()) formData.append('api_key', customApiKey.trim());
     if (referenceImage) formData.append('reference_image', referenceImage);
 
     try {
@@ -151,9 +101,8 @@ export const AiImageGen: React.FC = () => {
         id: Math.random().toString(36).substring(7),
         url: data.image_url,
         prompt: prompt.trim(),
-        style,
         aspectRatio,
-        engine: data.engine || 'AI Engine',
+        engine: data.engine || 'FLUX.1 Engine',
         seed: data.seed,
         timestamp: Date.now(),
       };
@@ -170,7 +119,7 @@ export const AiImageGen: React.FC = () => {
   const handleDownload = (item: GenerationHistoryItem) => {
     const a = document.createElement('a');
     a.href = item.url;
-    a.download = `ConverterStudio_AI_${item.id}.png`;
+    a.download = `ConverterStudio_AI_${item.id}.jpg`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -184,7 +133,6 @@ export const AiImageGen: React.FC = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback copy text
       navigator.clipboard.writeText(item.prompt);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -202,117 +150,50 @@ export const AiImageGen: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg sm:text-xl font-bold tracking-tight font-sans">AI Image Generator</h2>
-              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-white/20 text-white font-semibold">
-                Gemini & Imagen Ready
+              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30 flex items-center gap-1">
+                <Zap className="w-3 h-3 text-emerald-400" />
+                100% Free FLUX Engine
               </span>
             </div>
             <p className="text-xs sm:text-sm text-zinc-400 mt-0.5">
-              Generate photorealistic product renders, CAD blueprints & spare part graphics from text or reference images.
+              Type your custom prompt or upload an image to generate high-resolution visuals. No presets or restrictions.
             </p>
           </div>
         </div>
-
-        {/* API Key Status Pill */}
-        <button
-          onClick={() => setShowApiKeyModal(!showApiKeyModal)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-mono text-zinc-200 border border-zinc-700 transition-all cursor-pointer shrink-0"
-        >
-          <Key className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Google AI Studio Key: Active</span>
-          <ChevronDown className="w-3 h-3 text-zinc-400" />
-        </button>
       </div>
-
-      {/* API Key Modal / Dropdown */}
-      {showApiKeyModal && (
-        <div className="p-4 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 space-y-3 animate-in fade-in duration-150">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs font-semibold text-zinc-800 dark:text-zinc-200">
-              <Key className="w-4 h-4 text-emerald-500" />
-              <span>Google AI Studio API Key Configuration</span>
-            </div>
-            <button
-              onClick={() => setShowApiKeyModal(false)}
-              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <p className="text-xs text-zinc-600 dark:text-zinc-400">
-            Your Google AI Studio API key configured on Render Cloud is active. You can also enter an alternate key below:
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="password"
-              value={customApiKey}
-              onChange={(e) => setCustomApiKey(e.target.value)}
-              placeholder="Paste alternate Gemini API Key (AIzaSy...)"
-              className="flex-1 px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-black text-xs font-mono text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white"
-            />
-            <button
-              onClick={handleVerifyKey}
-              className="px-3 py-1.5 rounded-lg bg-black text-white dark:bg-white dark:text-black text-xs font-semibold hover:opacity-90 transition-all cursor-pointer"
-            >
-              Verify Key
-            </button>
-          </div>
-          {apiKeyStatus && (
-            <div className="text-xs font-mono text-zinc-700 dark:text-zinc-300 p-2 rounded bg-zinc-200/50 dark:bg-zinc-800/50">
-              {apiKeyStatus}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Main Studio Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Controls (7 cols) */}
+        {/* Left Column: Manual Controls (7 cols) */}
         <div className="lg:col-span-7 space-y-5">
-          {/* Prompt Card */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-4">
+          {/* Manual Prompt Card */}
+          <div className="p-5 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300 font-mono flex items-center gap-2">
                 <Wand2 className="w-4 h-4 text-zinc-900 dark:text-zinc-100" />
-                <span>Text Prompt</span>
+                <span>Manual Prompt</span>
               </label>
               <span className="text-[11px] text-zinc-500 dark:text-zinc-400 font-mono">
-                {prompt.length} chars
+                {prompt.length} characters
               </span>
             </div>
 
             <textarea
-              rows={4}
+              rows={5}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Describe the image you want to generate in detail (e.g. Motorcycle brake disc caliper, precision metallic 3D render, clean white studio lighting, 8k resolution)..."
-              className="w-full p-3.5 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white resize-y font-sans transition-all"
+              placeholder="Enter your exact prompt here... (e.g. Yamaha motorcycle disc brake caliper, metallic chrome finish, clean studio lighting, realistic details)"
+              className="w-full p-4 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white resize-y font-sans transition-all leading-relaxed"
             />
-
-            {/* Example Prompt Chips */}
-            <div className="space-y-1.5">
-              <div className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">Quick Inspiration:</div>
-              <div className="flex flex-wrap gap-1.5">
-                {EXAMPLE_PROMPTS.map((ex, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setPrompt(ex)}
-                    className="text-[11px] px-2.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 transition-colors cursor-pointer text-left truncate max-w-xs"
-                  >
-                    {ex}
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
 
-          {/* Reference Image Upload (Image + Prompt Remix) */}
+          {/* Reference Image Upload (Optional Image + Prompt Remix) */}
           <div className="p-5 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <ImageIcon className="w-4 h-4 text-zinc-900 dark:text-zinc-100" />
                 <span className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300 font-mono">
-                  Reference Image (Optional Remix / Img2Img)
+                  Reference Image (Optional Upload)
                 </span>
               </div>
               {referenceImage && (
@@ -321,17 +202,17 @@ export const AiImageGen: React.FC = () => {
                   onClick={handleRemoveReferenceImage}
                   className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1 cursor-pointer"
                 >
-                  <X className="w-3.5 h-3.5" /> Remove
+                  <X className="w-3.5 h-3.5" /> Remove Image
                 </button>
               )}
             </div>
 
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Upload a spare part photo, sketch, or drawing. The AI will synthesize its shape and features with your prompt.
+              Upload any photo, sketch, or part drawing. The AI will generate an image based on both your reference image and manual prompt.
             </p>
 
             {referencePreview ? (
-              <div className="relative w-full h-44 rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center">
+              <div className="relative w-full h-48 rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center">
                 <img
                   src={referencePreview}
                   alt="Reference Preview"
@@ -351,11 +232,11 @@ export const AiImageGen: React.FC = () => {
                     handleImageUpload(e.dataTransfer.files[0]);
                   }
                 }}
-                className="border-2 border-dashed border-zinc-300 dark:border-zinc-800 hover:border-zinc-500 dark:hover:border-zinc-600 rounded-xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors text-center bg-zinc-50/50 dark:bg-zinc-900/30"
+                className="border-2 border-dashed border-zinc-300 dark:border-zinc-800 hover:border-zinc-500 dark:hover:border-zinc-600 rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors text-center bg-zinc-50/50 dark:bg-zinc-900/30"
               >
                 <Upload className="w-6 h-6 text-zinc-400" />
                 <div className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                  Click or Drag & Drop image here
+                  Click or Drag & Drop reference image here
                 </div>
                 <div className="text-[10px] text-zinc-400">Supports PNG, JPG, WebP</div>
               </div>
@@ -372,40 +253,6 @@ export const AiImageGen: React.FC = () => {
                 }
               }}
             />
-          </div>
-
-          {/* Style Presets */}
-          <div className="p-5 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-3">
-            <label className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300 font-mono flex items-center gap-2">
-              <Layers className="w-4 h-4 text-zinc-900 dark:text-zinc-100" />
-              <span>Visual Style Preset</span>
-            </label>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {STYLE_PRESETS.map((st) => {
-                const isSelected = style === st.id;
-                return (
-                  <button
-                    key={st.id}
-                    type="button"
-                    onClick={() => setStyle(st.id)}
-                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                      isSelected
-                        ? 'border-black bg-zinc-100 text-black dark:border-white dark:bg-zinc-900 dark:text-white ring-1 ring-black dark:ring-white shadow-xs'
-                        : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900/50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-1.5 font-semibold text-xs">
-                      <span>{st.icon}</span>
-                      <span>{st.label}</span>
-                    </div>
-                    <div className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-1 truncate">
-                      {st.desc}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
           {/* Aspect Ratio Selector */}
@@ -436,54 +283,7 @@ export const AiImageGen: React.FC = () => {
             </div>
           </div>
 
-          {/* Advanced Accordion (Negative prompt, engine) */}
-          <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
-            <button
-              type="button"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              className="w-full flex items-center justify-between text-xs font-semibold text-zinc-700 dark:text-zinc-300 cursor-pointer"
-            >
-              <span className="flex items-center gap-1.5 font-mono uppercase text-[11px]">
-                <Sliders className="w-3.5 h-3.5" />
-                Advanced Controls & Engine
-              </span>
-              {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
-
-            {showAdvanced && (
-              <div className="mt-4 space-y-4 pt-3 border-t border-zinc-200 dark:border-zinc-800 animate-in fade-in duration-150">
-                <div>
-                  <label className="text-[11px] font-mono text-zinc-600 dark:text-zinc-400 block mb-1">
-                    Negative Prompt (What to avoid):
-                  </label>
-                  <input
-                    type="text"
-                    value={negativePrompt}
-                    onChange={(e) => setNegativePrompt(e.target.value)}
-                    placeholder="e.g. blurry, low quality, distorted text, cartoon, extra limbs"
-                    className="w-full px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-mono text-zinc-600 dark:text-zinc-400 block mb-1">
-                    AI Generation Engine:
-                  </label>
-                  <select
-                    value={engine}
-                    onChange={(e) => setEngine(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none"
-                  >
-                    <option value="auto">⚡ Auto (Google Gemini + High-Speed Fallback)</option>
-                    <option value="gemini">🧠 Google Imagen 3 (Gemini AI Studio)</option>
-                    <option value="fast">🚀 High-Speed Neural Engine</option>
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Error Message */}
+          {/* Error Alert */}
           {errorMsg && (
             <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-400 text-xs flex items-center gap-2 animate-in fade-in">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -501,7 +301,7 @@ export const AiImageGen: React.FC = () => {
             {isGenerating ? (
               <>
                 <RefreshCw className="w-5 h-5 animate-spin" />
-                <span>Generating Image with AI...</span>
+                <span>Generating Image with FLUX AI...</span>
               </>
             ) : (
               <>
@@ -523,7 +323,7 @@ export const AiImageGen: React.FC = () => {
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => handleCopy(currentResult)}
-                    title="Copy image or prompt"
+                    title="Copy image"
                     className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-600 dark:text-zinc-300 transition-colors cursor-pointer text-xs flex items-center gap-1"
                   >
                     {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
@@ -538,7 +338,7 @@ export const AiImageGen: React.FC = () => {
                   </button>
                   <button
                     onClick={() => handleDownload(currentResult)}
-                    title="Download PNG"
+                    title="Download Image"
                     className="p-1.5 rounded-lg bg-black text-white dark:bg-white dark:text-black hover:opacity-90 transition-all cursor-pointer text-xs font-semibold flex items-center gap-1"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -557,10 +357,10 @@ export const AiImageGen: React.FC = () => {
                     <div className="w-12 h-12 rounded-full border-2 border-black dark:border-white border-t-transparent animate-spin" />
                   </div>
                   <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 font-mono">
-                    Generating pixels with AI...
+                    Rendering pixels with FLUX AI...
                   </div>
                   <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                    Applying {style} lighting, materials & geometry
+                    Applying your manual prompt details
                   </div>
                 </div>
               ) : currentResult ? (
@@ -575,7 +375,7 @@ export const AiImageGen: React.FC = () => {
                   <ImageIcon className="w-12 h-12 stroke-[1.5]" />
                   <div className="text-xs font-medium">No image generated yet</div>
                   <div className="text-[11px] max-w-xs text-zinc-500">
-                    Type a prompt on the left and click "Generate Image Now" to create your visual.
+                    Type a manual prompt on the left and click "Generate Image Now".
                   </div>
                 </div>
               )}
@@ -584,15 +384,13 @@ export const AiImageGen: React.FC = () => {
             {/* Prompt Meta Display */}
             {currentResult && (
               <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-xs space-y-1.5 font-mono">
-                <div className="text-zinc-800 dark:text-zinc-200 font-sans font-medium line-clamp-2">
+                <div className="text-zinc-800 dark:text-zinc-200 font-sans font-medium line-clamp-3">
                   "{currentResult.prompt}"
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-[10px] text-zinc-500 dark:text-zinc-400 pt-1 border-t border-zinc-200 dark:border-zinc-800">
                   <span>Engine: {currentResult.engine}</span>
                   <span>•</span>
                   <span>Ratio: {currentResult.aspectRatio}</span>
-                  <span>•</span>
-                  <span>Style: {currentResult.style}</span>
                   {currentResult.seed && (
                     <>
                       <span>•</span>
