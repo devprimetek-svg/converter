@@ -25,10 +25,10 @@ interface GenerationHistoryItem {
 }
 
 const ASPECT_RATIOS = [
-  { id: '1:1', label: '1:1 Square', sub: '768×768' },
-  { id: '16:9', label: '16:9 Landscape', sub: '1024×576' },
-  { id: '9:16', label: '9:16 Portrait', sub: '576×1024' },
-  { id: '4:3', label: '4:3 Standard', sub: '896×672' },
+  { id: '1:1', label: '1:1 Square', sub: '768×768', width: 768, height: 768 },
+  { id: '16:9', label: '16:9 Landscape', sub: '1024×576', width: 1024, height: 576 },
+  { id: '9:16', label: '9:16 Portrait', sub: '576×1024', width: 576, height: 1024 },
+  { id: '4:3', label: '4:3 Standard', sub: '896×672', width: 896, height: 672 },
 ];
 
 export const AiImageGen: React.FC = () => {
@@ -72,7 +72,8 @@ export const AiImageGen: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    if (!prompt.trim()) {
+    const cleanPrompt = prompt.trim();
+    if (!cleanPrompt) {
       setErrorMsg('Please enter a prompt describing the image you want to generate.');
       return;
     }
@@ -80,55 +81,101 @@ export const AiImageGen: React.FC = () => {
     setIsGenerating(true);
     setErrorMsg(null);
 
-    const formData = new FormData();
-    formData.append('prompt', prompt.trim());
-    formData.append('aspect_ratio', aspectRatio);
-    if (referenceImage) formData.append('reference_image', referenceImage);
+    const activeRatio = ASPECT_RATIOS.find((r) => r.id === aspectRatio) || ASPECT_RATIOS[0];
+    const seed = Math.floor(Math.random() * 999999) + 1;
 
+    let imageUrl: string | null = null;
+    let engineName = 'FLUX / SANA Neural Engine';
+
+    // Step 1: Attempt backend generation
     try {
+      const formData = new FormData();
+      formData.append('prompt', cleanPrompt);
+      formData.append('aspect_ratio', aspectRatio);
+      formData.append('seed', seed.toString());
+      if (referenceImage) formData.append('reference_image', referenceImage);
+
       const res = await fetch('/api/ai/generate-image', {
         method: 'POST',
         body: formData,
       });
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || `Generation failed (HTTP ${res.status})`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.image_url) {
+          imageUrl = data.image_url;
+          engineName = data.engine || engineName;
+        }
       }
-
-      const data = await res.json();
-      const newItem: GenerationHistoryItem = {
-        id: Math.random().toString(36).substring(7),
-        url: data.image_url,
-        prompt: prompt.trim(),
-        aspectRatio,
-        engine: data.engine || 'FLUX.1 Engine',
-        seed: data.seed,
-        timestamp: Date.now(),
-      };
-
-      setCurrentResult(newItem);
-      setHistory((prev) => [newItem, ...prev.slice(0, 11)]);
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Image generation failed. Please try again.');
-    } finally {
-      setIsGenerating(false);
+    } catch {
+      // Backend error - will seamlessly fallback to direct client stream below
     }
+
+    // Step 2: Fallback to direct client-side residential stream if backend didn't return data URL
+    if (!imageUrl) {
+      const encoded = encodeURIComponent(cleanPrompt);
+      const directUrl = `https://image.pollinations.ai/prompt/${encoded}?model=sana&width=${activeRatio.width}&height=${activeRatio.height}&seed=${seed}`;
+
+      try {
+        await new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => {
+            const fallbackUrl = `https://image.pollinations.ai/prompt/${encoded}?model=flux&width=${activeRatio.width}&height=${activeRatio.height}&seed=${seed}`;
+            const fb = new Image();
+            fb.onload = () => {
+              imageUrl = fallbackUrl;
+              resolve(fb);
+            };
+            fb.onerror = () => reject(new Error('AI generation is currently busy. Please try again in a few moments.'));
+            fb.src = fallbackUrl;
+          };
+          img.src = directUrl;
+        });
+        if (!imageUrl) imageUrl = directUrl;
+      } catch (clientErr: any) {
+        setErrorMsg(clientErr.message || 'Image generation failed. Please try again.');
+        setIsGenerating(false);
+        return;
+      }
+    }
+
+    const newItem: GenerationHistoryItem = {
+      id: Math.random().toString(36).substring(7),
+      url: imageUrl,
+      prompt: cleanPrompt,
+      aspectRatio,
+      engine: engineName,
+      seed,
+      timestamp: Date.now(),
+    };
+
+    setCurrentResult(newItem);
+    setHistory((prev) => [newItem, ...prev.slice(0, 11)]);
+    setIsGenerating(false);
   };
 
-  const handleDownload = (item: GenerationHistoryItem) => {
-    const a = document.createElement('a');
-    a.href = item.url;
-    a.download = `ConverterStudio_AI_${item.id}.jpg`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+  const handleDownload = async (item: GenerationHistoryItem) => {
+    try {
+      const res = await fetch(item.url);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `ConverterStudio_AI_${item.id}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(item.url, '_blank');
+    }
   };
 
   const handleCopy = async (item: GenerationHistoryItem) => {
     try {
-      const response = await fetch(item.url);
-      const blob = await response.blob();
+      const res = await fetch(item.url);
+      const blob = await res.blob();
       await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -152,11 +199,11 @@ export const AiImageGen: React.FC = () => {
               <h2 className="text-lg sm:text-xl font-bold tracking-tight font-sans">AI Image Generator</h2>
               <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30 flex items-center gap-1">
                 <Zap className="w-3 h-3 text-emerald-400" />
-                100% Free FLUX Engine
+                100% Free AI Engine
               </span>
             </div>
             <p className="text-xs sm:text-sm text-zinc-400 mt-0.5">
-              Type your custom prompt or upload an image to generate high-resolution visuals. No presets or restrictions.
+              Type your exact prompt or upload a reference image to generate high-resolution visuals. No presets or restrictions.
             </p>
           </div>
         </div>
@@ -301,7 +348,7 @@ export const AiImageGen: React.FC = () => {
             {isGenerating ? (
               <>
                 <RefreshCw className="w-5 h-5 animate-spin" />
-                <span>Generating Image with FLUX AI...</span>
+                <span>Generating Image with AI...</span>
               </>
             ) : (
               <>
@@ -357,7 +404,7 @@ export const AiImageGen: React.FC = () => {
                     <div className="w-12 h-12 rounded-full border-2 border-black dark:border-white border-t-transparent animate-spin" />
                   </div>
                   <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 font-mono">
-                    Rendering pixels with FLUX AI...
+                    Rendering pixels with AI...
                   </div>
                   <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
                     Applying your manual prompt details
