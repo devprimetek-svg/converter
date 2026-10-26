@@ -11,9 +11,10 @@ import {
   RotateCcw,
   Download,
   Layers,
+  Wand2,
 } from 'lucide-react';
 
-export type ActiveTab = 'auto-pipeline' | 'batch-queue' | 'catalogue' | 'pdf-images' | 'resizer' | 'watermark';
+export type ActiveTab = 'auto-pipeline' | 'ai-image-gen' | 'batch-queue' | 'catalogue' | 'pdf-images' | 'resizer' | 'watermark';
 
 interface NavbarProps {
   darkMode: boolean;
@@ -79,6 +80,12 @@ export const Navbar: React.FC<NavbarProps> = ({
       label: 'Auto Pipeline',
       icon: Sparkles,
       badge: 'All-in-1',
+    },
+    {
+      id: 'ai-image-gen' as ActiveTab,
+      label: 'AI Image Gen',
+      icon: Wand2,
+      badge: 'AI',
     },
     {
       id: 'batch-queue' as ActiveTab,

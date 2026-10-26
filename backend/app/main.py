@@ -39,6 +39,7 @@ from app.parts_extractor import (
     NoTextLayerError,
     extract_parts_from_pdf,
 )
+from app.ai_image_gen import router as ai_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("converter")
@@ -57,6 +58,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(ai_router)
 
 
 class JobData:

@@ -10,6 +10,7 @@ import { BulkImageResizer } from './components/BulkImageResizer';
 import { WatermarkTool } from './components/WatermarkTool';
 import { AutoPipeline } from './components/AutoPipeline';
 import { BatchQueue } from './components/BatchQueue';
+import { AiImageGen } from './components/AiImageGen';
 import type { ExtractionStatus } from './types';
 
 export function App() {
@@ -325,6 +326,13 @@ export function App() {
                 />
               </div>
             )}
+          </div>
+        )}
+
+        {/* Tab: AI Image Gen */}
+        {activeTab === 'ai-image-gen' && (
+          <div className="animate-in fade-in duration-200">
+            <AiImageGen />
           </div>
         )}
 
