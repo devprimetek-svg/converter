@@ -378,8 +378,25 @@ def _generate_via_leonardo(
                 if status == "COMPLETE":
                     images = job.get("generated_images", [])
                     if images and images[0].get("url"):
+                        leo_img_url = images[0].get("url")
+                        try:
+                            with urllib.request.urlopen(leo_img_url, timeout=15) as img_resp:
+                                rendered_bytes = img_resp.read()
+                            if image_bytes and len(image_bytes) > 0:
+                                comp_bytes = _composite_callouts(rendered_bytes, image_bytes)
+                                b64 = base64.b64encode(comp_bytes).decode("utf-8")
+                                return {
+                                    "image_url": f"data:image/jpeg;base64,{b64}",
+                                    "engine": "Leonardo.ai ControlNet (Line Art + Preserved Callouts)",
+                                    "width": width,
+                                    "height": height,
+                                    "seed": job.get("seed"),
+                                    "status": "success",
+                                }
+                        except Exception as dl_err:
+                            logger.warning("Could not composite callouts onto Leonardo image: %s", dl_err)
                         return {
-                            "image_url": images[0].get("url"),
+                            "image_url": leo_img_url,
                             "engine": "Leonardo.ai Official ControlNet (Line Art)",
                             "width": width,
                             "height": height,
