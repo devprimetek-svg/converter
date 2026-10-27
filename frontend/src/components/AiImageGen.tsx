@@ -122,7 +122,6 @@ export const AiImageGen: React.FC = () => {
     setErrorMsg(null);
     setGenerationStep('Step 1/2: Analyzing schematic components, exploded axes & materials...');
 
-    const activeRatio = ASPECT_RATIOS.find((r) => r.id === aspectRatio) || ASPECT_RATIOS[0];
     const seed = Math.floor(Math.random() * 999999999) + 1;
 
     let imageUrl: string | null = null;
@@ -154,46 +153,25 @@ export const AiImageGen: React.FC = () => {
         if (data.image_url) {
           imageUrl = data.image_url;
           engineName = data.engine || engineName;
+        } else {
+          throw new Error('No image returned from the engine. Please try again.');
         }
       } else {
         const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.detail || 'Backend generation failed');
+        throw new Error(errJson.detail || `Engine error (${res.status}): Generation failed.`);
       }
     } catch (backendErr: any) {
-      // Backend error - fallback to direct client stream if needed
-      setGenerationStep('Finalizing render stream...');
+      setErrorMsg(backendErr.message || 'Image generation failed. Please try again in a few moments.');
+      setIsGenerating(false);
+      setGenerationStep('');
+      return;
     }
 
-    // Step 2: Fallback to direct client-side stream if backend didn't return data URL
     if (!imageUrl) {
-      const encoded = encodeURIComponent(
-        `${cleanPrompt} High precision 3D CAD exploded engineering render on clean pure white background.`
-      );
-      const directUrl = `https://image.pollinations.ai/prompt/${encoded}?model=flux-realism&width=${activeRatio.width}&height=${activeRatio.height}&seed=${seed}&nologo=true`;
-
-      try {
-        await new Promise((resolve, reject) => {
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = () => {
-            const fallbackUrl = `https://image.pollinations.ai/prompt/${encoded}?model=flux&width=${activeRatio.width}&height=${activeRatio.height}&seed=${seed}&nologo=true`;
-            const fb = new Image();
-            fb.onload = () => {
-              imageUrl = fallbackUrl;
-              resolve(fb);
-            };
-            fb.onerror = () => reject(new Error('AI generation service is currently busy. Please retry in a few moments.'));
-            fb.src = fallbackUrl;
-          };
-          img.src = directUrl;
-        });
-        if (!imageUrl) imageUrl = directUrl;
-      } catch (clientErr: any) {
-        setErrorMsg(clientErr.message || 'Image generation failed. Please try again.');
-        setIsGenerating(false);
-        setGenerationStep('');
-        return;
-      }
+      setErrorMsg('Could not render image. Please retry.');
+      setIsGenerating(false);
+      setGenerationStep('');
+      return;
     }
 
     const newItem: GenerationHistoryItem = {
@@ -446,6 +424,17 @@ export const AiImageGen: React.FC = () => {
                 <p className="text-[10px] text-zinc-400">
                   Default mode uses our Built-in Free ControlNet LineArt Engine with 100% vector callout preservation (Zero credit card required).
                 </p>
+                <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+                  <span className="text-zinc-600 dark:text-zinc-400 text-[11px]">Don't have an API key because of card verification?</span>
+                  <a
+                    href="https://app.leonardo.ai"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium flex items-center gap-1 cursor-pointer text-xs shrink-0"
+                  >
+                    Open Leonardo Web (150 Free Tokens) →
+                  </a>
+                </div>
               </div>
             )}
           </div>

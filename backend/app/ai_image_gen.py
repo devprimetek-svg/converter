@@ -246,45 +246,29 @@ def _generate_via_neural(
             "status": "success",
         }
 
-    # 2. Fallback: Direct stream with FLUX realism
-    encoded_prompt = urllib.parse.quote(prompt)
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    }
+    # If FLUX space failed or quota exceeded, try without token as secondary
+    if hf_token:
+        logger.info("Retrying FLUX space without token...")
+        flux_res = _generate_via_flux_space(prompt, aspect_ratio, seed, hf_token="")
+        if flux_res:
+            img_bytes, mime, used_seed = flux_res
+            if original_diagram_bytes and len(original_diagram_bytes) > 0:
+                img_bytes = _composite_callouts(img_bytes, original_diagram_bytes)
+                mime = "image/jpeg"
+            b64 = base64.b64encode(img_bytes).decode("utf-8")
+            return {
+                "image_url": f"data:{mime};base64,{b64}",
+                "engine": "ControlNet LineArt 3D CAD (FLUX.1 Engine)",
+                "width": width,
+                "height": height,
+                "seed": used_seed,
+                "status": "success",
+            }
 
-    for model_name in ["flux-realism", "flux"]:
-        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model={model_name}&width={width}&height={height}&seed={seed}&nologo=true"
-        try:
-            req = urllib.request.Request(url, headers=headers)
-            with urllib.request.urlopen(req, timeout=25) as resp:
-                if resp.status == 200:
-                    img_bytes = resp.read()
-                    content_type = resp.headers.get("Content-Type", "image/jpeg")
-                    if len(img_bytes) > 2000 and "image" in content_type:
-                        if original_diagram_bytes and len(original_diagram_bytes) > 0:
-                            img_bytes = _composite_callouts(img_bytes, original_diagram_bytes)
-                            content_type = "image/jpeg"
-                        b64 = base64.b64encode(img_bytes).decode("utf-8")
-                        return {
-                            "image_url": f"data:{content_type};base64,{b64}",
-                            "engine": f"ControlNet LineArt ({model_name.upper()})",
-                            "width": width,
-                            "height": height,
-                            "seed": seed,
-                            "status": "success",
-                        }
-        except Exception as e:
-            logger.info("Server-side fallback for model %s: %s", model_name, e)
-
-    fallback_stream_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux-realism&width={width}&height={height}&seed={seed}&nologo=true"
-    return {
-        "image_url": fallback_stream_url,
-        "engine": "ControlNet LineArt (Direct Stream)",
-        "width": width,
-        "height": height,
-        "seed": seed,
-        "status": "success",
-    }
+    raise HTTPException(
+        status_code=503,
+        detail="Free neural GPU engine is currently busy or cooling down. Please retry in 30-60 seconds, or enter a Leonardo API Key in settings.",
+    )
 
 
 def _generate_via_leonardo(
