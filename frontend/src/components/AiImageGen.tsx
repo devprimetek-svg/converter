@@ -46,6 +46,10 @@ export const AiImageGen: React.FC = () => {
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
   const [referencePreview, setReferencePreview] = useState<string | null>(null);
 
+  // Optional Leonardo.ai API Key
+  const [leonardoApiKey, setLeonardoApiKey] = useState<string>(() => localStorage.getItem('leonardo_api_key') || '');
+  const [showApiSettings, setShowApiSettings] = useState(false);
+
   // Generation status
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState<string>('');
@@ -131,6 +135,9 @@ export const AiImageGen: React.FC = () => {
       formData.append('aspect_ratio', aspectRatio);
       formData.append('seed', seed.toString());
       formData.append('reference_image', referenceImage);
+      if (leonardoApiKey.trim()) {
+        formData.append('leonardo_api_key', leonardoApiKey.trim());
+      }
 
       // Transition step message
       setTimeout(() => {
@@ -392,6 +399,55 @@ export const AiImageGen: React.FC = () => {
               <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
               <span>Specifies cast aluminum, CNC steel, polished chrome, zinc bolts, rubber seals & preserved callout indices.</span>
             </div>
+          </div>
+
+          {/* Engine & ControlNet Configuration */}
+          <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Cpu className="w-4 h-4 text-zinc-700 dark:text-zinc-300" />
+                <span className="text-xs font-bold uppercase tracking-wider text-zinc-700 dark:text-zinc-300 font-mono">
+                  Engine: {leonardoApiKey.trim() ? 'Leonardo.ai ControlNet (Official API)' : 'Built-in Free ControlNet LineArt (FLUX.1)'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowApiSettings(!showApiSettings)}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-mono cursor-pointer flex items-center gap-1"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                {showApiSettings ? 'Hide API Settings' : 'Configure Leonardo API'}
+              </button>
+            </div>
+
+            {showApiSettings && (
+              <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800 space-y-2 animate-in fade-in">
+                <div className="flex items-center justify-between text-[11px] text-zinc-500 font-mono">
+                  <span>Leonardo.ai API Key (Optional):</span>
+                  <a
+                    href="https://app.leonardo.ai/api-access"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    Get Key from Leonardo →
+                  </a>
+                </div>
+                <input
+                  type="password"
+                  value={leonardoApiKey}
+                  onChange={(e) => {
+                    setLeonardoApiKey(e.target.value);
+                    localStorage.setItem('leonardo_api_key', e.target.value);
+                  }}
+                  placeholder="Paste Leonardo API Key here (or leave empty to use 100% Free Engine)"
+                  className="w-full p-2.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs font-mono text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
+                />
+                <p className="text-[10px] text-zinc-400">
+                  Default mode uses our Built-in Free ControlNet LineArt Engine with 100% vector callout preservation (Zero credit card required).
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Aspect Ratio Selector */}
