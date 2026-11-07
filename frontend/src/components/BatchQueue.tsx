@@ -371,13 +371,13 @@ export const BatchQueue: React.FC = () => {
           <div className="space-y-1">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
               <Layers className="w-3.5 h-3.5 text-blue-600" />
-              Upgrade 1: Multi-PDF Batch Processing
+              Bulk PDF Converter
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-white">
-              Bulk Catalogue Processing Queue
+              Ek Sath Kai PDFs Convert Karein
             </h2>
             <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400">
-              Queue 10+ catalogue PDFs simultaneously. Auto-extract parts, watermarked 1000x1200 diagrams, and download a single multi-sheet <strong>Consolidated Master Excel</strong>.
+              10+ catalogues ko ek sath queue me dalein. Har PDF se Excel sheet aur diagram photos automatically extract ho kar Master file me save ho jayengi.
             </p>
           </div>
 

@@ -166,7 +166,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     setSettingsOpened(false);
     notifications.show({
       title: 'Settings Saved',
-      message: 'API keys and configuration preferences have been updated.',
+      message: 'Aapki API keys aur settings save ho chuki hain.',
       color: 'teal',
     });
   };
@@ -177,32 +177,32 @@ export const Navbar: React.FC<NavbarProps> = ({
     setLeonardoKey('');
     setGeminiKey('');
     notifications.show({
-      title: 'Cache Cleared',
-      message: 'Local session credentials and temporary UI state cleared.',
+      title: 'Settings Reset',
+      message: 'Purani temporary settings aur saved keys clear kar di gayi hain.',
       color: 'blue',
     });
   };
 
-  // Logical Tabs Definition
+  // Simple, Human-Friendly Tabs Definition
   const documentTabs = [
     {
       id: 'auto-pipeline' as ActiveTab,
-      label: 'Auto Pipeline',
-      description: 'End-to-end automated catalogue extraction & hotspot pipeline',
+      label: 'All-in-One Auto',
+      description: '1-Click me Excel, diagram photos aur watermark sab ek sath',
       icon: Sparkles,
       badge: 'All-in-1',
     },
     {
       id: 'batch-queue' as ActiveTab,
-      label: 'Batch Queue',
-      description: 'Bulk queue for multiple Yamaha parts catalogues',
+      label: 'Bulk PDF Queue',
+      description: 'Ek sath kai saari PDF catalogues upload karke convert karein',
       icon: Layers,
       badge: 'Bulk PDF',
     },
     {
       id: 'catalogue' as ActiveTab,
-      label: 'Parts to Excel',
-      description: 'Single-document precision coordinate matrix extraction',
+      label: 'Catalogue to Excel',
+      description: 'PDF catalogue se parts number, description aur quantity Excel me nikalein',
       icon: FileSpreadsheet,
       badge: 'Yamaha',
     },
@@ -211,31 +211,31 @@ export const Navbar: React.FC<NavbarProps> = ({
   const mediaTabs = [
     {
       id: 'ai-image-gen' as ActiveTab,
-      label: 'AI Image Gen',
-      description: 'ControlNet LineArt & 3D CAD schematic assembly rendering',
+      label: 'Diagram to 3D Photo',
+      description: 'Diagram sketch se realistic 3D product photo banayein (AI)',
       icon: Wand2,
-      badge: 'AI',
+      badge: 'AI Photo',
     },
     {
       id: 'pdf-images' as ActiveTab,
-      label: 'Extract Images',
-      description: 'Extract embedded high-res diagrams from digital catalogues',
+      label: 'Extract PDF Photos',
+      description: 'Catalogue PDF ke andar se saari diagram photos bahar nikalein',
       icon: FileImage,
-      badge: 'Vector',
+      badge: 'Photos',
     },
     {
       id: 'resizer' as ActiveTab,
-      label: 'Bulk Resizer',
-      description: 'Lossless web resolution batch resizing with smart padding',
+      label: 'Photo Resizer',
+      description: 'Website aur e-commerce ke liye photos ko ek sath sahi size me karein',
       icon: Crop,
       badge: 'Resize',
     },
     {
       id: 'watermark' as ActiveTab,
-      label: 'Watermark',
-      description: 'Automated alpha transparency logo branding stamp',
+      label: 'Logo / Watermark',
+      description: 'Photos par apni shop ka naam ya brand logo lagayein',
       icon: Droplet,
-      badge: 'Brand',
+      badge: 'Logo',
     },
   ];
 
@@ -272,14 +272,14 @@ export const Navbar: React.FC<NavbarProps> = ({
               </Group>
               <Group gap={6} align="center">
                 <Text size="xs" c="dimmed" className="font-mono tracking-widest uppercase font-medium text-[10px]">
-                  Intelligence Matrix
+                  Automotive Parts & Media Suite
                 </Text>
                 <span className="text-zinc-300 dark:text-zinc-700">•</span>
                 <Tooltip
                   label={
                     serverStatus === 'online'
-                      ? `Backend Online (Latency: ${serverLatency ?? 0}ms)`
-                      : 'Connecting to Cloud Backend...'
+                      ? `Server Online hai (Speed: ${serverLatency ?? 0}ms)`
+                      : 'Server se connect ho raha hai...'
                   }
                   withArrow
                   position="bottom"
@@ -305,8 +305,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Categorized Desktop Navigation */}
           <nav className="hidden lg:flex items-center gap-2">
-            {/* Category 1: Documents Dropdown */}
-            <Menu shadow="md" width={280} position="bottom-start" radius="md" withArrow>
+            {/* Category 1: PDF to Excel Tools */}
+            <Menu shadow="md" width={300} position="bottom-start" radius="md" withArrow>
               <Menu.Target>
                 <Button
                   variant={isDocumentTabActive ? 'filled' : 'subtle'}
@@ -317,7 +317,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   rightSection={<ChevronDown className="w-3 h-3 opacity-70" />}
                   className="font-medium text-xs"
                 >
-                  Documents
+                  PDF to Excel Tools
                   {isDocumentTabActive && (
                     <Badge size="xs" variant="white" color="dark" radius="sm" className="ml-1 text-[9px] px-1 py-0 h-4">
                       {activeTabMeta?.badge}
@@ -328,7 +328,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               <Menu.Dropdown className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-1.5 shadow-xl">
                 <Menu.Label className="text-[10px] uppercase font-mono tracking-wider">
-                  Document Intelligence
+                  Catalogue & Excel Tools
                 </Menu.Label>
                 {documentTabs.map((t) => {
                   const Icon = t.icon;
@@ -361,8 +361,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               </Menu.Dropdown>
             </Menu>
 
-            {/* Category 2: Media & AI Studio Dropdown */}
-            <Menu shadow="md" width={290} position="bottom-start" radius="md" withArrow>
+            {/* Category 2: Photos & Logo Tools */}
+            <Menu shadow="md" width={300} position="bottom-start" radius="md" withArrow>
               <Menu.Target>
                 <Button
                   variant={isMediaTabActive ? 'filled' : 'subtle'}
@@ -373,7 +373,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   rightSection={<ChevronDown className="w-3 h-3 opacity-70" />}
                   className="font-medium text-xs"
                 >
-                  Media & AI Studio
+                  Photos & Logo Tools
                   {isMediaTabActive && (
                     <Badge size="xs" variant="white" color="dark" radius="sm" className="ml-1 text-[9px] px-1 py-0 h-4">
                       {activeTabMeta?.badge}
@@ -384,7 +384,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               <Menu.Dropdown className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-1.5 shadow-xl">
                 <Menu.Label className="text-[10px] uppercase font-mono tracking-wider">
-                  Creative & Media Pipeline
+                  Photo & Branding Tools
                 </Menu.Label>
                 {mediaTabs.map((t) => {
                   const Icon = t.icon;
@@ -452,7 +452,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
 
             {/* Settings Modal Launcher */}
-            <Tooltip label="Studio Settings & API Keys" withArrow position="bottom">
+            <Tooltip label="App Settings & API Keys" withArrow position="bottom">
               <ActionIcon
                 variant="default"
                 size="md"
@@ -467,13 +467,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Replay Splash Screen */}
             {onReplaySplash && (
-              <Tooltip label="Replay Startup Screen" withArrow position="bottom">
+              <Tooltip label="Replay Welcome Screen" withArrow position="bottom">
                 <ActionIcon
                   variant="default"
                   size="md"
                   radius="md"
                   onClick={onReplaySplash}
-                  aria-label="Replay Splash Screen"
+                  aria-label="Replay Welcome Screen"
                   className="border-zinc-200 dark:border-zinc-800"
                 >
                   <RotateCcw className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
@@ -545,7 +545,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Settings className="w-4 h-4" />
             </ThemeIcon>
             <Text fw={700} size="sm">
-              Converter Studio Settings & Engine Configuration
+              App Settings & Configuration
             </Text>
           </Group>
         }
@@ -559,23 +559,23 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Group justify="space-between">
               <Group gap="xs">
                 <Server className="w-4 h-4 text-blue-500" />
-                <Text size="xs" fw={700}>Backend Server Connection</Text>
+                <Text size="xs" fw={700}>Server Connection</Text>
               </Group>
               <Badge variant="dot" color={serverStatus === 'online' ? 'teal' : 'red'} size="sm">
-                {serverStatus === 'online' ? `ONLINE (${serverLatency ?? 0}ms)` : 'OFFLINE'}
+                {serverStatus === 'online' ? `READY (${serverLatency ?? 0}ms)` : 'OFFLINE'}
               </Badge>
             </Group>
             <Text size="xs" c="dimmed" mt={4}>
-              Serving active extraction matrix, OCR pipeline, and 100% in-memory data processing.
+              Aapki files computer memory me securely process hoti hain aur permanent save nahi ki jati.
             </Text>
           </Paper>
 
-          <Divider label="AI Generation Engine Keys" labelPosition="center" />
+          <Divider label="AI Photo Generation Keys (Optional)" labelPosition="center" />
 
           {/* Leonardo.ai API Key */}
           <PasswordInput
             label="Leonardo.ai API Key"
-            description="Used for photorealistic ControlNet LineArt 3D isometric CAD assembly generation."
+            description="Optional: Diagram sketch se realistic 3D part photo banane ke liye use hota hai."
             placeholder="e.g. 1a2b3c4d-5e6f-..."
             value={leonardoKey}
             onChange={(e) => setLeonardoKey(e.target.value)}
@@ -586,7 +586,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Google Gemini API Key */}
           <PasswordInput
             label="Google Gemini API Key"
-            description="Used for multimodal schematic analysis and automotive catalogue interpretation."
+            description="Optional: Smart parts description aur catalogue analysis ke liye use hota hai."
             placeholder="e.g. AIzaSy..."
             value={geminiKey}
             onChange={(e) => setGeminiKey(e.target.value)}
@@ -594,7 +594,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             radius="md"
           />
 
-          <Divider label="Maintenance & System Info" labelPosition="center" />
+          <Divider label="App Information" labelPosition="center" />
 
           {/* System Info */}
           <Group justify="space-between" align="center">
@@ -613,7 +613,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               leftSection={<Trash2 className="w-3.5 h-3.5" />}
               onClick={clearAppCache}
             >
-              Clear Local Cache
+              Reset App Settings
             </Button>
           </Group>
 
@@ -623,7 +623,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               Cancel
             </Button>
             <Button size="xs" color="blue" onClick={saveSettings}>
-              Save Preferences
+              Save Settings
             </Button>
           </Group>
         </Stack>

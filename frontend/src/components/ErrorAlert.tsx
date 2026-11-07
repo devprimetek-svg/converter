@@ -23,11 +23,11 @@ export const ErrorAlert: React.FC<ErrorAlertProps> = ({ message, onRetry }) => {
       <Alert
         variant="light"
         color="red"
-        title={isNoTextLayer ? 'Scanned PDF Detected (OCR Not Supported)' : 'Processing Error'}
+        title={isNoTextLayer ? 'Scanned Photo / Xerox PDF Detected' : 'PDF Read Karne Me Problem Aayi'}
         icon={isNoTextLayer ? <FileWarning className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
         radius="lg"
       >
-        <Text size="sm" mt="xs" c="red.8" className="dark:text-red-200 leading-relaxed">
+        <Text size="sm" mt="xs" c="red.8" className="dark:text-red-200 leading-relaxed font-medium">
           {message}
         </Text>
 
@@ -40,8 +40,7 @@ export const ErrorAlert: React.FC<ErrorAlertProps> = ({ message, onRetry }) => {
             className="bg-white/80 dark:bg-zinc-900/80 border-red-200/60 dark:border-red-900/40"
           >
             <Text size="xs" c="dimmed">
-              <strong className="text-zinc-800 dark:text-zinc-200">Tip:</strong> This converter operates directly on vector coordinate text layers
-              within digital PDF catalogues. Please export or supply a digital vector PDF rather than a flattened scan/photo.
+              <strong className="text-zinc-800 dark:text-zinc-200">Zaroori Jankari:</strong> Ye PDF kisi kagaz ki photo ya xerox scan lagti hai jisme se text copy nahi kiya ja sakta. Kripya original computer-generated PDF upload karein (jo manufacturer ya company se directly mili ho).
             </Text>
           </Paper>
         )}
@@ -54,7 +53,7 @@ export const ErrorAlert: React.FC<ErrorAlertProps> = ({ message, onRetry }) => {
             leftSection={<RotateCcw className="w-3.5 h-3.5" />}
             onClick={onRetry}
           >
-            Try Another PDF
+            Doosri PDF Try Karein
           </Button>
         </Group>
       </Alert>

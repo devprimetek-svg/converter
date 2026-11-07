@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Paper, Text, Title, Button, Group, ThemeIcon, SimpleGrid } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { UploadCloud, FileText, AlertCircle, Layers, ShieldCheck, Cpu } from 'lucide-react';
+import { UploadCloud, FileText, AlertCircle, Layers, ShieldCheck, CheckCircle2 } from 'lucide-react';
 
 interface FileUploadZoneProps {
   onFileSelect: (file: File) => void;
@@ -16,10 +16,10 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFileSelect, is
   const validateAndHandle = (file: File) => {
     setLocalError(null);
     if (!file.name.toLowerCase().endsWith('.pdf')) {
-      const msg = 'Please upload a valid PDF document (.pdf).';
+      const msg = 'Kripya ek valid PDF document (.pdf) upload karein.';
       setLocalError(msg);
       notifications.show({
-        title: 'Unsupported File Format',
+        title: 'File PDF Nahi Hai',
         message: msg,
         color: 'red',
         icon: <AlertCircle className="w-4 h-4" />,
@@ -28,10 +28,10 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFileSelect, is
     }
     const maxSize = 60 * 1024 * 1024; // 60MB
     if (file.size > maxSize) {
-      const msg = 'File size exceeds 60MB limit.';
+      const msg = 'File ka size 60MB limit se zyada hai.';
       setLocalError(msg);
       notifications.show({
-        title: 'File Too Large',
+        title: 'File Size Bada Hai',
         message: msg,
         color: 'red',
         icon: <AlertCircle className="w-4 h-4" />,
@@ -101,10 +101,10 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFileSelect, is
         </ThemeIcon>
 
         <Title order={3} mt="lg" className="text-zinc-900 dark:text-white">
-          Upload Yamaha Parts Catalogue PDF
+          Upload Parts Catalogue PDF
         </Title>
         <Text size="sm" c="dimmed" mt="xs" className="max-w-md mx-auto">
-          Drag and drop your catalogue file here, or click to browse. Supports full documents up to ~60MB.
+          Apni parts catalogue PDF file yahan drag karein, ya click karke select karein (up to 60MB).
         </Text>
 
         <Group justify="center" mt="xl">
@@ -127,17 +127,17 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFileSelect, is
         )}
       </Paper>
 
-      {/* Feature cards below upload */}
+      {/* Simple, Clear Feature Cards */}
       <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md" mt="xl">
         <Paper withBorder radius="lg" p="md" className="bg-white/90 dark:bg-zinc-950/80 border-zinc-200 dark:border-zinc-800/90 shadow-xs">
           <Group gap="sm" align="flex-start" wrap="nowrap">
             <ThemeIcon size={38} radius="md" variant="light" color="indigo">
-              <Cpu className="w-5 h-5" />
+              <CheckCircle2 className="w-5 h-5" />
             </ThemeIcon>
             <div>
-              <Text size="sm" fw={700}>Coordinate Clustering</Text>
+              <Text size="sm" fw={700}>100% Sahi Table Alignment</Text>
               <Text size="xs" c="dimmed" mt={2}>
-                Reconstructs table rows with ~2pt tolerance for exact alignment
+                Part number, description aur quantity bina mix hue seedhi rows me aati hain.
               </Text>
             </div>
           </Group>
@@ -149,9 +149,9 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFileSelect, is
               <Layers className="w-5 h-5" />
             </ThemeIcon>
             <div>
-              <Text size="sm" fw={700}>Vertical Model Codes</Text>
+              <Text size="sm" fw={700}>Vertical Model Codes Support</Text>
               <Text size="xs" c="dimmed" mt={2}>
-                Detects rotated single-letter stacks and reverses to real model codes
+                Yamaha catalogue ke khade likhe model codes (BGPJ, BGPL) ko automatically seedha karta hai.
               </Text>
             </div>
           </Group>
@@ -163,9 +163,9 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFileSelect, is
               <ShieldCheck className="w-5 h-5" />
             </ThemeIcon>
             <div>
-              <Text size="sm" fw={700}>Zero Disk Storage</Text>
+              <Text size="sm" fw={700}>100% Private & Safe</Text>
               <Text size="xs" c="dimmed" mt={2}>
-                Processed 100% in-memory for complete catalogue privacy
+                Aapka data computer memory me process hota hai, kisi server hard drive par save nahi hota.
               </Text>
             </div>
           </Group>

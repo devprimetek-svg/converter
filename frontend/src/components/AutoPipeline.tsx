@@ -838,13 +838,13 @@ export const AutoPipeline: React.FC<AutoPipelineProps> = ({
       <div className="text-center max-w-3xl mx-auto space-y-3">
         <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full text-xs font-mono font-medium bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 uppercase tracking-widest">
           <Sparkles className="w-3.5 h-3.5 text-zinc-800 dark:text-white" />
-          Autonomous Pipeline
+          All-in-One Auto Process
         </div>
         <h2 className="text-3xl sm:text-4xl font-extrabold text-zinc-900 dark:text-white tracking-tight uppercase">
           Automate Everything from One PDF
         </h2>
         <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400 font-normal">
-          Upload catalogue once: extracts parts into Excel, detects figure diagrams, applies IndiaSpare watermark preset, resizes to 1000x1200, and bundles Master ZIP.
+          Bas 1 PDF upload karein: Excel sheet, diagram photos, logo watermark aur website ke liye resized photos sab ek sath ready milengi.
         </p>
       </div>
 

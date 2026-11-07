@@ -395,13 +395,13 @@ export const BulkImageResizer: React.FC = () => {
         <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in duration-300">
           <div className="text-center space-y-2">
             <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900">
-              High-Speed Batch Resizer
+              Photo Resizer Tool
             </span>
             <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-              Bulk Image Resizer
+              Photos ko Sahi Size me Karein
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Resize dozens of PNG, JPG, and WebP images simultaneously with custom dimensions, scaling, and compression.
+              Website aur online catalogue ke liye photos ko ek sath sahi height-width aur kam MB/KB me convert karein.
             </p>
           </div>
 

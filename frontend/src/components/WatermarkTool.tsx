@@ -314,13 +314,13 @@ export const WatermarkTool: React.FC = () => {
         <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in duration-300">
           <div className="text-center space-y-2">
             <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
-              Bulk Watermark Engine
+              Logo & Watermark Tool
             </span>
             <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-              Image Watermark Tool
+              Photos par Logo ya Naam Lagayein
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Stamp single or bulk images with custom copyright text, confidential marks, or brand logos with live preview.
+              Apni product photos par shop ka naam, contact number ya company logo ek sath lagayein.
             </p>
           </div>
 

@@ -80,8 +80,8 @@ export function App() {
     setErrorMessage(null);
 
     notifications.show({
-      title: 'Upload Started',
-      message: `Analyzing catalogue "${file.name}"...`,
+      title: 'File Upload Shuru',
+      message: `Catalogue "${file.name}" read ho rahi hai...`,
       color: 'blue',
       icon: <FileSpreadsheet className="w-4 h-4" />,
     });
@@ -145,8 +145,8 @@ export function App() {
             setIsUploading(false);
             sse.close();
             notifications.show({
-              title: 'Extraction Completed',
-              message: `Extracted ${data.total_rows || 0} part rows across ${data.total_pages || 0} pages.`,
+              title: 'Excel Data Ready!',
+              message: `${data.total_rows || 0} parts rows successfully extract ho gayi hain (${data.total_pages || 0} pages me se).`,
               color: 'teal',
               icon: <Check className="w-4 h-4" />,
             });
@@ -358,11 +358,10 @@ export function App() {
                     CONVERTER STUDIO
                   </Badge>
                   <h2 className="text-3xl sm:text-4xl font-extrabold text-zinc-900 dark:text-white tracking-tight">
-                    Extract Parts Catalogues to Excel
+                    Parts Catalogue to Excel
                   </h2>
                   <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400 font-normal">
-                    Precision extraction of figure diagrams, vertical rotated model codes (BGPJ, BGPL),
-                    part descriptions, and remark columns.
+                    Yamaha aur automotive PDF catalogues ko saaf-suthri Excel sheets me convert karein — part number, description aur quantities ke sath.
                   </p>
                 </div>
 
@@ -426,14 +425,14 @@ export function App() {
           <Group gap="xs" align="center">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <Text size="xs" fw={700} className="tracking-wider uppercase text-zinc-800 dark:text-zinc-200">
-              Converter Studio • Extract & Build
+              Converter Studio • Automotive Parts & Media Suite
             </Text>
           </Group>
           <Text size="xs" c="dimmed">
-            Document & Image Intelligence Matrix • 100% In-Memory Privacy
+            100% In-Memory Privacy • Files server hard drive par save nahi hoti
           </Text>
           <Badge variant="dot" color="teal" size="sm">
-            ACTIVE [OK]
+            READY [OK]
           </Badge>
         </div>
       </footer>

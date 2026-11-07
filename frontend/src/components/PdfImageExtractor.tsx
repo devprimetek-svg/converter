@@ -173,13 +173,13 @@ export const PdfImageExtractor: React.FC = () => {
         <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in duration-300">
           <div className="text-center space-y-2">
             <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900">
-              Raster Image Harvester
+              PDF Photo Extractor
             </span>
             <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-              Extract All Images from PDF
+              PDF se Saari Photos Nikalein
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Upload any PDF to extract embedded diagrams, schematics, photos, and figures — automatically converted and saved in high-quality JPG format.
+              Kisi bhi PDF ko upload karke uske andar ke diagrams, figures aur photos ko high-quality JPG me download karein.
             </p>
           </div>
 

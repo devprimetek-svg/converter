@@ -11,10 +11,10 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
   const [isFadingOut, setIsFadingOut] = useState<boolean>(false);
 
   const stages = [
-    'SYSTEM INITIALIZING',
-    'PARSER ENGINE SYNCHRONIZED',
-    'IMAGE & WATERMARK CORES READY',
-    'CONVERTER STUDIO ONLINE',
+    'STARTING CONVERTER STUDIO',
+    'PREPARING PDF READER',
+    'PHOTO & WATERMARK TOOLS READY',
+    'READY TO CONVERT',
   ];
 
   useEffect(() => {
@@ -131,7 +131,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
           <div className="flex items-center justify-center gap-3 pt-1">
             <span className="h-[1px] w-6 bg-zinc-800" />
             <p className="text-xs font-mono uppercase tracking-[0.28em] font-medium text-zinc-400">
-              Extract and Build
+              Parts & Media Studio
             </p>
             <span className="h-[1px] w-6 bg-zinc-800" />
           </div>
@@ -167,7 +167,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
       {/* Bottom Footer */}
       <div className="w-full max-w-4xl flex items-center justify-between text-[11px] font-mono text-zinc-600 border-t border-zinc-900 pt-4 px-2">
         <span>CONVERTER STUDIO</span>
-        <span>EXTRACT AND BUILD</span>
+        <span>PARTS & MEDIA SUITE</span>
         <span>2026</span>
       </div>
     </div>

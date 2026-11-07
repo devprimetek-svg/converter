@@ -447,7 +447,7 @@ export const AiImageGen: React.FC = () => {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg sm:text-xl font-bold tracking-tight font-sans">
-                Isometric Schematic to 3D CAD Render
+                Diagram to 3D Product Photo (AI)
               </h2>
               <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30 flex items-center gap-1">
                 <Zap className="w-3 h-3 text-emerald-400" />
@@ -459,7 +459,7 @@ export const AiImageGen: React.FC = () => {
               </span>
             </div>
             <p className="text-xs sm:text-sm text-zinc-400 mt-0.5">
-              Transform single or bulk 2D isometric exploded diagrams into photorealistic 3D engineering CAD assemblies with OEM materials & preserved index callouts.
+              Parts catalogue ke 2D diagram sketch ko realistic 3D product photo me badlein — metal, rubber aur numbers saaf dikhenge.
             </p>
           </div>
         </div>
@@ -475,7 +475,7 @@ export const AiImageGen: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-zinc-900 dark:text-zinc-100" />
                 <span className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100 font-mono">
-                  Isometric Schematics <span className="text-red-500 font-bold">* (MANDATORY)</span>
+                  Upload Diagram Photo <span className="text-red-500 font-bold">* (Zaroori)</span>
                 </span>
                 {batchFiles.length > 0 && (
                   <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
@@ -703,7 +703,7 @@ export const AiImageGen: React.FC = () => {
               rows={5}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Engineering prompt describing exact material shaders and assembly rendering..."
+              placeholder="Kaisa photo chahiye? (e.g. realistic 3D motorcycle engine parts, studio lighting, clean white background)..."
               className="w-full p-4 rounded-xl border border-zinc-300 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-white resize-y font-mono transition-all leading-relaxed"
             />
 
