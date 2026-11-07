@@ -37,7 +37,7 @@ export const ErrorAlert: React.FC<ErrorAlertProps> = ({ message, onRetry }) => {
             radius="md"
             p="xs"
             mt="sm"
-            className="bg-white/80 dark:bg-zinc-900/80 border-red-200/60 dark:border-red-900/40"
+            className="bg-white/90 dark:bg-[#1A1B1E] border-red-200/60 dark:border-red-900/40"
           >
             <Text size="xs" c="dimmed">
               <strong className="text-zinc-800 dark:text-zinc-200">Zaroori Jankari:</strong> Ye PDF kisi kagaz ki photo ya xerox scan lagti hai jisme se text copy nahi kiya ja sakta. Kripya original computer-generated PDF upload karein (jo manufacturer ya company se directly mili ho).

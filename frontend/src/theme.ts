@@ -2,9 +2,64 @@ import { createTheme } from '@mantine/core';
 
 export const theme = createTheme({
   primaryColor: 'blue',
+  primaryShade: { light: 6, dark: 6 },
+  colors: {
+    // Mantine signature dark palette for soothing low-strain dark mode
+    dark: [
+      '#C1C2C5',
+      '#A6A7AB',
+      '#909296',
+      '#5C5F66',
+      '#373A40',
+      '#2C2E33', // dark[5] - borders
+      '#25262B', // dark[6] - elevated cards
+      '#1A1B1E', // dark[7] - standard card surface
+      '#141517', // dark[8] - header / navbar surface
+      '#101113', // dark[9] - app background
+    ],
+    // Vibrant Sapphire Blue for Document Intelligence
+    blue: [
+      '#e7f5ff',
+      '#d0ebff',
+      '#a5d8ff',
+      '#74c0fc',
+      '#4dabf7',
+      '#339af0',
+      '#228be6',
+      '#1c7ed6',
+      '#1971c2',
+      '#1864ab',
+    ],
+    // Electric Indigo for AI & Media Tools
+    indigo: [
+      '#edf2ff',
+      '#dbe4ff',
+      '#bac8ff',
+      '#91a7ff',
+      '#748ffc',
+      '#5c7cfa',
+      '#4c6ef5',
+      '#4263eb',
+      '#3b5bdb',
+      '#364fc7',
+    ],
+    // Fresh Mint / Teal for Success and Ready States
+    teal: [
+      '#e6fcf5',
+      '#c3fae8',
+      '#96f2d7',
+      '#63e6be',
+      '#38d9a9',
+      '#20c997',
+      '#12b886',
+      '#0ca678',
+      '#099268',
+      '#087f5b',
+    ],
+  },
   defaultRadius: 'md',
   fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-  fontFamilyMonospace: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+  fontFamilyMonospace: 'JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
   headings: {
     fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     fontWeight: '700',
@@ -18,11 +73,23 @@ export const theme = createTheme({
     Card: {
       defaultProps: {
         radius: 'lg',
+        shadow: 'xs',
+      },
+    },
+    Paper: {
+      defaultProps: {
+        radius: 'lg',
       },
     },
     Badge: {
       defaultProps: {
         radius: 'sm',
+      },
+    },
+    Modal: {
+      defaultProps: {
+        radius: 'lg',
+        shadow: 'xl',
       },
     },
   },

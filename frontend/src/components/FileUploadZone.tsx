@@ -75,7 +75,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFileSelect, is
         className={`relative group cursor-pointer text-center border-2 border-dashed transition-all duration-200 ${
           isDragOver
             ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-950/40 scale-[1.01]'
-            : 'border-zinc-300 dark:border-zinc-800 hover:border-blue-400 dark:hover:border-blue-600 bg-white/80 dark:bg-zinc-950/80 hover:bg-zinc-50 dark:hover:bg-zinc-900/60'
+            : 'border-slate-300 dark:border-[#2C2E33] hover:border-blue-400 dark:hover:border-blue-500 bg-white/90 dark:bg-[#1A1B1E] hover:bg-slate-50/50 dark:hover:bg-[#25262B]'
         } ${isUploading ? 'pointer-events-none opacity-60' : 'shadow-sm'}`}
       >
         <input
@@ -129,7 +129,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFileSelect, is
 
       {/* Simple, Clear Feature Cards */}
       <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md" mt="xl">
-        <Paper withBorder radius="lg" p="md" className="bg-white/90 dark:bg-zinc-950/80 border-zinc-200 dark:border-zinc-800/90 shadow-xs">
+        <Paper withBorder radius="lg" p="md" className="bg-white/90 dark:bg-[#1A1B1E] border-slate-200/90 dark:border-[#2C2E33] shadow-xs hover:border-indigo-400 dark:hover:border-indigo-500/60 transition-all">
           <Group gap="sm" align="flex-start" wrap="nowrap">
             <ThemeIcon size={38} radius="md" variant="light" color="indigo">
               <CheckCircle2 className="w-5 h-5" />
@@ -143,7 +143,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFileSelect, is
           </Group>
         </Paper>
 
-        <Paper withBorder radius="lg" p="md" className="bg-white/90 dark:bg-zinc-950/80 border-zinc-200 dark:border-zinc-800/90 shadow-xs">
+        <Paper withBorder radius="lg" p="md" className="bg-white/90 dark:bg-[#1A1B1E] border-slate-200/90 dark:border-[#2C2E33] shadow-xs hover:border-blue-400 dark:hover:border-blue-500/60 transition-all">
           <Group gap="sm" align="flex-start" wrap="nowrap">
             <ThemeIcon size={38} radius="md" variant="light" color="blue">
               <Layers className="w-5 h-5" />
@@ -157,7 +157,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFileSelect, is
           </Group>
         </Paper>
 
-        <Paper withBorder radius="lg" p="md" className="bg-white/90 dark:bg-zinc-950/80 border-zinc-200 dark:border-zinc-800/90 shadow-xs">
+        <Paper withBorder radius="lg" p="md" className="bg-white/90 dark:bg-[#1A1B1E] border-slate-200/90 dark:border-[#2C2E33] shadow-xs hover:border-teal-400 dark:hover:border-teal-500/60 transition-all">
           <Group gap="sm" align="flex-start" wrap="nowrap">
             <ThemeIcon size={38} radius="md" variant="light" color="teal">
               <ShieldCheck className="w-5 h-5" />

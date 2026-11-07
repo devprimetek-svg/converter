@@ -17,7 +17,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({ status }) => {
       shadow="md"
       radius="xl"
       p="xl"
-      className="max-w-2xl mx-auto bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md border-zinc-200 dark:border-zinc-800"
+      className="max-w-2xl mx-auto bg-white/95 dark:bg-[#1A1B1E] backdrop-blur-md border-slate-200 dark:border-[#2C2E33] shadow-md"
     >
       <Group justify="space-between" align="center" mb="md">
         <Group gap="sm">
@@ -56,7 +56,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({ status }) => {
           radius="md"
           p="xs"
           mt="md"
-          className="bg-zinc-50/70 dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800"
+          className="bg-blue-50/50 dark:bg-[#141517] border-blue-100 dark:border-[#2C2E33]"
         >
           <Group justify="space-between" wrap="nowrap">
             <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>

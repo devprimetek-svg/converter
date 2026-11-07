@@ -246,7 +246,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-zinc-200 dark:border-zinc-800/80 bg-white/95 dark:bg-black/95 backdrop-blur-xl transition-colors">
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 dark:border-[#25262B] bg-white/95 dark:bg-[#141517]/95 backdrop-blur-xl transition-colors">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
           {/* Brand, Realtime Version, and Live Status */}
           <Group gap="sm" wrap="nowrap" className="shrink-0">
@@ -326,7 +326,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </Button>
               </Menu.Target>
 
-              <Menu.Dropdown className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-1.5 shadow-xl">
+              <Menu.Dropdown className="border border-slate-200/90 dark:border-[#2C2E33] bg-white dark:bg-[#1A1B1E] p-1.5 shadow-xl">
                 <Menu.Label className="text-[10px] uppercase font-mono tracking-wider">
                   Catalogue & Excel Tools
                 </Menu.Label>
@@ -382,7 +382,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </Button>
               </Menu.Target>
 
-              <Menu.Dropdown className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-1.5 shadow-xl">
+              <Menu.Dropdown className="border border-slate-200/90 dark:border-[#2C2E33] bg-white dark:bg-[#1A1B1E] p-1.5 shadow-xl">
                 <Menu.Label className="text-[10px] uppercase font-mono tracking-wider">
                   Photo & Branding Tools
                 </Menu.Label>
@@ -424,7 +424,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 radius="md"
                 px="sm"
                 py={4}
-                className="bg-zinc-100/70 dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800 flex items-center gap-2"
+                className="bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/50 flex items-center gap-2"
               >
                 <activeTabMeta.icon className="w-3.5 h-3.5 text-blue-500" />
                 <Text size="xs" fw={700} className="font-sans">
@@ -459,7 +459,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 radius="md"
                 onClick={() => setSettingsOpened(true)}
                 aria-label="Settings"
-                className="border-zinc-200 dark:border-zinc-800"
+                className="border-slate-200 dark:border-[#2C2E33] hover:border-blue-400 dark:hover:border-blue-500"
               >
                 <Settings className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
               </ActionIcon>
@@ -474,7 +474,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   radius="md"
                   onClick={onReplaySplash}
                   aria-label="Replay Welcome Screen"
-                  className="border-zinc-200 dark:border-zinc-800"
+                  className="border-slate-200 dark:border-[#2C2E33] hover:border-blue-400 dark:hover:border-blue-500"
                 >
                   <RotateCcw className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
                 </ActionIcon>
@@ -489,7 +489,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 radius="md"
                 onClick={toggleTheme}
                 aria-label="Toggle Color Scheme"
-                className="border-zinc-200 dark:border-zinc-800"
+                className="border-slate-200 dark:border-[#2C2E33] hover:border-blue-400 dark:hover:border-blue-500"
               >
                 {isDark ? (
                   <Sun className="w-3.5 h-3.5 text-amber-400" />
@@ -502,7 +502,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Mobile & Tablet Tab Scroll Bar */}
-        <div className="lg:hidden flex items-center justify-start border-t border-zinc-200 dark:border-zinc-800/80 px-2 py-2 bg-white dark:bg-black text-[11px] font-medium overflow-x-auto no-scrollbar gap-1.5 safe-bottom">
+        <div className="lg:hidden flex items-center justify-start border-t border-slate-200/80 dark:border-[#25262B] px-2 py-2 bg-white/95 dark:bg-[#141517]/95 text-[11px] font-medium overflow-x-auto no-scrollbar gap-1.5 safe-bottom">
           {allTabs.map((t) => {
             const Icon = t.icon;
             const isActive = activeTab === t.id;
@@ -555,7 +555,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       >
         <Stack gap="md">
           {/* Server Status Card */}
-          <Paper withBorder radius="md" p="md" className="bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800">
+          <Paper withBorder radius="md" p="md" className="bg-slate-50 dark:bg-[#101113] border-slate-200 dark:border-[#2C2E33]">
             <Group justify="space-between">
               <Group gap="xs">
                 <Server className="w-4 h-4 text-blue-500" />

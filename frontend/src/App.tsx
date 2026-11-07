@@ -313,7 +313,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen min-h-[100dvh] flex flex-col bg-zinc-50 dark:bg-black bg-minimal-pattern text-zinc-900 dark:text-white transition-colors duration-200 font-sans">
+    <div className="min-h-screen min-h-[100dvh] flex flex-col bg-[#f8f9fc] dark:bg-[#101113] bg-minimal-pattern text-slate-900 dark:text-[#C1C2C5] transition-colors duration-200 font-sans">
       {/* Startup Splash Screen */}
       {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
 
@@ -354,13 +354,13 @@ export function App() {
             {!status && !errorMessage && (
               <div className="space-y-8">
                 <div className="text-center max-w-2xl mx-auto space-y-3">
-                  <Badge variant="light" color="blue" size="lg" radius="md">
+                  <Badge variant="gradient" gradient={{ from: 'blue', to: 'indigo', deg: 105 }} size="lg" radius="md">
                     CONVERTER STUDIO
                   </Badge>
-                  <h2 className="text-3xl sm:text-4xl font-extrabold text-zinc-900 dark:text-white tracking-tight">
+                  <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
                     Parts Catalogue to Excel
                   </h2>
-                  <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400 font-normal">
+                  <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 font-normal">
                     Yamaha aur automotive PDF catalogues ko saaf-suthri Excel sheets me convert karein — part number, description aur quantities ke sath.
                   </p>
                 </div>
@@ -419,12 +419,12 @@ export function App() {
         )}
       </main>
 
-      {/* Sleek Mantine-Integrated Footer */}
-      <footer className="border-t border-zinc-200 dark:border-zinc-800/80 bg-white/90 dark:bg-black/90 backdrop-blur-md py-4 text-xs font-mono text-zinc-500 dark:text-zinc-400 safe-bottom">
+      {/* Sleek Mantine Studio Footer */}
+      <footer className="border-t border-slate-200/80 dark:border-[#25262B] bg-white/90 dark:bg-[#141517]/90 backdrop-blur-md py-4 text-xs font-mono text-slate-500 dark:text-slate-400 safe-bottom">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
           <Group gap="xs" align="center">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <Text size="xs" fw={700} className="tracking-wider uppercase text-zinc-800 dark:text-zinc-200">
+            <Text size="xs" fw={700} className="tracking-wider uppercase text-slate-800 dark:text-slate-200">
               Converter Studio • Automotive Parts & Media Suite
             </Text>
           </Group>
