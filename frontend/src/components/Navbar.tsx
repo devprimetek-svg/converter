@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Group,
   Button,
@@ -7,9 +7,16 @@ import {
   Tooltip,
   Text,
   ThemeIcon,
+  Modal,
+  PasswordInput,
+  Stack,
+  Divider,
+  Paper,
+  Menu,
   useMantineColorScheme,
   useComputedColorScheme,
 } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import {
   Moon,
   Sun,
@@ -23,6 +30,13 @@ import {
   Download,
   Layers,
   Wand2,
+  Settings,
+  Server,
+  Key,
+  Trash2,
+  ChevronDown,
+  Shield,
+  FileText,
 } from 'lucide-react';
 
 export type ActiveTab =
@@ -53,14 +67,37 @@ export const Navbar: React.FC<NavbarProps> = ({
   const computedColorScheme = useComputedColorScheme('dark', { getInitialValueInEffect: true });
   const isDark = computedColorScheme === 'dark' || darkMode;
 
-  const [updateInfo, setUpdateInfo] = React.useState<{
+  // App version and update state
+  const [appVersion, setAppVersion] = useState<string>('2.6.12');
+  const [updateInfo, setUpdateInfo] = useState<{
     has_update: boolean;
     latest_version: string;
   } | null>(null);
-  const [isUpdating, setIsUpdating] = React.useState<boolean>(false);
-  const [updateStatus, setUpdateStatus] = React.useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState<boolean>(false);
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
 
-  React.useEffect(() => {
+  // Live Server Health & Latency State
+  const [serverStatus, setServerStatus] = useState<'online' | 'checking' | 'offline'>('checking');
+  const [serverLatency, setServerLatency] = useState<number | null>(null);
+
+  // Settings Modal State
+  const [settingsOpened, setSettingsOpened] = useState(false);
+  const [leonardoKey, setLeonardoKey] = useState<string>(() => localStorage.getItem('leonardo_api_key') || '');
+  const [geminiKey, setGeminiKey] = useState<string>(() => localStorage.getItem('gemini_api_key') || '');
+
+  // Fetch real app version and check update on mount
+  useEffect(() => {
+    // 1. Fetch Version
+    fetch('/api/app/version')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.version) {
+          setAppVersion(data.version);
+        }
+      })
+      .catch(() => {});
+
+    // 2. Check for Updates
     fetch('/api/app/check-update')
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -73,6 +110,27 @@ export const Navbar: React.FC<NavbarProps> = ({
       .catch(() => {
         setUpdateInfo(null);
       });
+
+    // 3. Ping Server Health & Measure Latency
+    const checkHealth = async () => {
+      const start = performance.now();
+      try {
+        const res = await fetch('/api/health');
+        const duration = Math.round(performance.now() - start);
+        if (res.ok) {
+          setServerStatus('online');
+          setServerLatency(duration);
+        } else {
+          setServerStatus('offline');
+        }
+      } catch {
+        setServerStatus('offline');
+      }
+    };
+
+    checkHealth();
+    const healthInterval = setInterval(checkHealth, 30000);
+    return () => clearInterval(healthInterval);
   }, []);
 
   const handleUpdate = async () => {
@@ -102,93 +160,360 @@ export const Navbar: React.FC<NavbarProps> = ({
     setDarkMode(nextMode);
   };
 
-  const tabs = [
+  const saveSettings = () => {
+    localStorage.setItem('leonardo_api_key', leonardoKey.trim());
+    localStorage.setItem('gemini_api_key', geminiKey.trim());
+    setSettingsOpened(false);
+    notifications.show({
+      title: 'Settings Saved',
+      message: 'API keys and configuration preferences have been updated.',
+      color: 'teal',
+    });
+  };
+
+  const clearAppCache = () => {
+    localStorage.removeItem('leonardo_api_key');
+    localStorage.removeItem('gemini_api_key');
+    setLeonardoKey('');
+    setGeminiKey('');
+    notifications.show({
+      title: 'Cache Cleared',
+      message: 'Local session credentials and temporary UI state cleared.',
+      color: 'blue',
+    });
+  };
+
+  // Logical Tabs Definition
+  const documentTabs = [
     {
       id: 'auto-pipeline' as ActiveTab,
       label: 'Auto Pipeline',
+      description: 'End-to-end automated catalogue extraction & hotspot pipeline',
       icon: Sparkles,
       badge: 'All-in-1',
     },
     {
-      id: 'ai-image-gen' as ActiveTab,
-      label: 'AI Image Gen',
-      icon: Wand2,
-      badge: 'AI',
-    },
-    {
       id: 'batch-queue' as ActiveTab,
       label: 'Batch Queue',
+      description: 'Bulk queue for multiple Yamaha parts catalogues',
       icon: Layers,
       badge: 'Bulk PDF',
     },
     {
       id: 'catalogue' as ActiveTab,
       label: 'Parts to Excel',
+      description: 'Single-document precision coordinate matrix extraction',
       icon: FileSpreadsheet,
       badge: 'Yamaha',
+    },
+  ];
+
+  const mediaTabs = [
+    {
+      id: 'ai-image-gen' as ActiveTab,
+      label: 'AI Image Gen',
+      description: 'ControlNet LineArt & 3D CAD schematic assembly rendering',
+      icon: Wand2,
+      badge: 'AI',
     },
     {
       id: 'pdf-images' as ActiveTab,
       label: 'Extract Images',
+      description: 'Extract embedded high-res diagrams from digital catalogues',
       icon: FileImage,
-      badge: 'New',
+      badge: 'Vector',
     },
     {
       id: 'resizer' as ActiveTab,
       label: 'Bulk Resizer',
+      description: 'Lossless web resolution batch resizing with smart padding',
       icon: Crop,
-      badge: 'New',
+      badge: 'Resize',
     },
     {
       id: 'watermark' as ActiveTab,
       label: 'Watermark',
+      description: 'Automated alpha transparency logo branding stamp',
       icon: Droplet,
-      badge: 'New',
+      badge: 'Brand',
     },
   ];
 
-  return (
-    <header className="sticky top-0 z-40 border-b border-zinc-200 dark:border-zinc-800/80 bg-white/95 dark:bg-black/95 backdrop-blur-xl transition-colors">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
-        {/* Brand & Tagline */}
-        <Group gap="sm" wrap="nowrap" className="shrink-0">
-          <ThemeIcon
-            size={40}
-            radius="xl"
-            variant="gradient"
-            gradient={{ from: 'blue', to: 'indigo', deg: 135 }}
-            className="shadow-sm shadow-blue-500/20"
-          >
-            <Zap className="w-5 h-5 text-white" />
-          </ThemeIcon>
-          <div>
-            <Group gap={6} align="center">
-              <Text fw={900} size="sm" className="tracking-wider uppercase font-sans">
-                Converter <span className="font-light text-zinc-500 dark:text-zinc-400">Studio</span>
-              </Text>
-              <Badge variant="light" color="blue" size="xs" radius="sm">
-                v1.0
-              </Badge>
-            </Group>
-            <Text size="xs" c="dimmed" className="font-mono tracking-widest uppercase font-medium text-[10px]">
-              Extract & Build Matrix
-            </Text>
-          </div>
-        </Group>
+  const allTabs = [...documentTabs, ...mediaTabs];
+  const activeTabMeta = allTabs.find((t) => t.id === activeTab);
+  const isDocumentTabActive = documentTabs.some((t) => t.id === activeTab);
+  const isMediaTabActive = mediaTabs.some((t) => t.id === activeTab);
 
-        {/* Center Mantine Tab Navigation */}
-        <nav className="hidden lg:flex items-center gap-1 p-1 bg-zinc-100/80 dark:bg-zinc-950/80 rounded-xl border border-zinc-200/80 dark:border-zinc-800/80 text-[11px] font-medium whitespace-nowrap">
-          {tabs.map((t) => {
+  return (
+    <>
+      <header className="sticky top-0 z-40 border-b border-zinc-200 dark:border-zinc-800/80 bg-white/95 dark:bg-black/95 backdrop-blur-xl transition-colors">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+          {/* Brand, Realtime Version, and Live Status */}
+          <Group gap="sm" wrap="nowrap" className="shrink-0">
+            <ThemeIcon
+              size={40}
+              radius="xl"
+              variant="gradient"
+              gradient={{ from: 'blue', to: 'indigo', deg: 135 }}
+              className="shadow-sm shadow-blue-500/20"
+            >
+              <Zap className="w-5 h-5 text-white" />
+            </ThemeIcon>
+            <div>
+              <Group gap={6} align="center">
+                <Text fw={900} size="sm" className="tracking-wider uppercase font-sans">
+                  Converter <span className="font-light text-zinc-500 dark:text-zinc-400">Studio</span>
+                </Text>
+                <Tooltip label={`Converter Studio Release v${appVersion}`} withArrow position="bottom">
+                  <Badge variant="light" color="blue" size="xs" radius="sm" className="cursor-default font-mono">
+                    v{appVersion}
+                  </Badge>
+                </Tooltip>
+              </Group>
+              <Group gap={6} align="center">
+                <Text size="xs" c="dimmed" className="font-mono tracking-widest uppercase font-medium text-[10px]">
+                  Intelligence Matrix
+                </Text>
+                <span className="text-zinc-300 dark:text-zinc-700">•</span>
+                <Tooltip
+                  label={
+                    serverStatus === 'online'
+                      ? `Backend Online (Latency: ${serverLatency ?? 0}ms)`
+                      : 'Connecting to Cloud Backend...'
+                  }
+                  withArrow
+                  position="bottom"
+                >
+                  <Group gap={4} className="cursor-default">
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        serverStatus === 'online'
+                          ? 'bg-emerald-500 animate-pulse'
+                          : serverStatus === 'checking'
+                          ? 'bg-amber-500 animate-spin'
+                          : 'bg-red-500'
+                      }`}
+                    />
+                    <Text size="xs" c={serverStatus === 'online' ? 'teal' : 'dimmed'} className="text-[10px] font-mono">
+                      {serverStatus === 'online' ? `${serverLatency ?? 0}ms` : 'offline'}
+                    </Text>
+                  </Group>
+                </Tooltip>
+              </Group>
+            </div>
+          </Group>
+
+          {/* Categorized Desktop Navigation */}
+          <nav className="hidden lg:flex items-center gap-2">
+            {/* Category 1: Documents Dropdown */}
+            <Menu shadow="md" width={280} position="bottom-start" radius="md" withArrow>
+              <Menu.Target>
+                <Button
+                  variant={isDocumentTabActive ? 'filled' : 'subtle'}
+                  color={isDocumentTabActive ? 'blue' : 'gray'}
+                  size="xs"
+                  radius="md"
+                  leftSection={<FileText className="w-3.5 h-3.5" />}
+                  rightSection={<ChevronDown className="w-3 h-3 opacity-70" />}
+                  className="font-medium text-xs"
+                >
+                  Documents
+                  {isDocumentTabActive && (
+                    <Badge size="xs" variant="white" color="dark" radius="sm" className="ml-1 text-[9px] px-1 py-0 h-4">
+                      {activeTabMeta?.badge}
+                    </Badge>
+                  )}
+                </Button>
+              </Menu.Target>
+
+              <Menu.Dropdown className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-1.5 shadow-xl">
+                <Menu.Label className="text-[10px] uppercase font-mono tracking-wider">
+                  Document Intelligence
+                </Menu.Label>
+                {documentTabs.map((t) => {
+                  const Icon = t.icon;
+                  const isActive = activeTab === t.id;
+                  return (
+                    <Menu.Item
+                      key={t.id}
+                      onClick={() => setActiveTab(t.id)}
+                      leftSection={
+                        <ThemeIcon size={24} radius="sm" variant={isActive ? 'filled' : 'light'} color="blue">
+                          <Icon className="w-3.5 h-3.5" />
+                        </ThemeIcon>
+                      }
+                      rightSection={
+                        <Badge size="xs" variant={isActive ? 'filled' : 'light'} color="blue">
+                          {t.badge}
+                        </Badge>
+                      }
+                      className={isActive ? 'bg-blue-50 dark:bg-blue-950/50 font-semibold' : ''}
+                    >
+                      <Text size="xs" fw={isActive ? 700 : 500}>
+                        {t.label}
+                      </Text>
+                      <Text size="xs" c="dimmed" className="text-[10px] line-clamp-1">
+                        {t.description}
+                      </Text>
+                    </Menu.Item>
+                  );
+                })}
+              </Menu.Dropdown>
+            </Menu>
+
+            {/* Category 2: Media & AI Studio Dropdown */}
+            <Menu shadow="md" width={290} position="bottom-start" radius="md" withArrow>
+              <Menu.Target>
+                <Button
+                  variant={isMediaTabActive ? 'filled' : 'subtle'}
+                  color={isMediaTabActive ? 'indigo' : 'gray'}
+                  size="xs"
+                  radius="md"
+                  leftSection={<Wand2 className="w-3.5 h-3.5" />}
+                  rightSection={<ChevronDown className="w-3 h-3 opacity-70" />}
+                  className="font-medium text-xs"
+                >
+                  Media & AI Studio
+                  {isMediaTabActive && (
+                    <Badge size="xs" variant="white" color="dark" radius="sm" className="ml-1 text-[9px] px-1 py-0 h-4">
+                      {activeTabMeta?.badge}
+                    </Badge>
+                  )}
+                </Button>
+              </Menu.Target>
+
+              <Menu.Dropdown className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-1.5 shadow-xl">
+                <Menu.Label className="text-[10px] uppercase font-mono tracking-wider">
+                  Creative & Media Pipeline
+                </Menu.Label>
+                {mediaTabs.map((t) => {
+                  const Icon = t.icon;
+                  const isActive = activeTab === t.id;
+                  return (
+                    <Menu.Item
+                      key={t.id}
+                      onClick={() => setActiveTab(t.id)}
+                      leftSection={
+                        <ThemeIcon size={24} radius="sm" variant={isActive ? 'filled' : 'light'} color="indigo">
+                          <Icon className="w-3.5 h-3.5" />
+                        </ThemeIcon>
+                      }
+                      rightSection={
+                        <Badge size="xs" variant={isActive ? 'filled' : 'light'} color="indigo">
+                          {t.badge}
+                        </Badge>
+                      }
+                      className={isActive ? 'bg-indigo-50 dark:bg-indigo-950/50 font-semibold' : ''}
+                    >
+                      <Text size="xs" fw={isActive ? 700 : 500}>
+                        {t.label}
+                      </Text>
+                      <Text size="xs" c="dimmed" className="text-[10px] line-clamp-1">
+                        {t.description}
+                      </Text>
+                    </Menu.Item>
+                  );
+                })}
+              </Menu.Dropdown>
+            </Menu>
+
+            {/* Current Active Tool Highlight Indicator */}
+            {activeTabMeta && (
+              <Paper
+                withBorder
+                radius="md"
+                px="sm"
+                py={4}
+                className="bg-zinc-100/70 dark:bg-zinc-900/60 border-zinc-200 dark:border-zinc-800 flex items-center gap-2"
+              >
+                <activeTabMeta.icon className="w-3.5 h-3.5 text-blue-500" />
+                <Text size="xs" fw={700} className="font-sans">
+                  {activeTabMeta.label}
+                </Text>
+              </Paper>
+            )}
+          </nav>
+
+          {/* Right Action Icons & Controls */}
+          <Group gap="xs" wrap="nowrap" className="shrink-0">
+            {updateInfo?.has_update && (
+              <Button
+                size="xs"
+                color="teal"
+                variant="filled"
+                radius="md"
+                leftSection={<Download className={`w-3.5 h-3.5 ${isUpdating ? 'animate-spin' : ''}`} />}
+                loading={isUpdating}
+                onClick={handleUpdate}
+                className="animate-pulse shadow-sm shadow-teal-500/20"
+              >
+                {isUpdating ? (updateStatus ?? 'Updating...') : `Update v${updateInfo.latest_version}`}
+              </Button>
+            )}
+
+            {/* Settings Modal Launcher */}
+            <Tooltip label="Studio Settings & API Keys" withArrow position="bottom">
+              <ActionIcon
+                variant="default"
+                size="md"
+                radius="md"
+                onClick={() => setSettingsOpened(true)}
+                aria-label="Settings"
+                className="border-zinc-200 dark:border-zinc-800"
+              >
+                <Settings className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
+              </ActionIcon>
+            </Tooltip>
+
+            {/* Replay Splash Screen */}
+            {onReplaySplash && (
+              <Tooltip label="Replay Startup Screen" withArrow position="bottom">
+                <ActionIcon
+                  variant="default"
+                  size="md"
+                  radius="md"
+                  onClick={onReplaySplash}
+                  aria-label="Replay Splash Screen"
+                  className="border-zinc-200 dark:border-zinc-800"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
+                </ActionIcon>
+              </Tooltip>
+            )}
+
+            {/* Dark / Light Mode Switch */}
+            <Tooltip label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'} withArrow position="bottom">
+              <ActionIcon
+                variant="default"
+                size="md"
+                radius="md"
+                onClick={toggleTheme}
+                aria-label="Toggle Color Scheme"
+                className="border-zinc-200 dark:border-zinc-800"
+              >
+                {isDark ? (
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                ) : (
+                  <Moon className="w-3.5 h-3.5 text-zinc-700" />
+                )}
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+        </div>
+
+        {/* Mobile & Tablet Tab Scroll Bar */}
+        <div className="lg:hidden flex items-center justify-start border-t border-zinc-200 dark:border-zinc-800/80 px-2 py-2 bg-white dark:bg-black text-[11px] font-medium overflow-x-auto no-scrollbar gap-1.5 safe-bottom">
+          {allTabs.map((t) => {
             const Icon = t.icon;
             const isActive = activeTab === t.id;
             return (
               <button
                 key={t.id}
                 onClick={() => setActiveTab(t.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-150 whitespace-nowrap shrink-0 text-xs cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap shrink-0 text-xs transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-blue-600 text-white font-semibold shadow-sm shadow-blue-500/30'
-                    : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white hover:bg-zinc-200/60 dark:hover:bg-zinc-900/60'
+                    ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                    : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white bg-zinc-100 dark:bg-zinc-950'
                 }`}
               >
                 <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-zinc-500 dark:text-zinc-400'}`} />
@@ -199,7 +524,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     color={isActive ? 'dark' : 'gray'}
                     size="xs"
                     radius="sm"
-                    className="ml-0.5 text-[9px] px-1 py-0 h-4"
+                    className="text-[9px] px-1 py-0 h-4"
                   >
                     {t.badge}
                   </Badge>
@@ -207,89 +532,102 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             );
           })}
-        </nav>
+        </div>
+      </header>
 
-        {/* Right Action Icons & Controls */}
-        <Group gap="xs" wrap="nowrap" className="shrink-0">
-          {updateInfo?.has_update && (
+      {/* Studio Settings & API Configuration Modal */}
+      <Modal
+        opened={settingsOpened}
+        onClose={() => setSettingsOpened(false)}
+        title={
+          <Group gap="xs">
+            <ThemeIcon size={28} radius="md" variant="light" color="blue">
+              <Settings className="w-4 h-4" />
+            </ThemeIcon>
+            <Text fw={700} size="sm">
+              Converter Studio Settings & Engine Configuration
+            </Text>
+          </Group>
+        }
+        radius="lg"
+        size="lg"
+        centered
+      >
+        <Stack gap="md">
+          {/* Server Status Card */}
+          <Paper withBorder radius="md" p="md" className="bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800">
+            <Group justify="space-between">
+              <Group gap="xs">
+                <Server className="w-4 h-4 text-blue-500" />
+                <Text size="xs" fw={700}>Backend Server Connection</Text>
+              </Group>
+              <Badge variant="dot" color={serverStatus === 'online' ? 'teal' : 'red'} size="sm">
+                {serverStatus === 'online' ? `ONLINE (${serverLatency ?? 0}ms)` : 'OFFLINE'}
+              </Badge>
+            </Group>
+            <Text size="xs" c="dimmed" mt={4}>
+              Serving active extraction matrix, OCR pipeline, and 100% in-memory data processing.
+            </Text>
+          </Paper>
+
+          <Divider label="AI Generation Engine Keys" labelPosition="center" />
+
+          {/* Leonardo.ai API Key */}
+          <PasswordInput
+            label="Leonardo.ai API Key"
+            description="Used for photorealistic ControlNet LineArt 3D isometric CAD assembly generation."
+            placeholder="e.g. 1a2b3c4d-5e6f-..."
+            value={leonardoKey}
+            onChange={(e) => setLeonardoKey(e.target.value)}
+            leftSection={<Key className="w-3.5 h-3.5 text-indigo-500" />}
+            radius="md"
+          />
+
+          {/* Google Gemini API Key */}
+          <PasswordInput
+            label="Google Gemini API Key"
+            description="Used for multimodal schematic analysis and automotive catalogue interpretation."
+            placeholder="e.g. AIzaSy..."
+            value={geminiKey}
+            onChange={(e) => setGeminiKey(e.target.value)}
+            leftSection={<Key className="w-3.5 h-3.5 text-blue-500" />}
+            radius="md"
+          />
+
+          <Divider label="Maintenance & System Info" labelPosition="center" />
+
+          {/* System Info */}
+          <Group justify="space-between" align="center">
+            <Group gap="xs">
+              <Shield className="w-4 h-4 text-teal-500" />
+              <div>
+                <Text size="xs" fw={600}>Application Version</Text>
+                <Text size="xs" c="dimmed">Converter Studio Release v{appVersion}</Text>
+              </div>
+            </Group>
+
             <Button
               size="xs"
-              color="teal"
-              variant="filled"
-              radius="md"
-              leftSection={<Download className={`w-3.5 h-3.5 ${isUpdating ? 'animate-spin' : ''}`} />}
-              loading={isUpdating}
-              onClick={handleUpdate}
-              className="animate-pulse shadow-sm shadow-teal-500/20"
+              variant="light"
+              color="red"
+              leftSection={<Trash2 className="w-3.5 h-3.5" />}
+              onClick={clearAppCache}
             >
-              {isUpdating ? (updateStatus ?? 'Updating...') : `Update v${updateInfo.latest_version}`}
+              Clear Local Cache
             </Button>
-          )}
+          </Group>
 
-          {onReplaySplash && (
-            <Tooltip label="Replay Startup Screen" withArrow position="bottom">
-              <ActionIcon
-                variant="default"
-                size="md"
-                radius="md"
-                onClick={onReplaySplash}
-                aria-label="Replay Splash Screen"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-400" />
-              </ActionIcon>
-            </Tooltip>
-          )}
-
-          <Tooltip label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'} withArrow position="bottom">
-            <ActionIcon
-              variant="default"
-              size="md"
-              radius="md"
-              onClick={toggleTheme}
-              aria-label="Toggle Color Scheme"
-            >
-              {isDark ? (
-                <Sun className="w-3.5 h-3.5 text-amber-400" />
-              ) : (
-                <Moon className="w-3.5 h-3.5 text-zinc-700" />
-              )}
-            </ActionIcon>
-          </Tooltip>
-        </Group>
-      </div>
-
-      {/* Mobile & Tablet Tab Scroll Bar */}
-      <div className="lg:hidden flex items-center justify-start border-t border-zinc-200 dark:border-zinc-800/80 px-2 py-2 bg-white dark:bg-black text-[11px] font-medium overflow-x-auto no-scrollbar gap-1.5 safe-bottom">
-        {tabs.map((t) => {
-          const Icon = t.icon;
-          const isActive = activeTab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap shrink-0 text-xs transition-all cursor-pointer ${
-                isActive
-                  ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                  : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white bg-zinc-100 dark:bg-zinc-950'
-              }`}
-            >
-              <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-zinc-500 dark:text-zinc-400'}`} />
-              <span>{t.label}</span>
-              {t.badge && (
-                <Badge
-                  variant={isActive ? 'white' : 'light'}
-                  color={isActive ? 'dark' : 'gray'}
-                  size="xs"
-                  radius="sm"
-                  className="text-[9px] px-1 py-0 h-4"
-                >
-                  {t.badge}
-                </Badge>
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </header>
+          {/* Save Button */}
+          <Group justify="flex-end" mt="md">
+            <Button variant="default" size="xs" onClick={() => setSettingsOpened(false)}>
+              Cancel
+            </Button>
+            <Button size="xs" color="blue" onClick={saveSettings}>
+              Save Preferences
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </>
   );
 };
