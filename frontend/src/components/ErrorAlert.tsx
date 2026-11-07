@@ -1,4 +1,5 @@
 import React from 'react';
+import { Alert, Button, Paper, Text, Group } from '@mantine/core';
 import { AlertTriangle, FileWarning, RotateCcw } from 'lucide-react';
 
 interface ErrorAlertProps {
@@ -13,43 +14,50 @@ export const ErrorAlert: React.FC<ErrorAlertProps> = ({ message, onRetry }) => {
     message.toLowerCase().includes('ocr');
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-6 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-2xl shadow-sm">
-      <div className="flex items-start gap-4">
-        <div className="p-2.5 rounded-xl bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400 shrink-0">
-          {isNoTextLayer ? (
-            <FileWarning className="w-6 h-6" />
-          ) : (
-            <AlertTriangle className="w-6 h-6" />
-          )}
-        </div>
+    <Paper
+      withBorder
+      radius="xl"
+      p="lg"
+      className="max-w-2xl mx-auto bg-red-50/70 dark:bg-red-950/20 border-red-200 dark:border-red-900/60 shadow-sm"
+    >
+      <Alert
+        variant="light"
+        color="red"
+        title={isNoTextLayer ? 'Scanned PDF Detected (OCR Not Supported)' : 'Processing Error'}
+        icon={isNoTextLayer ? <FileWarning className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+        radius="lg"
+      >
+        <Text size="sm" mt="xs" c="red.8" className="dark:text-red-200 leading-relaxed">
+          {message}
+        </Text>
 
-        <div className="flex-1">
-          <h3 className="text-base font-bold text-red-900 dark:text-red-200">
-            {isNoTextLayer ? 'Scanned PDF Detected (OCR Not Supported)' : 'Processing Error'}
-          </h3>
-
-          <p className="mt-1 text-sm text-red-700 dark:text-red-300 leading-relaxed">
-            {message}
-          </p>
-
-          {isNoTextLayer && (
-            <div className="mt-3 p-3 bg-white/60 dark:bg-slate-900/60 rounded-xl text-xs text-slate-600 dark:text-slate-400 border border-red-200/50 dark:border-red-900/40">
-              <strong>Tip:</strong> This converter operates directly on vector coordinate text layers
+        {isNoTextLayer && (
+          <Paper
+            withBorder
+            radius="md"
+            p="xs"
+            mt="sm"
+            className="bg-white/80 dark:bg-zinc-900/80 border-red-200/60 dark:border-red-900/40"
+          >
+            <Text size="xs" c="dimmed">
+              <strong className="text-zinc-800 dark:text-zinc-200">Tip:</strong> This converter operates directly on vector coordinate text layers
               within digital PDF catalogues. Please export or supply a digital vector PDF rather than a flattened scan/photo.
-            </div>
-          )}
+            </Text>
+          </Paper>
+        )}
 
-          <div className="mt-4">
-            <button
-              onClick={onRetry}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-700 hover:bg-red-800 text-white text-xs font-bold shadow-sm transition-colors"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              Try Another PDF
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+        <Group mt="md">
+          <Button
+            color="red"
+            variant="filled"
+            size="xs"
+            leftSection={<RotateCcw className="w-3.5 h-3.5" />}
+            onClick={onRetry}
+          >
+            Try Another PDF
+          </Button>
+        </Group>
+      </Alert>
+    </Paper>
   );
 };

@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import { notifications } from '@mantine/notifications';
+import { Badge, Text, Group } from '@mantine/core';
+import { Check, AlertTriangle, FileSpreadsheet } from 'lucide-react';
 import { Navbar, type ActiveTab } from './components/Navbar';
 import { SplashScreen } from './components/SplashScreen';
 import { FileUploadZone } from './components/FileUploadZone';
@@ -76,6 +79,13 @@ export function App() {
     setIsUploading(true);
     setErrorMessage(null);
 
+    notifications.show({
+      title: 'Upload Started',
+      message: `Analyzing catalogue "${file.name}"...`,
+      color: 'blue',
+      icon: <FileSpreadsheet className="w-4 h-4" />,
+    });
+
     const formData = new FormData();
     formData.append('file', file);
 
@@ -110,7 +120,14 @@ export function App() {
       startStream(jobId);
     } catch (err: any) {
       setIsUploading(false);
-      setErrorMessage(err.message || 'Failed to start PDF processing.');
+      const msg = err.message || 'Failed to start PDF processing.';
+      setErrorMessage(msg);
+      notifications.show({
+        title: 'Upload Failed',
+        message: msg,
+        color: 'red',
+        icon: <AlertTriangle className="w-4 h-4" />,
+      });
     }
   };
 
@@ -127,10 +144,23 @@ export function App() {
           if (data.status === 'completed') {
             setIsUploading(false);
             sse.close();
+            notifications.show({
+              title: 'Extraction Completed',
+              message: `Extracted ${data.total_rows || 0} part rows across ${data.total_pages || 0} pages.`,
+              color: 'teal',
+              icon: <Check className="w-4 h-4" />,
+            });
           } else if (data.status === 'error') {
             setIsUploading(false);
-            setErrorMessage(data.error || 'Extraction encountered an error.');
+            const err = data.error || 'Extraction encountered an error.';
+            setErrorMessage(err);
             sse.close();
+            notifications.show({
+              title: 'Extraction Error',
+              message: err,
+              color: 'red',
+              icon: <AlertTriangle className="w-4 h-4" />,
+            });
           }
         } catch (parseErr) {
           console.error('Error parsing SSE event:', parseErr);
@@ -162,15 +192,35 @@ export function App() {
         if (data.status === 'completed') {
           setIsUploading(false);
           if (pollingTimerRef.current) clearInterval(pollingTimerRef.current);
+          notifications.show({
+            title: 'Extraction Completed',
+            message: `Extracted ${data.total_rows || 0} part rows across ${data.total_pages || 0} pages.`,
+            color: 'teal',
+            icon: <Check className="w-4 h-4" />,
+          });
         } else if (data.status === 'error') {
           setIsUploading(false);
-          setErrorMessage(data.error || 'Extraction failed.');
+          const err = data.error || 'Extraction failed.';
+          setErrorMessage(err);
           if (pollingTimerRef.current) clearInterval(pollingTimerRef.current);
+          notifications.show({
+            title: 'Extraction Failed',
+            message: err,
+            color: 'red',
+            icon: <AlertTriangle className="w-4 h-4" />,
+          });
         }
       } catch (pollErr: any) {
         setIsUploading(false);
-        setErrorMessage(pollErr.message || 'Lost connection to extraction server.');
+        const err = pollErr.message || 'Lost connection to extraction server.';
+        setErrorMessage(err);
         if (pollingTimerRef.current) clearInterval(pollingTimerRef.current);
+        notifications.show({
+          title: 'Connection Lost',
+          message: err,
+          color: 'red',
+          icon: <AlertTriangle className="w-4 h-4" />,
+        });
       }
     }, 500);
   };
@@ -243,8 +293,20 @@ export function App() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+
+      notifications.show({
+        title: 'Export Successful',
+        message: `Downloaded Excel: ${downloadName}`,
+        color: 'teal',
+        icon: <Check className="w-4 h-4" />,
+      });
     } catch (err: any) {
-      alert(`Export error: ${err.message}`);
+      notifications.show({
+        title: 'Export Error',
+        message: err.message || 'Failed to generate Excel file.',
+        color: 'red',
+        icon: <AlertTriangle className="w-4 h-4" />,
+      });
     } finally {
       setIsExporting(false);
     }
@@ -252,7 +314,7 @@ export function App() {
 
   return (
     <div className="min-h-screen min-h-[100dvh] flex flex-col bg-zinc-50 dark:bg-black bg-minimal-pattern text-zinc-900 dark:text-white transition-colors duration-200 font-sans">
-      {/* Minimalist Monochrome Startup Splash Screen */}
+      {/* Startup Splash Screen */}
       {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
 
       <Navbar
@@ -292,9 +354,9 @@ export function App() {
             {!status && !errorMessage && (
               <div className="space-y-8">
                 <div className="text-center max-w-2xl mx-auto space-y-3">
-                  <span className="inline-block px-3 py-1 rounded-full text-xs font-mono font-medium bg-zinc-100 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-800 uppercase tracking-widest">
-                    Converter Studio
-                  </span>
+                  <Badge variant="light" color="blue" size="lg" radius="md">
+                    CONVERTER STUDIO
+                  </Badge>
                   <h2 className="text-3xl sm:text-4xl font-extrabold text-zinc-900 dark:text-white tracking-tight">
                     Extract Parts Catalogues to Excel
                   </h2>
@@ -358,17 +420,21 @@ export function App() {
         )}
       </main>
 
-      {/* Minimalist Monochrome Footer */}
-      <footer className="border-t border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-black py-5 text-xs font-mono text-zinc-500 dark:text-zinc-400 safe-bottom">
+      {/* Sleek Mantine-Integrated Footer */}
+      <footer className="border-t border-zinc-200 dark:border-zinc-800/80 bg-white/90 dark:bg-black/90 backdrop-blur-md py-4 text-xs font-mono text-zinc-500 dark:text-zinc-400 safe-bottom">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
-          <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-zinc-900 dark:bg-white" />
-            <span className="font-semibold tracking-wider text-zinc-800 dark:text-zinc-300 uppercase">
-              Converter Studio • Extract and Build
-            </span>
-          </div>
-          <p className="text-zinc-500 dark:text-zinc-400">Document & Image Intelligence Matrix • 100% In-Memory Privacy</p>
-          <span className="text-zinc-600 dark:text-zinc-400 font-medium text-[11px]">ACTIVE [OK]</span>
+          <Group gap="xs" align="center">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <Text size="xs" fw={700} className="tracking-wider uppercase text-zinc-800 dark:text-zinc-200">
+              Converter Studio • Extract & Build
+            </Text>
+          </Group>
+          <Text size="xs" c="dimmed">
+            Document & Image Intelligence Matrix • 100% In-Memory Privacy
+          </Text>
+          <Badge variant="dot" color="teal" size="sm">
+            ACTIVE [OK]
+          </Badge>
         </div>
       </footer>
     </div>

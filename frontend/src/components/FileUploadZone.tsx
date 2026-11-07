@@ -1,4 +1,6 @@
 import React, { useRef, useState } from 'react';
+import { Paper, Text, Title, Button, Group, ThemeIcon, SimpleGrid } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { UploadCloud, FileText, AlertCircle, Layers, ShieldCheck, Cpu } from 'lucide-react';
 
 interface FileUploadZoneProps {
@@ -14,12 +16,26 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFileSelect, is
   const validateAndHandle = (file: File) => {
     setLocalError(null);
     if (!file.name.toLowerCase().endsWith('.pdf')) {
-      setLocalError('Please upload a valid PDF document (.pdf).');
+      const msg = 'Please upload a valid PDF document (.pdf).';
+      setLocalError(msg);
+      notifications.show({
+        title: 'Unsupported File Format',
+        message: msg,
+        color: 'red',
+        icon: <AlertCircle className="w-4 h-4" />,
+      });
       return;
     }
     const maxSize = 60 * 1024 * 1024; // 60MB
     if (file.size > maxSize) {
-      setLocalError('File size exceeds 50MB limit.');
+      const msg = 'File size exceeds 60MB limit.';
+      setLocalError(msg);
+      notifications.show({
+        title: 'File Too Large',
+        message: msg,
+        color: 'red',
+        icon: <AlertCircle className="w-4 h-4" />,
+      });
       return;
     }
     onFileSelect(file);
@@ -48,15 +64,18 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFileSelect, is
 
   return (
     <div className="w-full max-w-4xl mx-auto">
-      <div
+      <Paper
+        withBorder
+        radius="xl"
+        p={{ base: 'xl', sm: 48 }}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onClick={() => !isUploading && fileInputRef.current?.click()}
-        className={`relative group cursor-pointer rounded-2xl border-2 border-dashed p-8 sm:p-12 text-center transition-all duration-200 ${
+        className={`relative group cursor-pointer text-center border-2 border-dashed transition-all duration-200 ${
           isDragOver
-            ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/30 scale-[1.01]'
-            : 'border-slate-300 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-600 bg-white dark:bg-slate-900/60 hover:bg-slate-50/50 dark:hover:bg-slate-900'
+            ? 'border-blue-500 bg-blue-50/70 dark:bg-blue-950/40 scale-[1.01]'
+            : 'border-zinc-300 dark:border-zinc-800 hover:border-blue-400 dark:hover:border-blue-600 bg-white/80 dark:bg-zinc-950/80 hover:bg-zinc-50 dark:hover:bg-zinc-900/60'
         } ${isUploading ? 'pointer-events-none opacity-60' : 'shadow-sm'}`}
       >
         <input
@@ -71,26 +90,34 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFileSelect, is
           }}
         />
 
-        <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-2xl bg-blue-50 dark:bg-blue-950/70 border border-blue-100 dark:border-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-400 group-hover:scale-105 transition-transform duration-200">
-          <UploadCloud className="w-8 h-8 sm:w-10 sm:h-10" />
-        </div>
+        <ThemeIcon
+          size={76}
+          radius={24}
+          variant="light"
+          color="blue"
+          className="mx-auto group-hover:scale-105 transition-transform duration-200 shadow-sm"
+        >
+          <UploadCloud className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+        </ThemeIcon>
 
-        <h3 className="mt-5 text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-100">
+        <Title order={3} mt="lg" className="text-zinc-900 dark:text-white">
           Upload Yamaha Parts Catalogue PDF
-        </h3>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto">
-          Drag and drop your catalogue file here, or click to browse. Supports full documents up to ~50MB.
-        </p>
+        </Title>
+        <Text size="sm" c="dimmed" mt="xs" className="max-w-md mx-auto">
+          Drag and drop your catalogue file here, or click to browse. Supports full documents up to ~60MB.
+        </Text>
 
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-md shadow-blue-600/20 transition-colors"
+        <Group justify="center" mt="xl">
+          <Button
+            size="md"
+            color="blue"
+            radius="md"
+            leftSection={<FileText className="w-4 h-4" />}
+            className="shadow-md shadow-blue-500/20"
           >
-            <FileText className="w-4 h-4" />
             Select PDF File
-          </button>
-        </div>
+          </Button>
+        </Group>
 
         {localError && (
           <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-xs font-medium">
@@ -98,52 +125,52 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({ onFileSelect, is
             <span>{localError}</span>
           </div>
         )}
-      </div>
+      </Paper>
 
       {/* Feature cards below upload */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
+      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="md" mt="xl">
+        <Paper withBorder radius="lg" p="md" className="bg-white/90 dark:bg-zinc-950/80 border-zinc-200 dark:border-zinc-800/90 shadow-xs">
+          <Group gap="sm" align="flex-start" wrap="nowrap">
+            <ThemeIcon size={38} radius="md" variant="light" color="indigo">
               <Cpu className="w-5 h-5" />
-            </div>
+            </ThemeIcon>
             <div>
-              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Coordinate Clustering</h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <Text size="sm" fw={700}>Coordinate Clustering</Text>
+              <Text size="xs" c="dimmed" mt={2}>
                 Reconstructs table rows with ~2pt tolerance for exact alignment
-              </p>
+              </Text>
             </div>
-          </div>
-        </div>
+          </Group>
+        </Paper>
 
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400">
+        <Paper withBorder radius="lg" p="md" className="bg-white/90 dark:bg-zinc-950/80 border-zinc-200 dark:border-zinc-800/90 shadow-xs">
+          <Group gap="sm" align="flex-start" wrap="nowrap">
+            <ThemeIcon size={38} radius="md" variant="light" color="blue">
               <Layers className="w-5 h-5" />
-            </div>
+            </ThemeIcon>
             <div>
-              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Vertical Model Codes</h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <Text size="sm" fw={700}>Vertical Model Codes</Text>
+              <Text size="xs" c="dimmed" mt={2}>
                 Detects rotated single-letter stacks and reverses to real model codes
-              </p>
+              </Text>
             </div>
-          </div>
-        </div>
+          </Group>
+        </Paper>
 
-        <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
+        <Paper withBorder radius="lg" p="md" className="bg-white/90 dark:bg-zinc-950/80 border-zinc-200 dark:border-zinc-800/90 shadow-xs">
+          <Group gap="sm" align="flex-start" wrap="nowrap">
+            <ThemeIcon size={38} radius="md" variant="light" color="teal">
               <ShieldCheck className="w-5 h-5" />
-            </div>
+            </ThemeIcon>
             <div>
-              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Zero Disk Storage</h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <Text size="sm" fw={700}>Zero Disk Storage</Text>
+              <Text size="xs" c="dimmed" mt={2}>
                 Processed 100% in-memory for complete catalogue privacy
-              </p>
+              </Text>
             </div>
-          </div>
-        </div>
-      </div>
+          </Group>
+        </Paper>
+      </SimpleGrid>
     </div>
   );
 };

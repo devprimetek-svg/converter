@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mantine/core": "^9.7.5",
+    "@mantine/hooks": "^9.7.5",
+    "@mantine/notifications": "^9.7.5",
     "@types/jszip": "^3.4.0",
     "clsx": "^2.1.1",
     "jszip": "^3.10.2",
