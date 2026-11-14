@@ -41,7 +41,7 @@
 
 /* Mantine Cards & Panels with Soft Light Surfaces */
 .minimal-card {
-  @apply bg-white border border-slate-200/90 rounded-2xl shadow-xs transition-all duration-200;
+  @apply bg-white border border-slate-200/90 rounded-2xl shadow-sm transition-all duration-200;
 }
 
 .minimal-card-hover {

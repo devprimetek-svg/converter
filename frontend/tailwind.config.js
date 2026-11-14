@@ -30,6 +30,7 @@ export default {
         },
       },
       boxShadow: {
+        'xs': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
         'glow-white': '0 0 25px -5px rgba(255, 255, 255, 0.2)',
         'glow-white-sm': '0 0 10px 0 rgba(255, 255, 255, 0.15)',
       },
