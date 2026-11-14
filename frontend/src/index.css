@@ -17,7 +17,7 @@
   }
 
   body {
-    @apply bg-[#f8f9fc] text-slate-900 dark:bg-[#101113] dark:text-[#C1C2C5] antialiased font-sans selection:bg-blue-600 selection:text-white dark:selection:bg-blue-500 dark:selection:text-white;
+    @apply bg-[#f8f9fc] text-slate-900 antialiased font-sans selection:bg-blue-600 selection:text-white;
     min-height: 100vh;
     min-height: 100dvh;
     padding-top: var(--sat);
@@ -28,7 +28,7 @@
   }
 }
 
-/* Mantine Studio Vibrant Light & Dark Backgrounds */
+/* Mantine Studio Vibrant Light Background */
 .bg-minimal-pattern {
   background-color: #f8f9fc;
   background-image: 
@@ -39,23 +39,13 @@
   background-size: 100% 100%, 100% 100%, 28px 28px, 28px 28px;
 }
 
-.dark .bg-minimal-pattern {
-  background-color: #101113;
-  background-image: 
-    radial-gradient(ellipse at 50% 0%, rgba(34, 139, 230, 0.12) 0%, transparent 70%),
-    radial-gradient(ellipse at 85% 60%, rgba(76, 110, 245, 0.07) 0%, transparent 60%),
-    linear-gradient(to right, rgba(255, 255, 255, 0.018) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 28px 28px, 28px 28px;
-}
-
-/* Mantine Cards & Panels with Soft Eye-Friendly Surfaces */
+/* Mantine Cards & Panels with Soft Light Surfaces */
 .minimal-card {
-  @apply bg-white dark:bg-[#1A1B1E] border border-slate-200/90 dark:border-[#2C2E33] rounded-2xl shadow-sm transition-all duration-200;
+  @apply bg-white border border-slate-200/90 rounded-2xl shadow-xs transition-all duration-200;
 }
 
 .minimal-card-hover {
-  @apply hover:border-blue-400 dark:hover:border-blue-500/70 hover:shadow-md transition-all duration-200;
+  @apply hover:border-blue-400 hover:shadow-md transition-all duration-200;
 }
 
 /* Safe area inset helpers */
@@ -72,7 +62,7 @@
   padding-right: max(env(safe-area-inset-right), 0px);
 }
 
-/* Mantine Signature Scrollbar - Adaptive Light & Dark */
+/* Clean Light Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -80,24 +70,13 @@
 ::-webkit-scrollbar-track {
   background: #f1f3f5;
 }
-.dark ::-webkit-scrollbar-track {
-  background: #101113;
-}
 ::-webkit-scrollbar-thumb {
   background: #ced4da;
   border-radius: 9999px;
   border: 1px solid #e9ecef;
 }
-.dark ::-webkit-scrollbar-thumb {
-  background: #2C2E33;
-  border-radius: 9999px;
-  border: 1px solid #1A1B1E;
-}
 ::-webkit-scrollbar-thumb:hover {
   background: #228be6;
-}
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: #339af0;
 }
 
 /* Horizontal scroll smooth edge fade mask */

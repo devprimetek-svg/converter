@@ -2,21 +2,8 @@ import { createTheme } from '@mantine/core';
 
 export const theme = createTheme({
   primaryColor: 'blue',
-  primaryShade: { light: 6, dark: 6 },
+  primaryShade: 6,
   colors: {
-    // Mantine signature dark palette for soothing low-strain dark mode
-    dark: [
-      '#C1C2C5',
-      '#A6A7AB',
-      '#909296',
-      '#5C5F66',
-      '#373A40',
-      '#2C2E33', // dark[5] - borders
-      '#25262B', // dark[6] - elevated cards
-      '#1A1B1E', // dark[7] - standard card surface
-      '#141517', // dark[8] - header / navbar surface
-      '#101113', // dark[9] - app background
-    ],
     // Vibrant Sapphire Blue for Document Intelligence
     blue: [
       '#e7f5ff',

@@ -13,13 +13,9 @@ import {
   Divider,
   Paper,
   Menu,
-  useMantineColorScheme,
-  useComputedColorScheme,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import {
-  Moon,
-  Sun,
   FileSpreadsheet,
   FileImage,
   Crop,
@@ -49,26 +45,18 @@ export type ActiveTab =
   | 'watermark';
 
 interface NavbarProps {
-  darkMode: boolean;
-  setDarkMode: (val: boolean) => void;
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
   onReplaySplash?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  darkMode,
-  setDarkMode,
   activeTab,
   setActiveTab,
   onReplaySplash,
 }) => {
-  const { setColorScheme } = useMantineColorScheme();
-  const computedColorScheme = useComputedColorScheme('dark', { getInitialValueInEffect: true });
-  const isDark = computedColorScheme === 'dark' || darkMode;
-
   // App version and update state
-  const [appVersion, setAppVersion] = useState<string>('2.6.12');
+  const [appVersion, setAppVersion] = useState<string>('2.6.13');
   const [updateInfo, setUpdateInfo] = useState<{
     has_update: boolean;
     latest_version: string;
@@ -154,11 +142,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  const toggleTheme = () => {
-    const nextMode = !isDark;
-    setColorScheme(nextMode ? 'dark' : 'light');
-    setDarkMode(nextMode);
-  };
 
   const saveSettings = () => {
     localStorage.setItem('leonardo_api_key', leonardoKey.trim());
@@ -430,23 +413,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               </Tooltip>
             )}
 
-            {/* Dark / Light Mode Switch */}
-            <Tooltip label={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'} withArrow position="bottom">
-              <ActionIcon
-                variant="default"
-                size="md"
-                radius="md"
-                onClick={toggleTheme}
-                aria-label="Toggle Color Scheme"
-                className="border-slate-200 dark:border-[#2C2E33] hover:border-blue-400 dark:hover:border-blue-500"
-              >
-                {isDark ? (
-                  <Sun className="w-3.5 h-3.5 text-amber-400" />
-                ) : (
-                  <Moon className="w-3.5 h-3.5 text-zinc-700" />
-                )}
-              </ActionIcon>
-            </Tooltip>
           </Group>
         </div>
 

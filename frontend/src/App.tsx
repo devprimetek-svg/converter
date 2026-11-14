@@ -18,13 +18,6 @@ import type { ExtractionStatus } from './types';
 
 export function App() {
   const [showSplash, setShowSplash] = useState<boolean>(true);
-  const [darkMode, setDarkMode] = useState<boolean>(() => {
-    return (
-      localStorage.getItem('theme') === 'dark' ||
-      (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)
-    );
-  });
-
   const [activeTab, setActiveTab] = useState<ActiveTab>('auto-pipeline');
 
   // Catalogue conversion state
@@ -36,16 +29,11 @@ export function App() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollingTimerRef = useRef<number | null>(null);
 
-  // Sync dark mode class
+  // Enforce light mode across DOM and localStorage
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [darkMode]);
+    document.documentElement.classList.remove('dark');
+    localStorage.setItem('theme', 'light');
+  }, []);
 
   // Clean up any SSE or polling on unmount
   useEffect(() => {
@@ -313,13 +301,11 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen min-h-[100dvh] flex flex-col bg-[#f8f9fc] dark:bg-[#101113] bg-minimal-pattern text-slate-900 dark:text-[#C1C2C5] transition-colors duration-200 font-sans">
+    <div className="min-h-screen min-h-[100dvh] flex flex-col bg-[#f8f9fc] bg-minimal-pattern text-slate-900 transition-colors duration-200 font-sans">
       {/* Startup Splash Screen */}
       {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
 
       <Navbar
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onReplaySplash={() => setShowSplash(true)}
@@ -420,11 +406,11 @@ export function App() {
       </main>
 
       {/* Sleek Mantine Studio Footer */}
-      <footer className="border-t border-slate-200/80 dark:border-[#25262B] bg-white/90 dark:bg-[#141517]/90 backdrop-blur-md py-4 text-xs font-mono text-slate-500 dark:text-slate-400 safe-bottom">
+      <footer className="border-t border-slate-200/80 bg-white/90 backdrop-blur-md py-4 text-xs font-mono text-slate-500 safe-bottom">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
           <Group gap="xs" align="center">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <Text size="xs" fw={700} className="tracking-wider uppercase text-slate-800 dark:text-slate-200">
+            <Text size="xs" fw={700} className="tracking-wider uppercase text-slate-800">
               Converter Studio • Automotive Parts & Media Suite
             </Text>
           </Group>
