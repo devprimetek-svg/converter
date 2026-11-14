@@ -32,7 +32,6 @@ import {
   Trash2,
   ChevronDown,
   Shield,
-  FileText,
 } from 'lucide-react';
 
 export type ActiveTab =
