@@ -72,19 +72,36 @@
   padding-right: max(env(safe-area-inset-right), 0px);
 }
 
-/* Mantine Signature Scrollbar */
+/* Mantine Signature Scrollbar - Adaptive Light & Dark */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
+  background: #f1f3f5;
+}
+.dark ::-webkit-scrollbar-track {
   background: #101113;
 }
 ::-webkit-scrollbar-thumb {
+  background: #ced4da;
+  border-radius: 9999px;
+  border: 1px solid #e9ecef;
+}
+.dark ::-webkit-scrollbar-thumb {
   background: #2C2E33;
   border-radius: 9999px;
   border: 1px solid #1A1B1E;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #228be6;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #339af0;
+}
+
+/* Horizontal scroll smooth edge fade mask */
+.nav-scroll-mask {
+  mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 24px), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 16px, black calc(100% - 24px), transparent);
 }

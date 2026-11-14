@@ -2,7 +2,7 @@
 ; Builds a complete professional Windows Setup (.exe) installer
 
 #define MyAppName "Converter Studio"
-#define MyAppVersion "2.6.12"
+#define MyAppVersion "2.6.13"
 #define MyAppPublisher "PrimeTek"
 #define MyAppURL "https://converter-studio.onrender.com"
 #define MyAppExeName "ConverterStudio.exe"

@@ -183,39 +183,40 @@ export const Navbar: React.FC<NavbarProps> = ({
     });
   };
 
-  // Simple, Human-Friendly Tabs Definition
-  const documentTabs = [
+  // Core Studio Tools (Direct 1-Click Access on Desktop)
+  const primaryTabs = [
     {
       id: 'auto-pipeline' as ActiveTab,
       label: 'All-in-One Auto',
       description: '1-Click me Excel, diagram photos aur watermark sab ek sath',
       icon: Sparkles,
-      badge: 'All-in-1',
+      badge: 'Auto',
     },
     {
       id: 'batch-queue' as ActiveTab,
       label: 'Bulk PDF Queue',
       description: 'Ek sath kai saari PDF catalogues upload karke convert karein',
       icon: Layers,
-      badge: 'Bulk PDF',
+      badge: 'Bulk',
     },
     {
       id: 'catalogue' as ActiveTab,
       label: 'Catalogue to Excel',
       description: 'PDF catalogue se parts number, description aur quantity Excel me nikalein',
       icon: FileSpreadsheet,
-      badge: 'Yamaha',
+      badge: 'Excel',
+    },
+    {
+      id: 'ai-image-gen' as ActiveTab,
+      label: 'Diagram to 3D',
+      description: 'Diagram sketch se realistic 3D product photo banayein (AI)',
+      icon: Wand2,
+      badge: 'AI 3D',
     },
   ];
 
-  const mediaTabs = [
-    {
-      id: 'ai-image-gen' as ActiveTab,
-      label: 'Diagram to 3D Photo',
-      description: 'Diagram sketch se realistic 3D product photo banayein (AI)',
-      icon: Wand2,
-      badge: 'AI Photo',
-    },
+  // Secondary Media Utilities (Organized in "More Tools" dropdown)
+  const utilityTabs = [
     {
       id: 'pdf-images' as ActiveTab,
       label: 'Extract PDF Photos',
@@ -239,10 +240,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     },
   ];
 
-  const allTabs = [...documentTabs, ...mediaTabs];
+  const allTabs = [...primaryTabs, ...utilityTabs];
   const activeTabMeta = allTabs.find((t) => t.id === activeTab);
-  const isDocumentTabActive = documentTabs.some((t) => t.id === activeTab);
-  const isMediaTabActive = mediaTabs.some((t) => t.id === activeTab);
+  const isUtilityTabActive = utilityTabs.some((t) => t.id === activeTab);
 
   return (
     <>
@@ -303,90 +303,55 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </Group>
 
-          {/* Categorized Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-2">
-            {/* Category 1: PDF to Excel Tools */}
-            <Menu shadow="md" width={300} position="bottom-start" radius="md" withArrow>
-              <Menu.Target>
-                <Button
-                  variant={isDocumentTabActive ? 'filled' : 'subtle'}
-                  color={isDocumentTabActive ? 'blue' : 'gray'}
-                  size="xs"
-                  radius="md"
-                  leftSection={<FileText className="w-3.5 h-3.5" />}
-                  rightSection={<ChevronDown className="w-3 h-3 opacity-70" />}
-                  className="font-medium text-xs"
+          {/* Fast, Modern Segmented Desktop Navigation */}
+          <nav className="hidden lg:flex items-center gap-1.5 bg-slate-100/90 dark:bg-[#1A1B1E] p-1 rounded-xl border border-slate-200/90 dark:border-[#2C2E33] shadow-xs">
+            {primaryTabs.map((t) => {
+              const Icon = t.icon;
+              const isActive = activeTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer select-none ${
+                    isActive
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/80 dark:hover:bg-[#25262B]'
+                  }`}
                 >
-                  PDF to Excel Tools
-                  {isDocumentTabActive && (
-                    <Badge size="xs" variant="white" color="dark" radius="sm" className="ml-1 text-[9px] px-1 py-0 h-4">
-                      {activeTabMeta?.badge}
+                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-slate-500 dark:text-zinc-400'}`} />
+                  <span>{t.label}</span>
+                  {isActive && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-white ml-0.5" />
+                  )}
+                </button>
+              );
+            })}
+
+            {/* More Utilities Dropdown */}
+            <Menu shadow="md" width={280} position="bottom-end" radius="md" withArrow>
+              <Menu.Target>
+                <button
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer select-none ${
+                    isUtilityTabActive
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/80 dark:hover:bg-[#25262B]'
+                  }`}
+                >
+                  <span>More Tools</span>
+                  {isUtilityTabActive && activeTabMeta && (
+                    <Badge size="xs" variant="white" color="dark" radius="sm" className="ml-0.5 text-[9px] px-1 py-0 h-4">
+                      {activeTabMeta.badge}
                     </Badge>
                   )}
-                </Button>
+                  <ChevronDown className="w-3 h-3 opacity-70" />
+                </button>
               </Menu.Target>
 
               <Menu.Dropdown className="border border-slate-200/90 dark:border-[#2C2E33] bg-white dark:bg-[#1A1B1E] p-1.5 shadow-xl">
-                <Menu.Label className="text-[10px] uppercase font-mono tracking-wider">
-                  Catalogue & Excel Tools
+                <Menu.Label className="text-[10px] uppercase font-mono tracking-wider text-slate-500 dark:text-zinc-400">
+                  Media & Branding Utilities
                 </Menu.Label>
-                {documentTabs.map((t) => {
-                  const Icon = t.icon;
-                  const isActive = activeTab === t.id;
-                  return (
-                    <Menu.Item
-                      key={t.id}
-                      onClick={() => setActiveTab(t.id)}
-                      leftSection={
-                        <ThemeIcon size={24} radius="sm" variant={isActive ? 'filled' : 'light'} color="blue">
-                          <Icon className="w-3.5 h-3.5" />
-                        </ThemeIcon>
-                      }
-                      rightSection={
-                        <Badge size="xs" variant={isActive ? 'filled' : 'light'} color="blue">
-                          {t.badge}
-                        </Badge>
-                      }
-                      className={isActive ? 'bg-blue-50 dark:bg-blue-950/50 font-semibold' : ''}
-                    >
-                      <Text size="xs" fw={isActive ? 700 : 500}>
-                        {t.label}
-                      </Text>
-                      <Text size="xs" c="dimmed" className="text-[10px] line-clamp-1">
-                        {t.description}
-                      </Text>
-                    </Menu.Item>
-                  );
-                })}
-              </Menu.Dropdown>
-            </Menu>
-
-            {/* Category 2: Photos & Logo Tools */}
-            <Menu shadow="md" width={300} position="bottom-start" radius="md" withArrow>
-              <Menu.Target>
-                <Button
-                  variant={isMediaTabActive ? 'filled' : 'subtle'}
-                  color={isMediaTabActive ? 'indigo' : 'gray'}
-                  size="xs"
-                  radius="md"
-                  leftSection={<Wand2 className="w-3.5 h-3.5" />}
-                  rightSection={<ChevronDown className="w-3 h-3 opacity-70" />}
-                  className="font-medium text-xs"
-                >
-                  Photos & Logo Tools
-                  {isMediaTabActive && (
-                    <Badge size="xs" variant="white" color="dark" radius="sm" className="ml-1 text-[9px] px-1 py-0 h-4">
-                      {activeTabMeta?.badge}
-                    </Badge>
-                  )}
-                </Button>
-              </Menu.Target>
-
-              <Menu.Dropdown className="border border-slate-200/90 dark:border-[#2C2E33] bg-white dark:bg-[#1A1B1E] p-1.5 shadow-xl">
-                <Menu.Label className="text-[10px] uppercase font-mono tracking-wider">
-                  Photo & Branding Tools
-                </Menu.Label>
-                {mediaTabs.map((t) => {
+                {utilityTabs.map((t) => {
                   const Icon = t.icon;
                   const isActive = activeTab === t.id;
                   return (
@@ -416,22 +381,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 })}
               </Menu.Dropdown>
             </Menu>
-
-            {/* Current Active Tool Highlight Indicator */}
-            {activeTabMeta && (
-              <Paper
-                withBorder
-                radius="md"
-                px="sm"
-                py={4}
-                className="bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/50 flex items-center gap-2"
-              >
-                <activeTabMeta.icon className="w-3.5 h-3.5 text-blue-500" />
-                <Text size="xs" fw={700} className="font-sans">
-                  {activeTabMeta.label}
-                </Text>
-              </Paper>
-            )}
           </nav>
 
           {/* Right Action Icons & Controls */}
@@ -501,37 +450,39 @@ export const Navbar: React.FC<NavbarProps> = ({
           </Group>
         </div>
 
-        {/* Mobile & Tablet Tab Scroll Bar */}
-        <div className="lg:hidden flex items-center justify-start border-t border-slate-200/80 dark:border-[#25262B] px-2 py-2 bg-white/95 dark:bg-[#141517]/95 text-[11px] font-medium overflow-x-auto no-scrollbar gap-1.5 safe-bottom">
-          {allTabs.map((t) => {
-            const Icon = t.icon;
-            const isActive = activeTab === t.id;
-            return (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap shrink-0 text-xs transition-all cursor-pointer ${
-                  isActive
-                    ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                    : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white bg-zinc-100 dark:bg-zinc-950'
-                }`}
-              >
-                <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-zinc-500 dark:text-zinc-400'}`} />
-                <span>{t.label}</span>
-                {t.badge && (
-                  <Badge
-                    variant={isActive ? 'white' : 'light'}
-                    color={isActive ? 'dark' : 'gray'}
-                    size="xs"
-                    radius="sm"
-                    className="text-[9px] px-1 py-0 h-4"
-                  >
-                    {t.badge}
-                  </Badge>
-                )}
-              </button>
-            );
-          })}
+        {/* Mobile & Tablet Tab Scroll Bar with Edge Fade Mask */}
+        <div className="lg:hidden relative border-t border-slate-200/80 dark:border-[#25262B] bg-white/95 dark:bg-[#141517]/95 safe-bottom">
+          <div className="flex items-center justify-start px-3 py-2 overflow-x-auto no-scrollbar gap-1.5 nav-scroll-mask">
+            {allTabs.map((t) => {
+              const Icon = t.icon;
+              const isActive = activeTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg whitespace-nowrap shrink-0 text-xs transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                      : 'text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white bg-zinc-100 dark:bg-[#1A1B1E] border border-transparent dark:border-[#2C2E33]'
+                  }`}
+                >
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-zinc-500 dark:text-zinc-400'}`} />
+                  <span>{t.label}</span>
+                  {t.badge && (
+                    <Badge
+                      variant={isActive ? 'white' : 'light'}
+                      color={isActive ? 'dark' : 'gray'}
+                      size="xs"
+                      radius="sm"
+                      className="text-[9px] px-1 py-0 h-4"
+                    >
+                      {t.badge}
+                    </Badge>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </header>
 
